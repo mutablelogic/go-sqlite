@@ -51,8 +51,10 @@ func (config Client) Open(log gopi.Logger) (gopi.Driver, error) {
 	this.log = log
 
 	d := &sqlite_driver.SQLiteDriver{}
-	if _, err := d.Open(config.DSN); err != nil {
+	if conn, err := d.Open(config.DSN); err != nil {
 		return nil, err
+	} else {
+		this.conn = conn
 	}
 
 	// Return success
@@ -62,7 +64,7 @@ func (config Client) Open(log gopi.Logger) (gopi.Driver, error) {
 // Close releases any resources associated with the client connection
 func (this *client) Close() error {
 	this.log.Debug("<sqlite.v3.Client>Close{ }")
-	return nil
+	return this.conn.Close()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,6 +108,17 @@ func (this *client) Reflect(v interface{}) ([]sqlite.Column, error) {
 
 	fmt.Println(columns)
 	return columns, nil
+}
+
+func (this *client) Do(statement sqlite.Statement) error {
+	this.log.Debug("<sqlite.v3.Client>Do{ %v }", statement.SQL())
+	if s, err := this.conn.Prepare(statement.SQL()); err != nil {
+		return err
+	} else if _, err := s.Exec([]driver.Value{}); err != nil {
+		return err
+	} else {
+		return nil
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

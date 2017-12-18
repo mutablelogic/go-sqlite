@@ -25,7 +25,7 @@ type Client interface {
 	Reflect(v interface{}) ([]Column, error)
 
 	// Perform operation and return an error
-	//Do(Statement) error
+	Do(Statement) error
 }
 
 type Column interface {

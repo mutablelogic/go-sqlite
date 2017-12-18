@@ -168,8 +168,6 @@ func parseTag(tag string) (string, sqlite.Type, sqlite.Flag, error) {
 
 func parseFlag(flag string) (sqlite.Flag, error) {
 	switch flag {
-	case "index":
-		return sqlite.FLAG_INDEX, nil
 	case "not null", "notnull", "not_null":
 		return sqlite.FLAG_NOT_NULL, nil
 	case "unique_key", "unique key", "unique":

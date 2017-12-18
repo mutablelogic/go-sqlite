@@ -35,12 +35,13 @@ type IoTDevice struct {
 func RunLoop2(app *gopi.AppInstance, db sqlite.Client) error {
 	app.Logger.Info("db=%v", db)
 
-	// Reflection on the rows
+	// Reflection on the columns
 	var device IoTDevice
-	if rows, err := db.Reflect(&device); err != nil {
+	if columns, err := db.Reflect(&device); err != nil {
 		return err
 	} else {
-		app.Logger.Info("rows=%v", rows)
+		sql := sqlite.CreateTable("device", columns).Schema("s").Temporary().IfNotExists()
+		app.Logger.Info("sql=%v", sql.SQL())
 	}
 
 	return nil

@@ -25,10 +25,7 @@ type Client interface {
 	Reflect(v interface{}) ([]Column, error)
 
 	// Perform operation and return an error
-	Do(Statement) error
-
-	// Create table
-	CreateTable(table string, columns []Column)
+	//Do(Statement) error
 }
 
 type Column interface {
@@ -38,6 +35,13 @@ type Column interface {
 }
 
 type Statement interface {
+	// CREATE TABLE parameters
+	Schema(string) Statement
+	IfNotExists() Statement
+	Temporary() Statement
+	WithoutRowID() Statement
+
+	// Return SQL string for the statement
 	SQL() string
 }
 

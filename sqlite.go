@@ -32,6 +32,9 @@ type Column interface {
 	Name() string
 	Type() Type
 	Flags() Flag
+
+	// Return SQL string for the column
+	SQL() string
 }
 
 type Statement interface {

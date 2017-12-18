@@ -8,6 +8,8 @@
 
 package sqlite
 
+import "strings"
+
 /////////////////////////////////////////////////////////////////////
 // TYPES
 
@@ -25,7 +27,8 @@ type q_CreateTable struct {
 
 func CreateTable(name string, columns []Column) Statement {
 	return &q_CreateTable{
-		name: name,
+		name:    name,
+		columns: columns,
 	}
 }
 
@@ -83,7 +86,14 @@ func (this *q_CreateTable) SQL() string {
 	}
 	sql = sql + " " + this.sqlTableName()
 
-	// TODO: COLUMNS
+	// Columns
+	if len(this.columns) > 0 {
+		columns := make([]string, len(this.columns))
+		for i, column := range this.columns {
+			columns[i] = column.SQL()
+		}
+		sql = sql + " (" + strings.Join(columns, ",") + ")"
+	}
 
 	if this.without_rowid {
 		sql = sql + " WITHOUT ROWID"

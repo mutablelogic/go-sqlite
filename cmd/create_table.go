@@ -42,7 +42,7 @@ func RunLoop2(app *gopi.AppInstance, db sqlite.Client) error {
 	if columns, err := db.Reflect(&device); err != nil {
 		return err
 	} else {
-		sql := sqlite.CreateTable("device", columns).Schema("s").Temporary().IfNotExists()
+		sql := sqlite.CreateTable("device", columns).IfNotExists()
 		if err := db.Do(sql); err != nil {
 			return err
 		}

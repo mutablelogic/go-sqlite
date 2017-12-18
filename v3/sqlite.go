@@ -230,3 +230,7 @@ func (this *column) Flags() sqlite.Flag {
 func (this *column) String() string {
 	return fmt.Sprintf("<sqlite.v3.Column>{ name=%v type=%v flags=%v }", this.n, this.t, this.f)
 }
+
+func (this *column) SQL() string {
+	return fmt.Sprintf("%v %v", sqlite.QuoteIdentifier(this.n), this.t)
+}

@@ -12,6 +12,9 @@ import (
 	"github.com/djthorpe/gopi"
 )
 
+/////////////////////////////////////////////////////////////////////
+// TYPES & INTERFACES
+
 type Type uint
 type Flag uint
 
@@ -20,6 +23,9 @@ type Client interface {
 
 	// Reflect on data structure of a variable to return the rows we expect
 	Reflect(v interface{}) ([]Column, error)
+
+	// Perform operation and return an error
+	Do(Statement) error
 
 	// Create table
 	CreateTable(table string, columns []Column)
@@ -30,6 +36,13 @@ type Column interface {
 	Type() Type
 	Flags() Flag
 }
+
+type Statement interface {
+	SQL() string
+}
+
+/////////////////////////////////////////////////////////////////////
+// CONSTANTS
 
 // These are the types we store 'natively' in SQLite
 // in reality, they are converted from the basic types

@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	gopi "github.com/djthorpe/gopi"
 	sqlite "github.com/djthorpe/sqlite"
@@ -80,13 +81,14 @@ func (this *client) Reflect(v interface{}) ([]sqlite.Column, error) {
 	}
 	// Enumerate struct fields
 	columns := make([]sqlite.Column, v2.NumField())
-	t2 := v2.Type()
-	for i := 0; i < t2.NumField(); i++ {
-		fieldType := t2.Field(i)
-		column, err := columnFor(fieldType)
-		if err != nil {
+	for i := 0; i < v2.Type().NumField(); i++ {
+		if column, err := columnFor(v2, i); err != nil {
 			return nil, err
+		} else {
+			columns[i] = column
 		}
+	}
+	/*
 		if fieldTag, ok := fieldType.Tag.Lookup("sql"); ok {
 			if tagName, tagType, tagFlags, err := parseTag(fieldTag); err != nil {
 				return nil, err
@@ -100,37 +102,55 @@ func (this *client) Reflect(v interface{}) ([]sqlite.Column, error) {
 				}
 				column.f |= tagFlags
 			}
-		}
-		columns[i] = column
-	}
+		}*/
+
+	fmt.Println(columns)
 	return columns, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func columnFor(f reflect.StructField) (*column, error) {
-	fmt.Printf("name %v => %v type %v\n", f.Name, f.PkgPath, typeFor(f.Type))
-	return &column{
-		n: f.Name,
-		t: typeFor(f.Type),
-	}, nil
+func columnFor(structValue reflect.Value, i int) (*column, error) {
+	col := &column{
+		n: nameFor(structValue.Type().Field(i)),
+		t: typeFor(structValue.Field(i)),
+	}
+	return col, nil
 }
 
-func typeFor(t reflect.Type) sqlite.Type {
-	switch {
-	case t.Kind() == reflect.String:
+func nameFor(field reflect.StructField) string {
+	return field.Name
+}
+
+func typeFor(v reflect.Value) sqlite.Type {
+	switch v.Kind() {
+	case reflect.String:
 		return sqlite.TYPE_TEXT
-	case t.Kind() == reflect.Bool:
+	case reflect.Bool:
 		return sqlite.TYPE_BOOL
-	case t.Kind() == reflect.Uint || t.Kind() == reflect.Uint8 || t.Kind() == reflect.Uint16 || t.Kind() == reflect.Uint32 || t.Kind() == reflect.Uint64:
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return sqlite.TYPE_UINT
-	case t.Kind() == reflect.Int || t.Kind() == reflect.Int8 || t.Kind() == reflect.Int16 || t.Kind() == reflect.Int32 || t.Kind() == reflect.Int64:
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return sqlite.TYPE_INT
-	case t.Kind() == reflect.Float32 || t.Kind() == reflect.Float64:
+	case reflect.Float32, reflect.Float64:
 		return sqlite.TYPE_FLOAT
+	case reflect.Struct:
+		if _, ok := v.Interface().(time.Time); ok {
+			return sqlite.TYPE_TIME
+		} else if _, ok := v.Interface().(time.Duration); ok {
+			return sqlite.TYPE_DURATION
+		} else {
+			return sqlite.TYPE_NONE
+		}
 	default:
-		return sqlite.TYPE_NONE
+		if v.Kind() != reflect.Array && v.Kind() != reflect.Slice {
+			return sqlite.TYPE_NONE
+		} else if _, ok := v.Interface().([]byte); ok {
+			return sqlite.TYPE_BLOB
+		} else {
+			return sqlite.TYPE_NONE
+		}
 	}
 }
 

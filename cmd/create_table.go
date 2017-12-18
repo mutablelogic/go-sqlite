@@ -28,6 +28,8 @@ type IoTDevice struct {
 	TimePaired   time.Time `sql:"name:time_paired;"`
 	TimeUnpaired time.Time `sql:"name:time_unpaired;"`
 	TimeUpdated  time.Time `sql:"name:time_updated;"`
+	Duration     time.Duration
+	Blob         []byte
 }
 
 ////////////////////////////////////////////////////////////////////////////////

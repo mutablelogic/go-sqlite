@@ -32,6 +32,11 @@ type IoTDevice struct {
 	Blob         []byte
 }
 
+// Override the sql table name
+func (IoTDevice) Name() string {
+	return "device"
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 func RunLoop2(app *gopi.AppInstance, db sqlite.Client) error {
@@ -49,6 +54,21 @@ func RunLoop2(app *gopi.AppInstance, db sqlite.Client) error {
 		if err := db.Do(sql); err != nil {
 			return err
 		}
+
+		// insert record
+		if err := db.Insert(&device); err != nil {
+			return err
+		}
+
+		// update record
+		device.Paired = true
+		if err := db.Update(&device); err != nil {
+			return err
+		}
+
+		// retrieve records
+		resultset := db.Select("device")
+
 	}
 
 	return nil

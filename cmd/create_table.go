@@ -18,17 +18,17 @@ import (
 
 // Basic information about an IoT "thing"
 type IoTDevice struct {
-	DeviceKey    string    `sql:"name:key;type:CHAR(20);primary key;not null;"`
-	Manufacturer string    `sql:"name:manufacturer;type:CHAR(80);"`
-	ProductName  string    `sql:"name:product;type:CHAR(80);"`
-	Description  string    `sql:"name:description;type:CHAR(100);"`
-	Active       bool      `sql:"name:active;"`
-	Paired       bool      `sql:"name:paired;"`
-	TimeActive   time.Time `sql:"name:time_active;"`
-	TimePaired   time.Time `sql:"name:time_paired;"`
-	TimeUnpaired time.Time `sql:"name:time_unpaired;"`
-	TimeUpdated  time.Time `sql:"name:time_updated;"`
-	Duration     time.Duration
+	DeviceKey    string        `sql:"name:key;type:CHAR(20);primary key;not null;"`
+	Manufacturer string        `sql:"name:manufacturer;type:CHAR(80);"`
+	ProductName  string        `sql:"name:product;type:CHAR(80);"`
+	Description  string        `sql:"name:description;type:CHAR(100);"`
+	Active       bool          `sql:"name:active;"`
+	Paired       bool          `sql:"name:paired;"`
+	TimeActive   time.Time     `sql:"name:time_active;"`
+	TimePaired   time.Time     `sql:"name:time_paired;"`
+	TimeUnpaired time.Time     `sql:"name:time_unpaired;"`
+	TimeUpdated  time.Time     `sql:"name:time_updated;"`
+	Duration     time.Duration `sql:"-"`
 	Blob         []byte
 }
 

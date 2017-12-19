@@ -33,12 +33,12 @@ func (this *client) Reflect(v interface{}) ([]sqlite.Column, error) {
 		return nil, errors.New("Called Reflect on a non-struct")
 	}
 	// Enumerate struct fields
-	columns := make([]sqlite.Column, v2.NumField())
+	columns := make([]sqlite.Column, 0, v2.NumField())
 	for i := 0; i < v2.Type().NumField(); i++ {
 		if column, err := columnFor(v2, i); err != nil {
 			return nil, err
-		} else {
-			columns[i] = column
+		} else if column != nil {
+			columns = append(columns, column)
 		}
 	}
 	// Return columns
@@ -55,6 +55,11 @@ func columnFor(structValue reflect.Value, i int) (*column, error) {
 		t:  typeFor(structValue.Field(i)),
 		f:  sqlite.FLAG_NONE,
 		kv: tagsFor(structValue.Type().Field(i)),
+	}
+
+	// If kv is nil, then we return nil so we ignore this column
+	if col.kv == nil {
+		return nil, nil
 	}
 
 	// Iterate through the tag key/value pairs
@@ -106,6 +111,9 @@ func tagsFor(field reflect.StructField) map[string]string {
 	if tag, ok := field.Tag.Lookup(_V3_TAG); ok == false {
 		// No tag
 		return map[string]string{}
+	} else if tag == "-" {
+		// Ignore - return nil
+		return nil
 	} else if fields := strings.Split(tag, ";"); len(fields) != 0 {
 		// Probably has tags
 		tags := make(map[string]string, len(fields))

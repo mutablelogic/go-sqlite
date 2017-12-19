@@ -8,7 +8,10 @@
 
 package sqlite
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 /////////////////////////////////////////////////////////////////////
 // TYPES
@@ -75,6 +78,14 @@ func (this *q_CreateTable) sqlTableName() string {
 	}
 }
 
+func (this *q_CreateTable) sqlColumn(c Column) string {
+	sql := QuoteIdentifier(c.Name()) + " " + fmt.Sprint(c.Type())
+	if c.Flags()&FLAG_NOT_NULL != FLAG_NONE {
+		sql = sql + " NOT NULL"
+	}
+	return sql
+}
+
 func (this *q_CreateTable) SQL() string {
 	sql := "CREATE"
 	if this.temporary {
@@ -90,10 +101,14 @@ func (this *q_CreateTable) SQL() string {
 	if len(this.columns) > 0 {
 		columns := make([]string, len(this.columns))
 		for i, column := range this.columns {
-			columns[i] = column.SQL()
+			columns[i] = this.sqlColumn(column)
 		}
 		sql = sql + " (" + strings.Join(columns, ",") + ")"
 	}
+
+	// TODO: Indexes
+
+	// TODO: Constraints
 
 	if this.without_rowid {
 		sql = sql + " WITHOUT ROWID"

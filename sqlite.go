@@ -9,6 +9,8 @@
 package sqlite
 
 import (
+	"strings"
+
 	"github.com/djthorpe/gopi"
 )
 
@@ -63,7 +65,6 @@ const (
 	TYPE_FLOAT
 	TYPE_BLOB
 	TYPE_TIME
-	TYPE_DURATION
 	TYPE_MAX
 )
 
@@ -72,7 +73,6 @@ const (
 const (
 	FLAG_NONE     Flag = 0
 	FLAG_NOT_NULL Flag = (1 << iota)
-	FLAG_UNIQUE
 	FLAG_PRIMARY_KEY
 	FLAG_MAX
 )
@@ -98,9 +98,33 @@ func (t Type) String() string {
 		return "TYPE_BLOB"
 	case TYPE_TIME:
 		return "TYPE_TIME"
-	case TYPE_DURATION:
-		return "TYPE_DURATION"
 	default:
 		return "[?? Invalid Type value]"
+	}
+}
+
+func (f Flag) String() string {
+	s := ""
+	b := FLAG_NOT_NULL
+	for {
+		if b == FLAG_MAX {
+			break
+		}
+		if f&b != 0 {
+			switch b {
+			case FLAG_NOT_NULL:
+				s = s + "FLAG_NOT_NULL,"
+			case FLAG_PRIMARY_KEY:
+				s = s + "FLAG_PRIMARY_KEY,"
+			default:
+				s = s + "[?? Invalid flag value],"
+			}
+		}
+		b = b << 1
+	}
+	if s == "" {
+		return "FLAG_NONE"
+	} else {
+		return strings.TrimRight(s, ",")
 	}
 }

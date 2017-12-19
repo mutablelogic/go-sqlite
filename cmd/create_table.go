@@ -18,7 +18,7 @@ import (
 
 // Basic information about an IoT "thing"
 type IoTDevice struct {
-	DeviceKey    string    `sql:"name:key;type:CHAR(20);unique;not null;"`
+	DeviceKey    string    `sql:"name:key;type:CHAR(20);primary key;not null;"`
 	Manufacturer string    `sql:"name:manufacturer;type:CHAR(80);"`
 	ProductName  string    `sql:"name:product;type:CHAR(80);"`
 	Description  string    `sql:"name:description;type:CHAR(100);"`
@@ -42,6 +42,9 @@ func RunLoop2(app *gopi.AppInstance, db sqlite.Client) error {
 	if columns, err := db.Reflect(&device); err != nil {
 		return err
 	} else {
+		for _, column := range columns {
+			fmt.Println(column)
+		}
 		sql := sqlite.CreateTable("device", columns).IfNotExists()
 		if err := db.Do(sql); err != nil {
 			return err

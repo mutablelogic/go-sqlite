@@ -25,6 +25,13 @@ type q_CreateTable struct {
 	columns       []Column
 }
 
+type q_Select struct {
+	name     string
+	schema   string
+	distinct bool
+	columns  []string
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // CONSTRUCT QUERIES
 
@@ -35,10 +42,21 @@ func CreateTable(name string, columns []Column) Statement {
 	}
 }
 
+func Select(name string) Statement {
+	return &q_Select{
+		name: name,
+	}
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // SCHEMA
 
 func (this *q_CreateTable) Schema(name string) Statement {
+	this.schema = name
+	return this
+}
+
+func (this *q_Select) Schema(name string) Statement {
 	this.schema = name
 	return this
 }
@@ -114,5 +132,18 @@ func (this *q_CreateTable) SQL() string {
 		sql = sql + " WITHOUT ROWID"
 	}
 
+	return sql
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// SELECT
+
+func (this *q_Select) SQL() string {
+	sql := "SELECT"
+	if this.distinct {
+		sql = sql + " DISTINCT"
+	}
+	sql = sql + " *"
+	sql = sql + " FROM " + this.sqlTableName()
 	return sql
 }

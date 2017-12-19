@@ -51,26 +51,24 @@ func (this *client) Reflect(v interface{}) ([]sqlite.Column, error) {
 func columnFor(structValue reflect.Value, i int) (*column, error) {
 	// Create the column
 	col := &column{
-		n:  nameFor(structValue.Type().Field(i)),
-		t:  typeFor(structValue.Field(i)),
-		f:  sqlite.FLAG_NONE,
-		kv: tagsFor(structValue.Type().Field(i)),
+		n: nameFor(structValue.Type().Field(i)),
+		t: typeFor(structValue.Field(i)),
+		f: flagsFor(structValue.Type().Field(i)),
 	}
 
-	// If kv is nil, then we return nil so we ignore this column
-	if col.kv == nil {
+	// If f is nil, then we return nil so we ignore this column,
+	// the tag is set as sql:"-" which means to ignore the field
+	if col.f == nil {
 		return nil, nil
 	}
 
-	// Iterate through the tag key/value pairs
-	for k, v := range col.kv {
-		if flag, err := flagsFor(k, v); err != nil {
-			return nil, err
-		} else {
-			col.f |= flag
-		}
+	// If f contains FLAG_NONE then there has been an error
+	// interpreting the flags
+	if _, exists := col.f[sqlite.FLAG_NONE]; exists {
+		return nil, fmt.Errorf("%v: invalid tag fields", col.n)
 	}
 
+	// Return column
 	return col, nil
 }
 
@@ -107,62 +105,49 @@ func typeFor(v reflect.Value) sqlite.Type {
 	}
 }
 
-func tagsFor(field reflect.StructField) map[string]string {
+func flagsFor(field reflect.StructField) map[sqlite.Flag]string {
 	if tag, ok := field.Tag.Lookup(_V3_TAG); ok == false {
 		// No tag
-		return map[string]string{}
+		return map[sqlite.Flag]string{}
 	} else if tag == "-" {
 		// Ignore - return nil
 		return nil
 	} else if fields := strings.Split(tag, ";"); len(fields) != 0 {
 		// Probably has tags
-		tags := make(map[string]string, len(fields))
+		tags := make(map[sqlite.Flag]string, len(fields))
 		for _, field := range fields {
 			if kv := strings.SplitN(field, ":", 2); len(kv) > 0 && kv[0] != "" {
-				key := strings.TrimSpace(kv[0])
+				flag := flagFor(strings.TrimSpace(kv[0]))
 				if len(kv) == 1 {
-					tags[key] = ""
+					tags[flag] = ""
 				} else {
-					tags[key] = strings.TrimSpace(kv[1])
+					tags[flag] = strings.TrimSpace(kv[1])
 				}
 			}
 		}
 		return tags
 	} else {
 		// No tag
-		return map[string]string{}
+		return map[sqlite.Flag]string{}
 	}
 }
 
-// flagsFor returns any flag modifiers, will return FLAG_NONE if
-// a flag does not modify the flags
-func flagsFor(key string, value string) (sqlite.Flag, error) {
+// flagsFor returns flag for key or FLAG_NONE if the key was invalud
+func flagFor(key string) sqlite.Flag {
 	switch strings.ToLower(key) {
 	case "not null", "notnull", "not_null":
-		if value != "" {
-			return sqlite.FLAG_NONE, fmt.Errorf("Tag '%v' cannot have a value", key)
-		}
-		return sqlite.FLAG_NOT_NULL, nil
-	case "name", "type":
-		return sqlite.FLAG_NONE, nil
+		return sqlite.FLAG_NOT_NULL
+	case "name":
+		return sqlite.FLAG_NAME
+	case "type":
+		return sqlite.FLAG_TYPE
 	case "primary_key", "primary key", "primary":
-		return sqlite.FLAG_PRIMARY_KEY, nil
+		return sqlite.FLAG_PRIMARY_KEY
+	case "key", "index":
+		return sqlite.FLAG_INDEX_KEY
+	case "unique", "unique key", "unique_key":
+		return sqlite.FLAG_UNIQUE_KEY
 	default:
-		return sqlite.FLAG_NONE, fmt.Errorf("Unknown Tag: '%v'", key)
+		return sqlite.FLAG_NONE
 	}
 }
-
-/*
-func parseFlag(flag string) (sqlite.Flag, error) {
-	switch flag {
-	case
-		return sqlite.FLAG_NOT_NULL, nil
-	case "unique_key", "unique key", "unique":
-		return sqlite.FLAG_UNIQUE, nil
-	case "primary_key", "primary key", "primarykey", "primary":
-		return sqlite.FLAG_PRIMARY_KEY, nil
-	default:
-		return sqlite.FLAG_NONE, fmt.Errorf("Unknown flag '%v'", flag)
-	}
-}
-*/

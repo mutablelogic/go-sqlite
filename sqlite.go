@@ -9,8 +9,6 @@
 package sqlite
 
 import (
-	"strings"
-
 	"github.com/djthorpe/gopi"
 )
 
@@ -25,6 +23,9 @@ type Client interface {
 
 	// Reflect on data structure of a variable to return the rows we expect
 	Reflect(v interface{}) ([]Column, error)
+	PrimaryKey([]Column) (Key, error)
+	//Unique([]Column) ([]Key, error)
+	//Index([]Column) ([]Key, error)
 
 	// Perform operation and return an error
 	Do(Statement) error
@@ -32,9 +33,13 @@ type Client interface {
 
 type Column interface {
 	Name() string
+	Identifier() string // Either the name or custom identifier
 	Type() Type
-	Flags() Flag
+	Flag(Flag) bool
+	Value(Flag) string
 }
+
+type Key interface{}
 
 type Statement interface {
 	// CREATE TABLE parameters
@@ -71,7 +76,11 @@ const (
 	FLAG_NONE     Flag = 0
 	FLAG_NOT_NULL Flag = (1 << iota)
 	FLAG_PRIMARY_KEY
-	FLAG_MAX
+	FLAG_UNIQUE_KEY
+	FLAG_INDEX_KEY
+	FLAG_NAME
+	FLAG_TYPE
+	FLAG_MAX = FLAG_TYPE
 )
 
 /////////////////////////////////////////////////////////////////////
@@ -101,27 +110,20 @@ func (t Type) String() string {
 }
 
 func (f Flag) String() string {
-	s := ""
-	b := FLAG_NOT_NULL
-	for {
-		if b == FLAG_MAX {
-			break
-		}
-		if f&b != 0 {
-			switch b {
-			case FLAG_NOT_NULL:
-				s = s + "FLAG_NOT_NULL,"
-			case FLAG_PRIMARY_KEY:
-				s = s + "FLAG_PRIMARY_KEY,"
-			default:
-				s = s + "[?? Invalid flag value],"
-			}
-		}
-		b = b << 1
-	}
-	if s == "" {
-		return "FLAG_NONE"
-	} else {
-		return strings.TrimRight(s, ",")
+	switch f {
+	case FLAG_NOT_NULL:
+		return "FLAG_NOT_NULL"
+	case FLAG_PRIMARY_KEY:
+		return "FLAG_PRIMARY_KEY"
+	case FLAG_UNIQUE_KEY:
+		return "FLAG_UNIQUE_KEY"
+	case FLAG_INDEX_KEY:
+		return "FLAG_INDEX_KEY"
+	case FLAG_NAME:
+		return "FLAG_NAME"
+	case FLAG_TYPE:
+		return "FLAG_TYPE"
+	default:
+		return "[?? Invalid Flag value]"
 	}
 }

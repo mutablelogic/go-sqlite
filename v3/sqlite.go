@@ -31,10 +31,9 @@ type client struct {
 }
 
 type column struct {
-	n  string            // column name
-	t  sqlite.Type       // sql type
-	f  sqlite.Flag       // flags
-	kv map[string]string // key-value tag pairs
+	n string                 // column name
+	t sqlite.Type            // sql type
+	f map[sqlite.Flag]string // flag-value tag pairs
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,14 +91,41 @@ func (this *column) Name() string {
 	return this.n
 }
 
+func (this *column) Identifier() string {
+	if this.Flag(sqlite.FLAG_NAME) == false {
+		return this.n
+	} else if value := this.Value(sqlite.FLAG_NAME); value != "" {
+		return value
+	} else {
+		return this.n
+	}
+}
+
 func (this *column) Type() sqlite.Type {
 	return this.t
 }
 
-func (this *column) Flags() sqlite.Flag {
-	return this.f
+func (this *column) Flag(flag sqlite.Flag) bool {
+	_, ok := this.f[flag]
+	return ok
+}
+
+func (this *column) Value(flag sqlite.Flag) string {
+	if v, ok := this.f[flag]; ok {
+		return v
+	} else {
+		return ""
+	}
 }
 
 func (this *column) String() string {
-	return fmt.Sprintf("<sqlite.v3.Column>{ name=%v type=%v flags=%v tags=%v }", this.n, this.t, this.f, this.kv)
+	flags := ""
+	for k, v := range this.f {
+		if v == "" {
+			flags += fmt.Sprint(k) + " "
+		} else {
+			flags += fmt.Sprint(k) + "='" + v + "' "
+		}
+	}
+	return fmt.Sprintf("<sqlite.v3.Column>{ name=%v type=%v %v}", this.n, this.t, flags)
 }

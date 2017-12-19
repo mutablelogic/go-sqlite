@@ -79,8 +79,8 @@ func (this *q_CreateTable) sqlTableName() string {
 }
 
 func (this *q_CreateTable) sqlColumn(c Column) string {
-	sql := QuoteIdentifier(c.Name()) + " " + fmt.Sprint(c.Type())
-	if c.Flags()&FLAG_NOT_NULL != FLAG_NONE {
+	sql := QuoteIdentifier(c.Identifier()) + " " + fmt.Sprint(c.Type())
+	if c.Flag(FLAG_NOT_NULL) {
 		sql = sql + " NOT NULL"
 	}
 	return sql

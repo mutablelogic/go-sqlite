@@ -9,9 +9,13 @@
 package sqlite
 
 import (
+	"encoding/hex"
+	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 /////////////////////////////////////////////////////////////////////
@@ -32,6 +36,8 @@ const (
 	REPLACE RESTRICT RIGHT ROLLBACK ROW SAVEPOINT SELECT SET TABLE
 	TEMP TEMPORARY THEN TO TRANSACTION TRIGGER UNION UNIQUE UPDATE
 	USING VACUUM VALUES VIEW VIRTUAL WHEN WHERE WITH WITHOUT`
+
+	reserved_types = `TEXT INTEGER FLOAT BLOB TIMESTAMP DATETIME BOOL`
 )
 
 /////////////////////////////////////////////////////////////////////
@@ -39,6 +45,7 @@ const (
 
 var (
 	reservedWords        = make(map[string]bool, 0)
+	reservedTypes        = make(map[string]bool, 0)
 	regexpBareIdentifier = regexp.MustCompile("^[A-Za-z_][A-Za-z0-9_]*$")
 )
 
@@ -58,6 +65,18 @@ func isReservedWord(value string) bool {
 	})
 	value = strings.TrimSpace(strings.ToUpper(value))
 	_, exists := reservedWords[value]
+	return exists
+}
+
+func isReservedType(value string) bool {
+	var once sync.Once
+	once.Do(func() {
+		for _, word := range strings.Fields(reserved_types) {
+			reservedTypes[strings.ToUpper(word)] = true
+		}
+	})
+	value = strings.TrimSpace(strings.ToUpper(value))
+	_, exists := reservedTypes[value]
 	return exists
 }
 
@@ -84,4 +103,35 @@ func QuoteIdentifier(value string) string {
 	} else {
 		return DoubleQuote(value)
 	}
+}
+
+// IsSupportedType returns true if the value provided is
+// a reserved type
+func IsSupportedType(value string) bool {
+	return isReservedType(value)
+}
+
+// QuoteRow returns a row as a string
+func RowString(row []Value) string {
+	if row == nil {
+		return "<nil>"
+	}
+	str := make([]string, len(row))
+	for i, v := range row {
+		switch {
+		case v.IsNull():
+			str[i] = "<nil>"
+		case v.DeclType() == "TEXT":
+			str[i] = strconv.Quote(v.String())
+		case v.DeclType() == "INTEGER" || v.DeclType() == "FLOAT" || v.DeclType() == "BOOL":
+			str[i] = v.String()
+		case v.DeclType() == "TIMESTAMP" || v.DeclType() == "DATETIME":
+			str[i] = v.Timestamp().Format(time.RFC3339)
+		case v.DeclType() == "BLOB":
+			str[i] = strings.ToUpper(hex.EncodeToString(v.Bytes()))
+		default:
+			str[i] = fmt.Sprintf("<%v>%v", v.DeclType(), strconv.Quote(v.String()))
+		}
+	}
+	return fmt.Sprint("[" + strings.Join(str, ",") + "]")
 }

@@ -111,6 +111,18 @@ func IsSupportedType(value string) bool {
 	return isReservedType(value)
 }
 
+// SupportedTypes returns all supported types
+func SupportedTypes() []string {
+	// Initalize
+	IsSupportedType("TEXT")
+	// Return supported types
+	supported_types := make([]string, 0, len(reservedTypes))
+	for k := range reservedTypes {
+		supported_types = append(supported_types, k)
+	}
+	return supported_types
+}
+
 // QuoteRow returns a row as a string
 func RowString(row []Value) string {
 	if row == nil {

@@ -371,7 +371,7 @@ func Test_018(t *testing.T) {
 		}
 	}
 }
-func Test_019(t *testing.T) {
+func DISABLED_Test_019(t *testing.T) {
 	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
 		t.Error(err)
 	} else {
@@ -381,6 +381,20 @@ func Test_019(t *testing.T) {
 		if statement := driver_.NewInsert("test"); statement.Query() != "INSERT INTO test VALUES (?)" {
 			t.Error("Unexpected query:", statement.Query())
 
+		}
+	}
+}
+
+func DISABLED_Test_Reflect_001(t *testing.T) {
+
+	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
+		t.Error(err)
+	} else {
+		driver_ := driver.(sq.Connection)
+		defer driver_.Close()
+
+		if _, err := driver_.Reflect(struct{}{}); err != nil {
+			t.Error(err)
 		}
 	}
 }

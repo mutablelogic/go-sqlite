@@ -85,7 +85,7 @@ func Process(app *gopi.AppInstance, db sqlite.Connection, name string, fh io.Rea
 	if affectedRows, err := CreateTable(db, table); err != nil {
 		return err
 	} else {
-		app.Logger.Info("%v rows inserted", affectedRows)
+		app.Logger.Info("%v rows imported", affectedRows)
 	}
 
 	// Return success

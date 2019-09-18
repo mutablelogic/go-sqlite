@@ -5,6 +5,7 @@ order to understand how to use this component. In order to compile
 the sq_import tool,
 
 ```bash
+bash% git clone git@github.com:djthorpe/sqlite.git
 bash% cd sqlite
 bash% make sq_import
 ```

@@ -12,7 +12,6 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
-	"regexp"
 	"strings"
 
 	// Frameworks
@@ -45,13 +44,7 @@ type Table struct {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-var (
-	regexpEuropeanDate01 = regexp.MustCompile("^\\s*\\d\\d\\/\\d\\d\\/\\d\\d\\d\\d\\s*$")
-	regexpEuropeanDate02 = regexp.MustCompile("^\\s*\\d\\d\\-\\d\\d\\-\\d\\d\\d\\d\\s*$")
-)
-
-////////////////////////////////////////////////////////////////////////////////
-
+// Create a new empty table to be imported
 func NewTable(fh io.ReadSeeker, name string) *Table {
 	this := new(Table)
 	this.Name = strings.ToLower(name)
@@ -64,6 +57,7 @@ func NewTable(fh io.ReadSeeker, name string) *Table {
 	return this
 }
 
+// Scan the CSV file and set the column name and type
 func (this *Table) Scan() (int, error) {
 	// Seek to start of file
 	if _, err := this.fh.Seek(0, io.SeekStart); err != nil {
@@ -135,6 +129,7 @@ func (this *Table) Next() ([]string, error) {
 	}
 }
 
+// Remove unsupported types for a column
 func (this *Table) TypeForColumn(i int) string {
 	supported_types := sqlite.SupportedTypes()
 	candidates := this.Candidates[i]
@@ -181,6 +176,9 @@ func (this *Table) InsertRow() string {
 	}
 	return fmt.Sprintf("INSERT INTO %v VALUES (%v)", sqlite.QuoteIdentifier(this.Name), strings.Join(columns, ","))
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
 
 func isComment(row []string) bool {
 	if len(row) == 0 {

@@ -10,12 +10,16 @@ package sqlite
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	// Frameworks
+	"github.com/araddon/dateparse"
 )
 
 /////////////////////////////////////////////////////////////////////
@@ -37,48 +41,26 @@ const (
 	TEMP TEMPORARY THEN TO TRANSACTION TRIGGER UNION UNIQUE UPDATE
 	USING VACUUM VALUES VIEW VIRTUAL WHEN WHERE WITH WITHOUT`
 
-	reserved_types = `TEXT INTEGER FLOAT BLOB TIMESTAMP DATETIME BOOL`
+	reserved_types = `TEXT BLOB DATETIME TIMESTAMP FLOAT INTEGER BOOL`
 )
 
 /////////////////////////////////////////////////////////////////////
 // GLOBAL VARIABLES
 
 var (
-	reservedWords        = make(map[string]bool, 0)
-	reservedTypes        = make(map[string]bool, 0)
-	regexpBareIdentifier = regexp.MustCompile("^[A-Za-z_][A-Za-z0-9_]*$")
+	reservedWords            = make(map[string]bool, 0)
+	reservedTypes            = make(map[string]bool, 0)
+	regexpBareIdentifier     = regexp.MustCompile("^[A-Za-z_][A-Za-z0-9_]*$")
+	regexpDatetimeDDMMYYYY   = regexp.MustCompile("^(\\d{2})(\\d{2})(\\d{4})$")
+	regexpDatetimeDD_MM_YYYY = regexp.MustCompile("^(\\d{2})\\/(\\d{2})\\/(\\d{4})$")
+	regexpDatetimeDDMMYY     = regexp.MustCompile("^(\\d{2})(\\d{2})(\\d{2})$")
+	regexpDatetimeDD_MM_YY   = regexp.MustCompile("^(\\d{2})\\/(\\d{2})\\/(\\d{2})$")
 )
 
-////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-func isBareIdentifier(value string) bool {
-	return regexpBareIdentifier.MatchString(value)
-}
-
-func isReservedWord(value string) bool {
-	var once sync.Once
-	once.Do(func() {
-		for _, word := range strings.Fields(reserved_words) {
-			reservedWords[strings.ToUpper(word)] = true
-		}
-	})
-	value = strings.TrimSpace(strings.ToUpper(value))
-	_, exists := reservedWords[value]
-	return exists
-}
-
-func isReservedType(value string) bool {
-	var once sync.Once
-	once.Do(func() {
-		for _, word := range strings.Fields(reserved_types) {
-			reservedTypes[strings.ToUpper(word)] = true
-		}
-	})
-	value = strings.TrimSpace(strings.ToUpper(value))
-	_, exists := reservedTypes[value]
-	return exists
-}
+var (
+	ErrUnsupportedType = errors.New("Unsupported type")
+	ErrInvalidDate     = errors.New("Invalid date")
+)
 
 /////////////////////////////////////////////////////////////////////
 // PUBLIC FUNCTIONS
@@ -111,6 +93,11 @@ func IsSupportedType(value string) bool {
 	return isReservedType(value)
 }
 
+// SupportedTypes returns all supported types
+func SupportedTypes() []string {
+	return strings.Fields(reserved_types)
+}
+
 // QuoteRow returns a row as a string
 func RowString(row []Value) string {
 	if row == nil {
@@ -134,4 +121,160 @@ func RowString(row []Value) string {
 		}
 	}
 	return fmt.Sprint("[" + strings.Join(str, ",") + "]")
+}
+
+// ToSupportedType converts from a string to a supported type. If the
+// string is empty, will return <nil> if notnull is false
+func ToSupportedType(value, decltype string, notnull bool, timezone *time.Location) (interface{}, error) {
+	value_ := strings.TrimSpace(value)
+	switch strings.ToUpper(decltype) {
+	case "BOOL":
+		if value_ == "" && notnull == false {
+			return nil, nil
+		} else if bool_, err := strconv.ParseBool(value_); err != nil {
+			return nil, err
+		} else {
+			return bool_, nil
+		}
+	case "TEXT":
+		if value == "" && notnull == false {
+			return nil, nil
+		} else {
+			return value, nil
+		}
+	case "INTEGER":
+		if value_ == "" && notnull == false {
+			return nil, nil
+		} else if int_, err := strconv.ParseInt(value_, 10, 64); err != nil {
+			return nil, err
+		} else {
+			return int_, nil
+		}
+	case "FLOAT":
+		if value_ == "" && notnull == false {
+			return nil, nil
+		} else if float_, err := strconv.ParseFloat(value_, 64); err != nil {
+			return nil, err
+		} else {
+			return float_, nil
+		}
+	case "BLOB":
+		if value_ == "" && notnull == false {
+			return nil, nil
+		} else if bytes_, err := hex.DecodeString(value_); err != nil {
+			return nil, err
+		} else {
+			return bytes_, nil
+		}
+	case "TIMESTAMP":
+		if value_ == "" && notnull == false {
+			return nil, nil
+		} else if timestamp_, err := time.Parse(time.RFC3339, value_); err == nil {
+			return timestamp_, nil
+		} else if timestamp_, err := time.Parse(time.RFC3339Nano, value_); err == nil {
+			return timestamp_, nil
+		} else {
+			return nil, err
+		}
+	case "DATETIME":
+		if value_ == "" && notnull == false {
+			return nil, nil
+		} else if datetime_, err := parseDatetime(value_, timezone); err != nil {
+			return nil, err
+		} else {
+			return datetime_, nil
+		}
+	default:
+		return nil, ErrUnsupportedType
+	}
+}
+
+// SupportedTypesForValue returns most likely supported types
+// for a value, in order. It will always return at least one type,
+// with the most likely type as the zero'th element
+func SupportedTypesForValue(value string) []string {
+	all_types := SupportedTypes()
+	supported_types := make([]string, 0, len(all_types))
+
+	// Go in reverse order, assuming not an empty string
+	if strings.TrimSpace(value) != "" {
+		for i := len(all_types) - 1; i > 0; i-- {
+			if _, err := ToSupportedType(value, all_types[i], true, time.UTC); err == nil {
+				supported_types = append(supported_types, all_types[i])
+			}
+		}
+	}
+
+	// Always append the default type
+	if _, err := ToSupportedType(value, all_types[0], true, time.UTC); err == nil {
+		supported_types = append(supported_types, all_types[0])
+	}
+
+	// Return supported types in priority order
+	return supported_types
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func isBareIdentifier(value string) bool {
+	return regexpBareIdentifier.MatchString(value)
+}
+
+func isReservedWord(value string) bool {
+	var once sync.Once
+	once.Do(func() {
+		for _, word := range strings.Fields(reserved_words) {
+			reservedWords[strings.ToUpper(word)] = true
+		}
+	})
+	value = strings.TrimSpace(strings.ToUpper(value))
+	_, exists := reservedWords[value]
+	return exists
+}
+
+func isReservedType(value string) bool {
+	var once sync.Once
+	once.Do(func() {
+		for _, word := range strings.Fields(reserved_types) {
+			reservedTypes[strings.ToUpper(word)] = true
+		}
+	})
+	value = strings.TrimSpace(strings.ToUpper(value))
+	_, exists := reservedTypes[value]
+	return exists
+}
+
+func parseDatetime(value string, timezone *time.Location) (time.Time, error) {
+	var matches []string
+	var yy int
+
+	if matches = regexpDatetimeDDMMYY.FindStringSubmatch(value); len(matches) == 4 {
+		// Matched Euro date, add on 2000
+		yy = 1900
+	} else if matches = regexpDatetimeDD_MM_YY.FindStringSubmatch(value); len(matches) == 4 {
+		// Matched Euro date,add on 2000
+		yy = 1900
+	} else if matches = regexpDatetimeDDMMYYYY.FindStringSubmatch(value); len(matches) == 4 {
+		// Matched Euro date
+	} else if matches = regexpDatetimeDD_MM_YYYY.FindStringSubmatch(value); len(matches) == 4 {
+		// Matched Euro date
+	} else if datetime, err := dateparse.ParseIn(value, timezone); err != nil {
+		// Parse error
+		return time.Time{}, err
+	} else {
+		return datetime, err
+	}
+
+	if day, _ := strconv.ParseInt(matches[1], 10, 32); day < 1 || day > 31 {
+		return time.Time{}, ErrInvalidDate
+	} else if month, _ := strconv.ParseInt(matches[2], 10, 32); month < 1 || month > 12 {
+		return time.Time{}, ErrInvalidDate
+	} else if year, _ := strconv.ParseInt(matches[3], 10, 32); year > 9999 {
+		return time.Time{}, ErrInvalidDate
+	} else if datetime := time.Date(int(year)+yy, time.Month(month), int(day), 0, 0, 0, 0, timezone); datetime.IsZero() {
+		return time.Time{}, ErrInvalidDate
+	} else {
+		return datetime, nil
+	}
 }

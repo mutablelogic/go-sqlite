@@ -1,6 +1,7 @@
 package sqlite_test
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -244,6 +245,142 @@ func Test_012(t *testing.T) {
 				}
 				t.Log(sq.RowString(row))
 			}
+		}
+	}
+}
+
+func Test_013(t *testing.T) {
+	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
+		t.Error(err)
+	} else {
+		driver_ := driver.(sq.Connection)
+		defer driver_.Close()
+
+		tests := []struct {
+			f     func() sq.CreateTable
+			query string
+		}{
+			{func() sq.CreateTable { return driver_.NewCreateTable("test") }, "CREATE TABLE test ()"},
+			{func() sq.CreateTable { return driver_.NewCreateTable("test").Schema("test") }, "CREATE TABLE test.test ()"},
+			{func() sq.CreateTable { return driver_.NewCreateTable("test").Temporary() }, "CREATE TEMPORARY TABLE test ()"},
+			{func() sq.CreateTable { return driver_.NewCreateTable("test").IfNotExists() }, "CREATE TABLE IF NOT EXISTS test ()"},
+			{func() sq.CreateTable { return driver_.NewCreateTable("test").WithoutRowID() }, "CREATE TABLE test () WITHOUT ROWID"},
+		}
+
+		for i, test := range tests {
+			if statement := test.f(); statement == nil {
+				t.Errorf("Test %v: nil value returned", i)
+			} else if statement.Query() != test.query {
+				t.Errorf("Test %v: Expected %v, got %v", i, strconv.Quote(test.query), strconv.Quote(statement.Query()))
+			}
+		}
+	}
+}
+
+func Test_014(t *testing.T) {
+	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
+		t.Error(err)
+	} else {
+		driver_ := driver.(sq.Connection)
+		defer driver_.Close()
+
+		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
+			t.Error("Statement returned is nil")
+		} else if statement.Query() != "CREATE TABLE test (a TEXT NOT NULL,b TEXT)" {
+			t.Errorf("Unexpected value, %v", statement.Query())
+		}
+	}
+}
+
+func Test_015(t *testing.T) {
+	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
+		t.Error(err)
+	} else {
+		driver_ := driver.(sq.Connection)
+		defer driver_.Close()
+
+		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
+			t.Error("Statement returned is nil")
+		} else if statement.PrimaryKey("a").Query() != "CREATE TABLE test (a TEXT NOT NULL,b TEXT,PRIMARY KEY (a))" {
+			t.Errorf("Unexpected value, %v", statement.Query())
+		}
+	}
+}
+
+func Test_016(t *testing.T) {
+	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
+		t.Error(err)
+	} else {
+		driver_ := driver.(sq.Connection)
+		defer driver_.Close()
+
+		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
+			t.Error("Statement returned is nil")
+		} else if statement.PrimaryKey("a").Unique("a", "b").Query() != "CREATE TABLE test (a TEXT NOT NULL,b TEXT,PRIMARY KEY (a),UNIQUE (a,b))" {
+			t.Errorf("Unexpected value, %v", statement.Query())
+		}
+
+		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
+			t.Error("Statement returned is nil")
+		} else if statement.Unique("a").Unique("b").Query() != "CREATE TABLE test (a TEXT NOT NULL,b TEXT,UNIQUE (a),UNIQUE (b))" {
+			t.Errorf("Unexpected value, %v", statement.Query())
+		}
+
+	}
+}
+
+func Test_017(t *testing.T) {
+	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
+		t.Error(err)
+	} else {
+		driver_ := driver.(sq.Connection)
+		defer driver_.Close()
+
+		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
+			t.Error("Statement returned is nil")
+		} else if _, err := driver_.DoOnce(statement.Query()); err != nil {
+			t.Error(err)
+		}
+
+		if _, err := driver_.DoOnce(driver_.NewDropTable("test").Query()); err != nil {
+			t.Error(err)
+		}
+
+		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
+			t.Error("Statement returned is nil")
+		} else if _, err := driver_.DoOnce(statement.PrimaryKey("b").Query()); err != nil {
+			t.Error(err)
+		}
+
+	}
+}
+
+func Test_018(t *testing.T) {
+	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
+		t.Error(err)
+	} else {
+		driver_ := driver.(sq.Connection)
+		defer driver_.Close()
+
+		if statement := driver_.NewDropTable("test"); statement.Query() != "DROP TABLE test" {
+			t.Error("Unexpected query:", statement.Query())
+		} else if statement.IfExists(); statement.Query() != "DROP TABLE IF EXISTS test" {
+			t.Error("Unexpected query:", statement.Query())
+		} else if statement.Schema("test"); statement.Query() != "DROP TABLE IF EXISTS test.test" {
+			t.Error("Unexpected query:", statement.Query())
+		}
+	}
+}
+func Test_019(t *testing.T) {
+	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
+		t.Error(err)
+	} else {
+		driver_ := driver.(sq.Connection)
+		defer driver_.Close()
+
+		if statement := driver_.NewInsert("test"); statement.Query() != "INSERT INTO test VALUES (?)" {
+			t.Error("Unexpected query:", statement.Query())
+
 		}
 	}
 }

@@ -11,7 +11,7 @@ bash% make sq_import
 
 The command line arguments are:
 
-```bash
+```
 
 sq_import <flags> <csv_file>...
 

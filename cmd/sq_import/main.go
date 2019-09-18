@@ -9,11 +9,11 @@
 package main
 
 import (
-	"encoding/csv"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	// Frameworks
 	gopi "github.com/djthorpe/gopi"
@@ -24,26 +24,69 @@ import (
 	_ "github.com/djthorpe/sqlite/sys/sqlite"
 )
 
-func Process(app *gopi.AppInstance, db sqlite.Connection, name string, fh io.Reader) error {
-	reader := csv.NewReader(fh)
-	noheader, _ := app.AppFlags.GetBool("noheader")
-	table := NewColumns(name)
+// BoundRow returns a slice of type []interface{} from a slice of type []string
+func BoundRow(row []string) []interface{} {
+	row_ := []interface{}{}
+	for i := range row {
+		row_ = append(row_, row[i])
+	}
+	return row_
+}
 
-	// Scan table for name and types
-	for i := 0; true; i++ {
-		if row, err := reader.Read(); err == io.EOF {
-			break
-		} else if err != nil {
+// CreateTable creates a new table and inserts rows from CSV file
+func CreateTable(db sqlite.Connection, table *Table) (int, error) {
+	affectedRows := 0
+
+	// Wrap SQL statements in a transaction
+	return affectedRows, db.Tx(func(db sqlite.Connection) error {
+		if _, err := db.DoOnce(table.DropTable()); err != nil {
 			return err
-		} else if i == 0 && noheader == false {
-			table.SetNames(row)
-		} else {
-			table.SetTypes(row)
 		}
+		if _, err := db.DoOnce(table.CreateTable()); err != nil {
+			return err
+		}
+		if insert, err := db.Prepare(table.InsertRow()); err != nil {
+			return err
+		} else {
+			defer db.Destroy(insert)
+			for {
+				if row, err := table.Next(); err == io.EOF {
+					break
+				} else if err != nil {
+					return err
+				} else if result, err := db.Do(insert, BoundRow(row)...); err != nil {
+					return err
+				} else {
+					affectedRows = affectedRows + int(result.RowsAffected)
+				}
+			}
+		}
+		return nil
+	})
+}
+
+func Process(app *gopi.AppInstance, db sqlite.Connection, name string, fh io.ReadSeeker) error {
+
+	// Create a table
+	table := NewTable(fh, name)
+	table.NoHeader, _ = app.AppFlags.GetBool("noheader")
+	table.SkipComments, _ = app.AppFlags.GetBool("skipcomments")
+	table.NotNull, _ = app.AppFlags.GetBool("notnull")
+
+	// Scan rows for column names and types
+	if affectedRows, err := table.Scan(); err != nil {
+		return fmt.Errorf("%v (line %v)", err, affectedRows)
 	}
 
-	// Print out table
-	fmt.Println(table)
+	// Create the table if it doesn't exist
+	app.Logger.Info("Creating table %v with columns: %v", table.Name, strings.Join(table.Columns, ","))
+
+	// Repeat until all rows read
+	if affectedRows, err := CreateTable(db, table); err != nil {
+		return err
+	} else {
+		app.Logger.Info("%v rows inserted", affectedRows)
+	}
 
 	// Return success
 	return nil
@@ -57,7 +100,7 @@ func Main(app *gopi.AppInstance, done chan<- struct{}) error {
 		return gopi.ErrHelp
 	} else {
 		for _, filename := range app.AppFlags.Args() {
-			name := filepath.Base(filename)
+			name := strings.TrimSuffix(filepath.Base(filename), filepath.Ext(filename))
 			if s, err := os.Stat(filename); err != nil {
 				return fmt.Errorf("%v: %v", name, err)
 			} else if s.Mode().IsRegular() == false {
@@ -86,6 +129,8 @@ func main() {
 
 	// Set arguments
 	config.AppFlags.FlagBool("noheader", false, "Do not use the first row as column names")
+	config.AppFlags.FlagBool("skipcomments", true, "Skip comment lines")
+	config.AppFlags.FlagBool("notnull", false, "Don't use NULL values for empty values")
 
 	// Run the command line tool
 	os.Exit(gopi.CommandLineTool2(config, Main))

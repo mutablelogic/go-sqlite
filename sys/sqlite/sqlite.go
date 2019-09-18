@@ -49,6 +49,7 @@ type resultset struct {
 type column struct {
 	name     string
 	decltype string
+	nullable bool
 	pos      int
 }
 
@@ -198,7 +199,7 @@ func (this *sqlite) Do(query sq.Statement, args ...interface{}) (sq.Result, erro
 		return sq.Result{}, gopi.ErrBadParameter
 	} else if query_.statement == nil {
 		return sq.Result{}, gopi.ErrBadParameter
-	} else if values, err := to_values(args); err != nil {
+	} else if values, err := to_values(args, query_.statement.NumInput()); err != nil {
 		return sq.Result{}, err
 	} else if results, err := query_.statement.Exec(values); err != nil {
 		return sq.Result{}, err
@@ -216,7 +217,7 @@ func (this *sqlite) DoOnce(query string, args ...interface{}) (sq.Result, error)
 
 	if this.conn == nil {
 		return sq.Result{}, gopi.ErrAppError
-	} else if values, err := to_values(args); err != nil {
+	} else if values, err := to_values(args, -1); err != nil {
 		return sq.Result{}, err
 	} else if results, err := this.conn.Exec(query, values); err != nil {
 		return sq.Result{}, err
@@ -238,7 +239,7 @@ func (this *sqlite) Query(query sq.Statement, args ...interface{}) (sq.Rows, err
 		return nil, gopi.ErrBadParameter
 	} else if query_, ok := query.(*statement); ok == false || query_.statement == nil {
 		return nil, gopi.ErrBadParameter
-	} else if values, err := to_values(args); err != nil {
+	} else if values, err := to_values(args, query_.statement.NumInput()); err != nil {
 		return nil, err
 	} else if rows, err := query_.statement.Query(values); err != nil {
 		return nil, err
@@ -261,7 +262,7 @@ func (this *sqlite) QueryOnce(query string, args ...interface{}) (sq.Rows, error
 
 	if this.conn == nil {
 		return nil, gopi.ErrAppError
-	} else if values, err := to_values(args); err != nil {
+	} else if values, err := to_values(args, -1); err != nil {
 		return nil, err
 	} else if rows, err := this.conn.Query(query, values); err != nil {
 		return nil, err
@@ -276,5 +277,27 @@ func (this *sqlite) QueryOnce(query string, args ...interface{}) (sq.Rows, error
 		}
 		// Return resultset
 		return rs, nil
+	}
+}
+
+func (this *sqlite) Tx(cb func(sq.Connection) error) error {
+	this.log.Debug("<sqlite.Tx>{ BEGIN }")
+
+	if this.conn == nil {
+		return gopi.ErrAppError
+	} else if tx, err := this.conn.Begin(); err != nil {
+		return err
+	} else if err := cb(this); err != nil {
+		this.log.Debug("<sqlite.Tx>{ ROLLBACK ERROR=%v }", err)
+		var errs errors.CompoundError
+		errs.Add(err)
+		errs.Add(tx.Rollback())
+		return errs.ErrorOrSelf()
+	} else if err := tx.Commit(); err != nil {
+		this.log.Debug("<sqlite.Tx>{ COMMIT ERROR=%v }", err)
+		return err
+	} else {
+		this.log.Debug("<sqlite.Tx>{ COMMIT OK }")
+		return nil
 	}
 }

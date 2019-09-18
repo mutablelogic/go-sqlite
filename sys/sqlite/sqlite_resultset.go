@@ -32,8 +32,24 @@ func (this *column) Name() string {
 	return this.name
 }
 
+func (this *column) Nullable() bool {
+	return this.nullable
+}
+
+func (this *column) Query() string {
+	if this.nullable {
+		return fmt.Sprintf("%v %v", sq.QuoteIdentifier(this.name), this.decltype)
+	} else {
+		return fmt.Sprintf("%v %v NOT NULL", sq.QuoteIdentifier(this.name), this.decltype)
+	}
+}
+
 func (this *column) String() string {
-	return fmt.Sprintf("<sqlite.Column>{ name=%v decltype=%v pos=%v }", strconv.Quote(this.name), strconv.Quote(this.decltype), this.pos)
+	if this.pos >= 0 {
+		return fmt.Sprintf("<sqlite.Column>{ name=%v decltype=%v pos=%v }", strconv.Quote(this.name), strconv.Quote(this.decltype), this.pos)
+	} else {
+		return fmt.Sprintf("<sqlite.Column>{ name=%v decltype=%v }", strconv.Quote(this.name), strconv.Quote(this.decltype))
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -25,7 +25,12 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func to_values(args []interface{}) ([]sql.Value, error) {
+func to_values(args []interface{}, num_input int) ([]sql.Value, error) {
+	// Check incoming parameters if num_input is greater or equal to zero
+	if num_input >= 0 && len(args) != num_input {
+		return nil, fmt.Errorf("Expected %v bound query parameters, got %v", num_input, len(args))
+	}
+	// Make the array of bound values
 	v := make([]sql.Value, len(args))
 	for i, arg := range args {
 		// Promote uint and int to int64
@@ -45,6 +50,7 @@ func to_values(args []interface{}) ([]sql.Value, error) {
 		}
 
 	}
+	// Return the array
 	return v, nil
 }
 
@@ -72,7 +78,8 @@ func to_rows(r *driver.SQLiteRows) (sq.Rows, error) {
 		if decltype == "" {
 			decltype = DEFAULT_COLUMN_TYPE
 		}
-		this.columns[i] = &column{name, strings.ToUpper(decltype), i}
+		nullable, _ := r.ColumnTypeNullable(i)
+		this.columns[i] = &column{name, strings.ToUpper(decltype), nullable, i}
 	}
 
 	// Success

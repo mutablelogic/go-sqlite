@@ -35,9 +35,19 @@ type Connection interface {
 	Query(Statement, ...interface{}) (Rows, error)
 	QueryOnce(string, ...interface{}) (Rows, error)
 
+	// Perform operations within a transaction, rollback on
+	// error
+	Tx(func(Connection) error) error
+
 	// Return sqlite information
 	Version() string
 	Tables() []string
+
+	// Return statements
+	NewColumn(string, string, bool) Column
+	NewCreateTable(string, ...Column) CreateTable
+	NewDropTable(string) DropTable
+	NewInsert(string, ...string) InsertOrReplace
 }
 
 // Statement that can be executed
@@ -59,6 +69,8 @@ type Rows interface {
 type Column interface {
 	Name() string
 	DeclType() string
+	Nullable() bool
+	Query() string
 }
 
 // A row value, which can be a string or int
@@ -81,8 +93,75 @@ type Result struct {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// STATEMENTS
+
+// CreateTable statement
+type CreateTable interface {
+	Statement
+
+	Schema(string) CreateTable
+	IfNotExists() CreateTable
+	Temporary() CreateTable
+	WithoutRowID() CreateTable
+	PrimaryKey(...string) CreateTable
+	Unique(...string) CreateTable
+}
+
+// DropTable statement
+type DropTable interface {
+	Statement
+
+	Schema(string) DropTable
+	IfExists() DropTable
+}
+
+// Insert statement
+type InsertOrReplace interface {
+	Statement
+
+	Schema(string) InsertOrReplace
+	DefaultValues() InsertOrReplace
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
 func (r Result) String() string {
 	return fmt.Sprintf("<sqlite.Result>{ LastInsertId=%v RowsAffected=%v }", r.LastInsertId, r.RowsAffected)
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// GRAVEYARD
+
+/*
+type Client interface {
+	gopi.Driver
+
+	// Reflect on data structure of a variable to return the rows we expect
+	Reflect(v interface{}) ([]Column, error)
+	PrimaryKey([]Column) (Key, error)
+	//Unique([]Column) ([]Key, error)
+	//Index([]Column) ([]Key, error)
+}
+
+type Column interface {
+	Name() string
+	Identifier() string // Either the name or custom identifier
+	Type() Type
+	Flag(Flag) bool
+	Value(Flag) string
+}
+
+// These are various flags we use to modify when
+// a table is created
+const (
+	FLAG_NONE     Flag = 0
+	FLAG_NOT_NULL Flag = (1 << iota)
+	FLAG_PRIMARY_KEY
+	FLAG_UNIQUE_KEY
+	FLAG_INDEX_KEY
+	FLAG_NAME
+	FLAG_TYPE
+	FLAG_MAX = FLAG_TYPE
+)
+*/

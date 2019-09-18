@@ -9,150 +9,204 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
-	"strconv"
+	"io"
+	"regexp"
+	"strings"
 
 	// Frameworks
-	"github.com/araddon/dateparse"
-	"github.com/djthorpe/gopi"
+
 	"github.com/djthorpe/sqlite"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 
-type Columns struct {
-	Name       []string
+type Table struct {
+	// Table is the name of the table
+	Name string
+	// NoHeader when set to false uses row 1 as header names
+	NoHeader bool
+	// Skip lines which start with a comment (// or #)
+	SkipComments bool
+	// NotNull excludes NULL values from columns
+	NotNull bool
+	// Columns is the name of the columns
+	Columns []string
+	// Candidates for the column type
 	Candidates []map[string]bool
+	// File handle
+	fh io.ReadSeeker
+	// CSV Reader
+	reader *csv.Reader
+	// First row (seek to zero positon)
+	first int
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-func NewColumns(filename string) *Columns {
-	this := new(Columns)
+var (
+	regexpEuropeanDate01 = regexp.MustCompile("^\\s*\\d\\d\\/\\d\\d\\/\\d\\d\\d\\d\\s*$")
+	regexpEuropeanDate02 = regexp.MustCompile("^\\s*\\d\\d\\-\\d\\d\\-\\d\\d\\d\\d\\s*$")
+)
+
+////////////////////////////////////////////////////////////////////////////////
+
+func NewTable(fh io.ReadSeeker, name string) *Table {
+	this := new(Table)
+	this.Name = strings.ToLower(name)
+	this.NoHeader = false
+	this.NotNull = false
+	this.SkipComments = true
+	this.fh = fh
+	this.reader = csv.NewReader(fh)
+	this.first = -1
 	return this
 }
 
-func (this *Columns) SetNames(row []string) error {
-	if len(row) == 0 {
-		return gopi.ErrBadParameter
-	} else {
-		this.Name = row
-		return nil
+func (this *Table) Scan() (int, error) {
+	// Seek to start of file
+	if _, err := this.fh.Seek(0, io.SeekStart); err != nil {
+		return -1, err
 	}
-}
-
-func (this *Columns) SetTypes(row []string) error {
-	if len(row) == 0 {
-		return gopi.ErrBadParameter
-	} else if this.Name == nil {
-		this.Name = make([]string, len(row))
-		for i := 0; i < len(row); i++ {
-			this.Name[i] = fmt.Sprintf("column%03d", i)
-		}
-	}
-	if len(row) != len(this.Name) {
-		return fmt.Errorf("Row size mismatch")
-	}
-	// Set up candidates
-	if this.Candidates == nil {
-		supportedTypes := sqlite.SupportedTypes()
-		this.Candidates = make([]map[string]bool, len(row))
-		for i := range this.Candidates {
-			this.Candidates[i] = make(map[string]bool, len(supportedTypes))
-			for _, t := range supportedTypes {
-				this.Candidates[i][t] = true
-			}
-		}
-	}
-	// Check off candidates for this row
-	for i, value := range row {
-		candidates := this.Candidates[i]
-		if ok, exists := candidates["BOOL"]; ok && exists {
-			candidates["BOOL"] = isBool(value)
-		}
-		if ok, exists := candidates["INTEGER"]; ok && exists {
-			candidates["INTEGER"] = isInteger(value)
-		}
-		if ok, exists := candidates["FLOAT"]; ok && exists {
-			candidates["FLOAT"] = isFloat(value)
-		}
-		if ok, exists := candidates["DATETIME"]; ok && exists {
-			candidates["DATETIME"] = isDatetime(value)
-		}
-		if ok, exists := candidates["TIMESTAMP"]; ok && exists {
-			candidates["TIMESTAMP"] = isTimestamp(value)
-		}
-		if ok, exists := candidates["BLOB"]; ok && exists {
-			candidates["BLOB"] = isBlob(value)
-		}
-	}
-	return nil
-}
-
-func (this *Columns) Types() []string {
-	types := make([]string, len(this.Candidates))
-	for i, candidates := range this.Candidates {
-		if ok, exists := candidates["BOOL"]; exists && ok {
-			types[i] = "BOOL"
-		} else if ok, exists := candidates["INTEGER"]; exists && ok {
-			types[i] = "INTEGER"
-		} else if ok, exists := candidates["BLOB"]; exists && ok {
-			types[i] = "BLOB"
-		} else if ok, exists := candidates["FLOAT"]; exists && ok {
-			types[i] = "FLOAT"
+	// Iterate through values to set header names and types
+	affectedRows := 0
+	for i := 0; true; i++ {
+		if row, err := this.reader.Read(); err == io.EOF {
+			// EOF
+			break
+		} else if err != nil {
+			return i + 1, err
+		} else if len(row) == 0 || (len(row) == 1 && strings.TrimSpace(row[0]) == "") {
+			// Skip empty rows
+		} else if this.SkipComments && isComment(row) {
+			// Skip rows with comments
+		} else if i == 0 && this.NoHeader == false {
+			// Set column headers
+			this.Columns = row
 		} else {
-			// Always fallback to TEXT
-			types[i] = "TEXT"
+			if this.Columns == nil {
+				// Set columns with generic names
+				this.Columns = genericColumns(len(row))
+			}
+			if this.Candidates == nil {
+				// Set empty type candidates
+				this.Candidates = make([]map[string]bool, len(row))
+				for i := range this.Candidates {
+					this.Candidates[i] = newCandidates()
+				}
+			}
+			// Infer types
+			for i, value := range row {
+				if len(this.Candidates[i]) > 1 {
+					checkCandidates(this.Candidates[i], sqlite.SupportedTypesForValue(value))
+				}
+			}
+			affectedRows = affectedRows + 1
 		}
 	}
-	return types
+
+	// Success
+	return affectedRows, nil
 }
 
-func (this *Columns) String() string {
-	return fmt.Sprintf("<Columns>{ names=%v types=%v }", this.Name, this.Types())
-}
-
-func isBool(value string) bool {
-	if _, err := strconv.ParseBool(value); err != nil {
-		return false
-	} else {
-		return true
+// Next returns the next row
+func (this *Table) Next() ([]string, error) {
+	// Seek to start of file
+	if this.first == -1 {
+		if _, err := this.fh.Seek(0, io.SeekStart); err != nil {
+			return nil, err
+		}
+	}
+	for {
+		this.first = this.first + 1
+		if row, err := this.reader.Read(); err == io.EOF {
+			this.first = -1
+			return nil, err
+		} else if len(row) == 0 || (len(row) == 1 && strings.TrimSpace(row[0]) == "") {
+			// Skip empty rows
+		} else if this.SkipComments && isComment(row) {
+			// Skip comments
+		} else if this.first == 0 && this.NoHeader == false {
+			// Skip header
+		} else {
+			return row, nil
+		}
 	}
 }
 
-func isInteger(value string) bool {
-	if _, err := strconv.ParseInt(value, 10, 64); err != nil {
-		return false
-	} else {
-		return true
+func (this *Table) TypeForColumn(i int) string {
+	supported_types := sqlite.SupportedTypes()
+	candidates := this.Candidates[i]
+	for j := len(supported_types) - 1; j >= 0; j-- {
+		decltype := supported_types[j]
+		if _, exists := candidates[decltype]; exists {
+			return decltype
+		}
+	}
+	return supported_types[0]
+}
+
+// Remove candidates if they are no longer valid
+func checkCandidates(candidates map[string]bool, types []string) {
+	// Make a map
+	types_map := make(map[string]bool, len(types))
+	for _, decltype := range types {
+		types_map[decltype] = true
+	}
+	// Remove candidates which don't yet exist
+	for decltype, _ := range candidates {
+		if _, exists := types_map[decltype]; exists == false {
+			delete(candidates, decltype)
+		}
 	}
 }
 
-func isFloat(value string) bool {
-	if _, err := strconv.ParseFloat(value, 64); err != nil {
+func (this *Table) DropTable() string {
+	return fmt.Sprintf("DROP TABLE IF EXISTS %v", sqlite.QuoteIdentifier(this.Name))
+}
+
+func (this *Table) CreateTable() string {
+	columns := make([]string, len(this.Columns))
+	for i := range this.Columns {
+		columns[i] = fmt.Sprintf("%v %v", sqlite.QuoteIdentifier(this.Columns[i]), this.TypeForColumn(i))
+	}
+	return fmt.Sprintf("CREATE TABLE IF NOT EXISTS %v (%v)", sqlite.QuoteIdentifier(this.Name), strings.Join(columns, ","))
+}
+
+func (this *Table) InsertRow() string {
+	columns := make([]string, len(this.Columns))
+	for i := range this.Columns {
+		columns[i] = "?"
+	}
+	return fmt.Sprintf("INSERT INTO %v VALUES (%v)", sqlite.QuoteIdentifier(this.Name), strings.Join(columns, ","))
+}
+
+func isComment(row []string) bool {
+	if len(row) == 0 {
 		return false
-	} else {
+	} else if strings.HasPrefix(row[0], "#") {
 		return true
+	} else if strings.HasPrefix(row[0], "//") {
+		return true
+	} else {
+		return false
 	}
 }
 
-func isDatetime(value string) bool {
-	if _, err := dateparse.ParseAny(value); err != nil {
-		fmt.Println(value, "=> false")
-		return false
-	} else {
-		// TODO: Support DD/MM/YYYY
-		fmt.Println(value, "=> true")
-		return true
+func genericColumns(size int) []string {
+	columns := make([]string, size)
+	for i := 0; i < size; i++ {
+		columns[i] = fmt.Sprintf("column%03d", i)
 	}
+	return columns
 }
 
-func isTimestamp(value string) bool {
-	// Not supported
-	return false
-}
-
-func isBlob(value string) bool {
-	// Not supported
-	return false
+func newCandidates() map[string]bool {
+	supportedTypes := sqlite.SupportedTypes()
+	candidates := make(map[string]bool, len(supportedTypes))
+	for _, t := range supportedTypes {
+		candidates[t] = true
+	}
+	return candidates
 }

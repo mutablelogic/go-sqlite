@@ -48,6 +48,9 @@ type Connection interface {
 	NewCreateTable(string, ...Column) CreateTable
 	NewDropTable(string) DropTable
 	NewInsert(string, ...string) InsertOrReplace
+
+	// Reflect columns from struct
+	Reflect(interface{}) ([]Column, error)
 }
 
 // Statement that can be executed

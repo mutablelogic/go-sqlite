@@ -23,8 +23,18 @@ import (
 type Connection interface {
 	gopi.Driver
 
-	// Prepare statement, destroy statement
-	Prepare(string) (Statement, error)
+	// Return column
+	NewColumn(name, decltype string, nullable bool) Column
+
+	// Return statements
+	NewStatement(string) Statement
+	NewCreateTable(string, ...Column) CreateTable
+	NewDropTable(string) DropTable
+	NewInsert(string, ...string) InsertOrReplace
+	NewSelect(Source) Select
+	NewTableSource(name string) Source
+
+	// Free statement resources
 	Destroy(Statement) error
 
 	// Execute statement (without returning the rows)
@@ -35,19 +45,14 @@ type Connection interface {
 	Query(Statement, ...interface{}) (Rows, error)
 	QueryOnce(string, ...interface{}) (Rows, error)
 
-	// Perform operations within a transaction, rollback on
-	// error
+	// Perform operations within a transaction, rollback on error
 	Tx(func(Connection) error) error
 
 	// Return sqlite information
 	Version() string
 	Tables() []string
-
-	// Return statements
-	NewColumn(string, string, bool) Column
-	NewCreateTable(string, ...Column) CreateTable
-	NewDropTable(string) DropTable
-	NewInsert(string, ...string) InsertOrReplace
+	//Tables(schema string, include_temporary bool) []string
+	ColumnsForTable(name, schema string) ([]Column, error)
 
 	// Reflect columns from struct
 	Reflect(interface{}) ([]Column, error)
@@ -59,7 +64,7 @@ type Statement interface {
 	Query() string
 }
 
-// Return rows
+// Rows increments over returned rows from a query
 type Rows interface {
 	// Return column names
 	Columns() []Column
@@ -68,7 +73,7 @@ type Rows interface {
 	Next() []Value
 }
 
-// Return column name and declared type
+// Column represents the specification for a table column
 type Column interface {
 	Name() string
 	DeclType() string
@@ -76,17 +81,20 @@ type Column interface {
 	Query() string
 }
 
-// A row value, which can be a string or int
+// Value represents a typed value in a table
 type Value interface {
-	DeclType() string     // Return declared type
-	IsNull() bool         // Return true if value is NULL
 	String() string       // Return value as string
 	Int() int64           // Return value as int
-	Uint() uint64         // Return value as uint
 	Bool() bool           // Return value as bool
 	Float() float64       // Return value as float
 	Timestamp() time.Time // Return value as timestamp
 	Bytes() []byte        // Return value as blob
+
+	// Return the column associated with the value
+	Column() Column
+
+	// Return true if value is NULL
+	IsNull() bool
 }
 
 // Result of an insert
@@ -126,45 +134,27 @@ type InsertOrReplace interface {
 	DefaultValues() InsertOrReplace
 }
 
+// Select statement
+type Select interface {
+	Statement
+
+	Distinct() Select
+	OrderAsc(...string) Select
+	OrderDesc(...string) Select
+	Limit(uint, uint) Select
+}
+
+// Source represents a simple table source
+type Source interface {
+	Statement
+
+	Schema(string) Source
+	Alias(string) Source
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
 func (r Result) String() string {
 	return fmt.Sprintf("<sqlite.Result>{ LastInsertId=%v RowsAffected=%v }", r.LastInsertId, r.RowsAffected)
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// GRAVEYARD
-
-/*
-type Client interface {
-	gopi.Driver
-
-	// Reflect on data structure of a variable to return the rows we expect
-	Reflect(v interface{}) ([]Column, error)
-	PrimaryKey([]Column) (Key, error)
-	//Unique([]Column) ([]Key, error)
-	//Index([]Column) ([]Key, error)
-}
-
-type Column interface {
-	Name() string
-	Identifier() string // Either the name or custom identifier
-	Type() Type
-	Flag(Flag) bool
-	Value(Flag) string
-}
-
-// These are various flags we use to modify when
-// a table is created
-const (
-	FLAG_NONE     Flag = 0
-	FLAG_NOT_NULL Flag = (1 << iota)
-	FLAG_PRIMARY_KEY
-	FLAG_UNIQUE_KEY
-	FLAG_INDEX_KEY
-	FLAG_NAME
-	FLAG_TYPE
-	FLAG_MAX = FLAG_TYPE
-)
-*/

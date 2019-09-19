@@ -15,7 +15,6 @@ import (
 	"strings"
 
 	// Frameworks
-
 	"github.com/djthorpe/sqlite"
 )
 
@@ -31,7 +30,7 @@ type Table struct {
 	// NotNull excludes NULL values from columns
 	NotNull bool
 	// Columns is the name of the columns
-	Columns []string
+	Columns []sqlite.Column
 	// Candidates for the column type
 	Candidates []map[string]bool
 	// File handle
@@ -77,7 +76,7 @@ func (this *Table) Scan() (int, error) {
 			// Skip rows with comments
 		} else if i == 0 && this.NoHeader == false {
 			// Set column headers
-			this.Columns = row
+			this.Columns = namedColumns(row)
 		} else {
 			if this.Columns == nil {
 				// Set columns with generic names
@@ -157,10 +156,6 @@ func checkCandidates(candidates map[string]bool, types []string) {
 	}
 }
 
-func (this *Table) DropTable() string {
-	return fmt.Sprintf("DROP TABLE IF EXISTS %v", sqlite.QuoteIdentifier(this.Name))
-}
-
 func (this *Table) CreateTable() string {
 	columns := make([]string, len(this.Columns))
 	for i := range this.Columns {
@@ -192,12 +187,17 @@ func isComment(row []string) bool {
 	}
 }
 
-func genericColumns(size int) []string {
+func genericColumns(size int) []sqlite.Column {
 	columns := make([]string, size)
 	for i := 0; i < size; i++ {
 		columns[i] = fmt.Sprintf("column%03d", i)
 	}
 	return columns
+}
+
+func namedColumns(names []string) []sqlite.Column {
+	columns := make([]sqlite.Column, len(names))
+
 }
 
 func newCandidates() map[string]bool {

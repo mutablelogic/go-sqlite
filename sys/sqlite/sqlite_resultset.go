@@ -45,9 +45,9 @@ func (this *column) Query() string {
 
 func (this *column) String() string {
 	if this.pos >= 0 {
-		return fmt.Sprintf("<sqlite.Column>{ name=%v decltype=%v pos=%v }", strconv.Quote(this.name), strconv.Quote(this.decltype), this.pos)
+		return fmt.Sprintf("<sqlite.Column>{ name=%v decltype=%v pos=%v nullable=%v }", strconv.Quote(this.name), strconv.Quote(this.decltype), this.pos, this.nullable)
 	} else {
-		return fmt.Sprintf("<sqlite.Column>{ name=%v decltype=%v }", strconv.Quote(this.name), strconv.Quote(this.decltype))
+		return fmt.Sprintf("<sqlite.Column>{ name=%v decltype=%v nullable=%v }", strconv.Quote(this.name), strconv.Quote(this.decltype), this.nullable)
 	}
 }
 

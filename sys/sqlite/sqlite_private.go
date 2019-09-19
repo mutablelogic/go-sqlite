@@ -74,9 +74,6 @@ func to_rows(r *driver.SQLiteRows) (sq.Rows, error) {
 		if decltype == "" {
 			decltype = r.ColumnTypeDatabaseTypeName(i)
 		}
-		if decltype == "" {
-			decltype = DEFAULT_COLUMN_TYPE
-		}
 		nullable, _ := r.ColumnTypeNullable(i)
 		this.columns[i] = &column{name, strings.ToUpper(decltype), nullable, i}
 	}

@@ -128,8 +128,8 @@ func Test_009(t *testing.T) {
 			t.Error("Expected Tables to return empty slice")
 		} else if _, err := driver_.DoOnce("INSERT INTO test VALUES (1,2),(3,4)"); err != nil {
 			t.Error(err)
-		} else if st, err := driver_.Prepare("SELECT a,b FROM test"); err != nil {
-			t.Error(err)
+		} else if st := driver_.NewStatement("SELECT a,b FROM test"); st == nil {
+			t.Error("<nil> Statement")
 		} else if rs, err := driver_.Query(st); err != nil {
 			t.Error(err)
 		} else {
@@ -155,8 +155,8 @@ func Test_010(t *testing.T) {
 			t.Error("Expected Tables to return empty slice")
 		} else if _, err := driver_.DoOnce("INSERT INTO test VALUES (?)", time.Now()); err != nil {
 			t.Error(err)
-		} else if st, err := driver_.Prepare("SELECT a FROM test"); err != nil {
-			t.Error(err)
+		} else if st := driver_.NewStatement("SELECT a FROM test"); st == nil {
+			t.Error("<nil> Statement")
 		} else if rs, err := driver_.Query(st); err != nil {
 			t.Error(err)
 		} else {
@@ -180,8 +180,8 @@ func Test_011(t *testing.T) {
 		defer driver_.Close()
 		if _, err := driver_.DoOnce("CREATE TABLE test (a integer,b integer)"); err != nil {
 			t.Error("Expected Tables to return empty slice")
-		} else if insert, err := driver_.Prepare("INSERT INTO test (a,b) VALUES (?,?)"); err != nil {
-			t.Error(err)
+		} else if insert := driver_.NewStatement("INSERT INTO test (a,b) VALUES (?,?)"); insert == nil {
+			t.Error("<nil> Statement")
 		} else if _, err := driver_.DoOnce("INSERT INTO test (a,b) VALUES (0,12)"); err != nil {
 			t.Error(err)
 		} else if _, err := driver_.Do(insert, 1, 34); err != nil {

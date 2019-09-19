@@ -39,16 +39,15 @@ func CreateTable(db sqlite.Connection, table *Table) (int, error) {
 
 	// Wrap SQL statements in a transaction
 	return affectedRows, db.Tx(func(db sqlite.Connection) error {
-		if _, err := db.DoOnce(table.DropTable()); err != nil {
+		if _, err := db.Do(db.NewDropTable(table.Name).IfExists()); err != nil {
 			return err
 		}
-		if _, err := db.DoOnce(table.CreateTable()); err != nil {
+		if _, err := db.Do(db.NewCreateTable(table.Name, table.Columns...)); err != nil {
 			return err
 		}
-		if insert, err := db.Prepare(table.InsertRow()); err != nil {
-			return err
+		if insert := db.NewInsert(table.Name); insert != nil {
+			return gopi.ErrBadParameter
 		} else {
-			defer db.Destroy(insert)
 			for {
 				if row, err := table.Next(); err == io.EOF {
 					break
@@ -66,7 +65,6 @@ func CreateTable(db sqlite.Connection, table *Table) (int, error) {
 }
 
 func Process(app *gopi.AppInstance, db sqlite.Connection, name string, fh io.ReadSeeker) error {
-
 	// Create a table
 	table := NewTable(fh, name)
 	table.NoHeader, _ = app.AppFlags.GetBool("noheader")

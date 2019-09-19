@@ -214,6 +214,27 @@ func SupportedTypesForValue(value string) []string {
 	return supported_types
 }
 
+func SupportedTypeForType(v interface{}) string {
+	switch v.(type) {
+	case int, int8, int16, int32, int64:
+		return "INTEGER"
+	case uint, uint8, uint16, uint32, uint64:
+		return "INTEGER"
+	case string:
+		return "TEXT"
+	case []byte:
+		return "BLOB"
+	case time.Time:
+		return "TIMESTAMP"
+	case float32, float64:
+		return "FLOAT"
+	case bool:
+		return "BOOL"
+	default:
+		return ""
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 

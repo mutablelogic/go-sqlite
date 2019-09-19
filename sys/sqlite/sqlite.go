@@ -66,6 +66,7 @@ var (
 )
 
 const (
+	DEFAULT_STRUCT_TAG  = "sql"
 	DEFAULT_COLUMN_TYPE = "TEXT"
 )
 

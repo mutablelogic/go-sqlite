@@ -385,16 +385,91 @@ func DISABLED_Test_019(t *testing.T) {
 	}
 }
 
-func DISABLED_Test_Reflect_001(t *testing.T) {
-
+func Test_Reflect_001(t *testing.T) {
 	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
 		t.Error(err)
 	} else {
 		driver_ := driver.(sq.Connection)
 		defer driver_.Close()
 
-		if _, err := driver_.Reflect(struct{}{}); err != nil {
+		if columns, err := driver_.Reflect(struct{}{}); err != nil {
 			t.Error(err)
+		} else {
+			t.Log(columns)
 		}
+	}
+}
+
+func Test_Reflect_002(t *testing.T) {
+	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
+		t.Error(err)
+	} else {
+		driver_ := driver.(sq.Connection)
+		defer driver_.Close()
+
+		if columns, err := driver_.Reflect(struct{ a int }{}); err != nil {
+			t.Error(err)
+		} else if len(columns) != 0 {
+			t.Error("Expected zero returned columns")
+		}
+
+		if columns, err := driver_.Reflect(struct{ A int }{}); err != nil {
+			t.Error(err)
+		} else if len(columns) != 1 {
+			t.Error("Expected one returned columns")
+		} else {
+			t.Log(columns)
+		}
+
+		if columns, err := driver_.Reflect(struct{ A, B int }{}); err != nil {
+			t.Error(err)
+		} else if len(columns) != 2 {
+			t.Error("Expected two returned columns")
+		} else {
+			t.Log(columns)
+		}
+
+		if columns, err := driver_.Reflect(struct {
+			A int `sql:"test"`
+		}{}); err != nil {
+			t.Error(err)
+		} else if len(columns) != 1 {
+			t.Error("Expected two returned columns", columns)
+		} else if columns[0].Name() != "test" {
+			t.Error("Expected column name 'test'", columns)
+		} else {
+			t.Log(columns)
+		}
+
+		if columns, err := driver_.Reflect(struct {
+			A int `sql:",nullable"`
+		}{}); err != nil {
+			t.Error(err)
+		} else if len(columns) != 1 {
+			t.Error("Expected one returned columns", columns)
+		} else if columns[0].Name() != "A" {
+			t.Error("Expected column name 'A'", columns)
+		} else if columns[0].Nullable() != true {
+			t.Error("Expected column nullable", columns)
+		} else {
+			t.Log(columns)
+		}
+
+		if columns, err := driver_.Reflect(struct {
+			A string `sql:"TEST WITH SPACES,nullable,bool"`
+		}{}); err != nil {
+			t.Error(err)
+		} else if len(columns) != 1 {
+			t.Error("Expected one returned column", columns)
+		} else if columns[0].Name() != "TEST WITH SPACES" {
+			t.Error("Expected column name 'TEST WITH SPACES'", columns)
+		} else if columns[0].Nullable() != true {
+			t.Error("Expected column nullable", columns)
+		} else if columns[0].DeclType() != "BOOL" {
+			t.Error("Expected column type BOOL", columns)
+		} else {
+			t.Log(columns)
+		}
+
 	}
 }

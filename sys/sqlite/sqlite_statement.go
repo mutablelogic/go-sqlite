@@ -57,6 +57,10 @@ type insertreplace struct {
 	columns       []string
 }
 
+type select struct {
+	prepared
+}
+
 type tableinfo struct {
 	prepared
 	tablename
@@ -148,6 +152,16 @@ func (this *sqlite) NewTableInfo(name, schema string) sq.Statement {
 		}
 	}
 }
+
+func (this *sqlite) NewSelect(sources ...sq.Source) sq.Select {
+	this.log.Debug2("<sqlite.NewSelect>{ sources=%v }",sources)
+	if this.conn == nil {
+		return nil
+	} else {
+
+	}
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // STATEMENT IMPLEMENTATION

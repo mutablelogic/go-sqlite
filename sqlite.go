@@ -23,8 +23,9 @@ import (
 type Connection interface {
 	gopi.Driver
 
-	// Return column
+	// Return table column and data source
 	NewColumn(name, decltype string, nullable bool) Column
+	NewSource(name string) Source
 
 	// Return statements
 	NewStatement(string) Statement
@@ -32,7 +33,6 @@ type Connection interface {
 	NewDropTable(string) DropTable
 	NewInsert(string, ...string) InsertOrReplace
 	NewSelect(Source) Select
-	NewTableSource(name string) Source
 
 	// Free statement resources
 	Destroy(Statement) error

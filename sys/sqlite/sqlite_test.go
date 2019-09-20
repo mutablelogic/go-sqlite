@@ -249,7 +249,7 @@ func Test_012(t *testing.T) {
 	}
 }
 
-func Test_013(t *testing.T) {
+func Test_Create_013(t *testing.T) {
 	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
 		t.Error(err)
 	} else {
@@ -270,14 +270,14 @@ func Test_013(t *testing.T) {
 		for i, test := range tests {
 			if statement := test.f(); statement == nil {
 				t.Errorf("Test %v: nil value returned", i)
-			} else if statement.Query() != test.query {
-				t.Errorf("Test %v: Expected %v, got %v", i, strconv.Quote(test.query), strconv.Quote(statement.Query()))
+			} else if statement.Query(driver_) != test.query {
+				t.Errorf("Test %v: Expected %v, got %v", i, strconv.Quote(test.query), strconv.Quote(statement.Query(driver_)))
 			}
 		}
 	}
 }
 
-func Test_014(t *testing.T) {
+func Test_Create_014(t *testing.T) {
 	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
 		t.Error(err)
 	} else {
@@ -286,13 +286,13 @@ func Test_014(t *testing.T) {
 
 		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
 			t.Error("Statement returned is nil")
-		} else if statement.Query() != "CREATE TABLE test (a TEXT NOT NULL,b TEXT)" {
-			t.Errorf("Unexpected value, %v", statement.Query())
+		} else if statement.Query(driver_) != "CREATE TABLE test (a TEXT NOT NULL,b TEXT)" {
+			t.Errorf("Unexpected value, %v", statement.Query(driver_))
 		}
 	}
 }
 
-func Test_015(t *testing.T) {
+func Test_Create_015(t *testing.T) {
 	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
 		t.Error(err)
 	} else {
@@ -301,13 +301,13 @@ func Test_015(t *testing.T) {
 
 		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
 			t.Error("Statement returned is nil")
-		} else if statement.PrimaryKey("a").Query() != "CREATE TABLE test (a TEXT NOT NULL,b TEXT,PRIMARY KEY (a))" {
-			t.Errorf("Unexpected value, %v", statement.Query())
+		} else if statement.PrimaryKey("a").Query(driver_) != "CREATE TABLE test (a TEXT NOT NULL,b TEXT,PRIMARY KEY (a))" {
+			t.Errorf("Unexpected value, %v", statement.Query(driver_))
 		}
 	}
 }
 
-func Test_016(t *testing.T) {
+func Test_Create_016(t *testing.T) {
 	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
 		t.Error(err)
 	} else {
@@ -316,20 +316,20 @@ func Test_016(t *testing.T) {
 
 		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
 			t.Error("Statement returned is nil")
-		} else if statement.PrimaryKey("a").Unique("a", "b").Query() != "CREATE TABLE test (a TEXT NOT NULL,b TEXT,PRIMARY KEY (a),UNIQUE (a,b))" {
-			t.Errorf("Unexpected value, %v", statement.Query())
+		} else if statement.PrimaryKey("a").Unique("a", "b").Query(driver_) != "CREATE TABLE test (a TEXT NOT NULL,b TEXT,PRIMARY KEY (a),UNIQUE (a,b))" {
+			t.Errorf("Unexpected value, %v", statement.Query(driver_))
 		}
 
 		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
 			t.Error("Statement returned is nil")
-		} else if statement.Unique("a").Unique("b").Query() != "CREATE TABLE test (a TEXT NOT NULL,b TEXT,UNIQUE (a),UNIQUE (b))" {
-			t.Errorf("Unexpected value, %v", statement.Query())
+		} else if statement.Unique("a").Unique("b").Query(driver_) != "CREATE TABLE test (a TEXT NOT NULL,b TEXT,UNIQUE (a),UNIQUE (b))" {
+			t.Errorf("Unexpected value, %v", statement.Query(driver_))
 		}
 
 	}
 }
 
-func Test_017(t *testing.T) {
+func Test_Create_017(t *testing.T) {
 	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
 		t.Error(err)
 	} else {
@@ -338,50 +338,148 @@ func Test_017(t *testing.T) {
 
 		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
 			t.Error("Statement returned is nil")
-		} else if _, err := driver_.DoOnce(statement.Query()); err != nil {
+		} else if _, err := driver_.DoOnce(statement.Query(driver_)); err != nil {
 			t.Error(err)
 		}
 
-		if _, err := driver_.DoOnce(driver_.NewDropTable("test").Query()); err != nil {
+		if _, err := driver_.DoOnce(driver_.NewDropTable("test").Query(driver_)); err != nil {
 			t.Error(err)
 		}
 
 		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
 			t.Error("Statement returned is nil")
-		} else if _, err := driver_.DoOnce(statement.PrimaryKey("b").Query()); err != nil {
+		} else if _, err := driver_.DoOnce(statement.PrimaryKey("b").Query(driver_)); err != nil {
 			t.Error(err)
 		}
 
 	}
 }
 
-func Test_018(t *testing.T) {
+func Test_Drop_018(t *testing.T) {
 	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
 		t.Error(err)
 	} else {
 		driver_ := driver.(sq.Connection)
 		defer driver_.Close()
 
-		if statement := driver_.NewDropTable("test"); statement.Query() != "DROP TABLE test" {
-			t.Error("Unexpected query:", statement.Query())
-		} else if statement.IfExists(); statement.Query() != "DROP TABLE IF EXISTS test" {
-			t.Error("Unexpected query:", statement.Query())
-		} else if statement.Schema("test"); statement.Query() != "DROP TABLE IF EXISTS test.test" {
-			t.Error("Unexpected query:", statement.Query())
+		if statement := driver_.NewDropTable("test"); statement.Query(driver_) != "DROP TABLE test" {
+			t.Error("Unexpected query:", statement.Query(driver_))
+		} else if statement.IfExists(); statement.Query(driver_) != "DROP TABLE IF EXISTS test" {
+			t.Error("Unexpected query:", statement.Query(driver_))
+		} else if statement.Schema("test"); statement.Query(driver_) != "DROP TABLE IF EXISTS test.test" {
+			t.Error("Unexpected query:", statement.Query(driver_))
 		}
 	}
 }
-func DISABLED_Test_019(t *testing.T) {
+func Test_Insert_019(t *testing.T) {
 	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
 		t.Error(err)
 	} else {
 		driver_ := driver.(sq.Connection)
 		defer driver_.Close()
 
-		if statement := driver_.NewInsert("test"); statement.Query() != "INSERT INTO test VALUES (?)" {
-			t.Error("Unexpected query:", statement.Query())
-
+		if column := driver_.NewColumn("a", "TEST", false); column == nil {
+			t.Fail()
+		} else if create := driver_.NewCreateTable("test", column); create == nil {
+			t.Fail()
+		} else if _, err := driver_.Do(create); err != nil {
+			t.Error(err)
+		} else if statement := driver_.NewInsert("test"); statement.Query(driver_) != "INSERT INTO test VALUES (?)" {
+			t.Error("Unexpected query:", statement.Query(driver_))
+		} else if statement := driver_.NewInsert("test", "a"); statement.Query(driver_) != "INSERT INTO test (a) VALUES (?)" {
+			t.Error("Unexpected query:", statement.Query(driver_))
+		} else if statement := driver_.NewInsert("test").DefaultValues(); statement.Query(driver_) != "INSERT INTO test DEFAULT VALUES" {
+			t.Error("Unexpected query:", statement.Query(driver_))
+		} else if statement := driver_.NewInsert("test", "a", "b"); statement.Query(driver_) != "INSERT INTO test (a,b) VALUES (?,?)" {
+			t.Error("Unexpected query:", statement.Query(driver_))
 		}
+	}
+}
+
+func Test_Query_020(t *testing.T) {
+	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
+		t.Error(err)
+	} else {
+		driver_ := driver.(sq.Connection)
+		defer driver_.Close()
+
+		if statement := driver_.NewSelect(nil); statement.Query(driver_) != "SELECT *" {
+			t.Error("Unexpected query:", statement.Query(driver_))
+		} else {
+			t.Log(statement.Query(driver_))
+		}
+
+		if statement := driver_.NewSelect(nil).Distinct(); statement.Query(driver_) != "SELECT DISTINCT *" {
+			t.Error("Unexpected query:", statement.Query(driver_))
+		} else {
+			t.Log(statement.Query(driver_))
+		}
+
+		if statement := driver_.NewSelect(nil).LimitOffset(0, 0); statement.Query(driver_) != "SELECT *" {
+			t.Error("Unexpected query:", statement.Query(driver_))
+		} else {
+			t.Log(statement.Query(driver_))
+		}
+
+		if statement := driver_.NewSelect(nil).LimitOffset(0, 1); statement.Query(driver_) != "SELECT * OFFSET 1" {
+			t.Error("Unexpected query:", statement.Query(driver_))
+		} else {
+			t.Log(statement.Query(driver_))
+		}
+
+		if statement := driver_.NewSelect(nil).LimitOffset(100, 0); statement.Query(driver_) != "SELECT * LIMIT 100" {
+			t.Error("Unexpected query:", statement.Query(driver_))
+		} else {
+			t.Log(statement.Query(driver_))
+		}
+
+		if statement := driver_.NewSelect(nil).LimitOffset(100, 1); statement.Query(driver_) != "SELECT * LIMIT 100,1" {
+			t.Error("Unexpected query:", statement.Query(driver_))
+		} else {
+			t.Log(statement.Query(driver_))
+		}
+	}
+}
+
+func Test_Query_021(t *testing.T) {
+	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
+		t.Error(err)
+	} else {
+		driver_ := driver.(sq.Connection)
+		defer driver_.Close()
+
+		if source := driver_.NewSource("column_a"); source == nil {
+			t.Error("Unexpected <nil> returned from NewSource")
+		} else if statement := driver_.NewSelect(source); statement.Query(driver_) != "SELECT * FROM column_a" {
+			t.Error("Unexpected query:", statement.Query(driver_))
+		} else {
+			t.Log(statement.Query(driver_))
+		}
+
+		if source := driver_.NewSource("column_a").Schema("test"); source == nil {
+			t.Error("Unexpected <nil> returned from NewSource")
+		} else if statement := driver_.NewSelect(source); statement.Query(driver_) != "SELECT * FROM test.column_a" {
+			t.Error("Unexpected query:", statement.Query(driver_))
+		} else {
+			t.Log(statement.Query(driver_))
+		}
+
+		if source := driver_.NewSource("column_a").Alias("a"); source == nil {
+			t.Error("Unexpected <nil> returned from NewSource")
+		} else if statement := driver_.NewSelect(source); statement.Query(driver_) != "SELECT * FROM column_a AS a" {
+			t.Error("Unexpected query:", statement.Query(driver_))
+		} else {
+			t.Log(statement.Query(driver_))
+		}
+
+		if source := driver_.NewSource("column_a").Alias("a").Schema("test"); source == nil {
+			t.Error("Unexpected <nil> returned from NewSource")
+		} else if statement := driver_.NewSelect(source); statement.Query(driver_) != "SELECT * FROM test.column_a AS a" {
+			t.Error("Unexpected query:", statement.Query(driver_))
+		} else {
+			t.Log(statement.Query(driver_))
+		}
+
 	}
 }
 

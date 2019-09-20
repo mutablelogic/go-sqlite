@@ -87,6 +87,22 @@ func QuoteIdentifier(value string) string {
 	}
 }
 
+// QuoteIdentifiers returns a safe version of a list of identifiers,
+// separated by commas
+func QuoteIdentifiers(values ...string) string {
+	if len(values) == 0 {
+		return ""
+	} else if len(values) == 1 {
+		return QuoteIdentifier(values[0])
+	} else {
+		arr := make([]string, len(values))
+		for i, value := range values {
+			arr[i] = QuoteIdentifier(value)
+		}
+		return strings.Join(arr, ",")
+	}
+}
+
 // IsSupportedType returns true if the value provided is
 // a reserved type
 func IsSupportedType(value string) bool {

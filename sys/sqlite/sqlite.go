@@ -208,7 +208,7 @@ func (this *sqlite) Destroy(query sq.Statement) error {
 }
 
 func (this *sqlite) Do(query sq.Statement, args ...interface{}) (sq.Result, error) {
-	this.log.Debug2("<sqlite.Do>{ %v num_input=%v }", query.Query(), len(args))
+	this.log.Debug2("<sqlite.Do>{ %v num_input=%v }", query.Query(this), len(args))
 
 	if this.conn == nil {
 		return sq.Result{}, gopi.ErrAppError
@@ -258,7 +258,7 @@ func (this *sqlite) Query(query sq.Statement, args ...interface{}) (sq.Rows, err
 		// Check columns
 		for _, column := range rs.Columns() {
 			if sq.IsSupportedType(column.DeclType()) == false {
-				this.log.Warn("Warning: Column %v is not a supported type", strconv.Quote(column.Name()))
+				this.log.Warn("Warning: Column %v is not a supported type (%v)", strconv.Quote(column.Name()), column.DeclType())
 			}
 		}
 		// Return resultset
@@ -319,7 +319,7 @@ func (this *sqlite) prepare(query sq.Statement) (*driver.SQLiteStmt, error) {
 		return nil, gopi.ErrBadParameter
 	} else {
 		if st.Stmt() == nil {
-			if prepared, err := this.conn.Prepare(query.Query()); err != nil {
+			if prepared, err := this.conn.Prepare(query.Query(this)); err != nil {
 				return nil, err
 			} else {
 				st.SetStmt(prepared.(*driver.SQLiteStmt))

@@ -9,6 +9,7 @@
 package sqlite
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -57,13 +58,23 @@ type insertreplace struct {
 	columns       []string
 }
 
-type select struct {
-	prepared
-}
-
 type tableinfo struct {
 	prepared
 	tablename
+}
+
+type query struct {
+	prepared
+
+	source        sq.Source
+	distinct      bool
+	offset, limit uint
+}
+
+type source struct {
+	tablename
+
+	alias string
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,15 +164,27 @@ func (this *sqlite) NewTableInfo(name, schema string) sq.Statement {
 	}
 }
 
-func (this *sqlite) NewSelect(sources ...sq.Source) sq.Select {
-	this.log.Debug2("<sqlite.NewSelect>{ sources=%v }",sources)
+func (this *sqlite) NewSelect(source sq.Source) sq.Select {
+	this.log.Debug2("<sqlite.NewSelect>{ source=%v }", source)
 	if this.conn == nil {
 		return nil
 	} else {
-
+		return &query{prepared{nil}, source, false, 0, 0}
 	}
 }
 
+func (this *sqlite) NewSource(name string) sq.Source {
+	this.log.Debug2("<sqlite.NewSource>{ name=%v }", strconv.Quote(name))
+	if this.conn == nil {
+		return nil
+	} else if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else {
+		return &source{
+			tablename{name, ""}, "",
+		}
+	}
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // STATEMENT IMPLEMENTATION
@@ -178,7 +201,7 @@ func (this *tablename) Query() string {
 	}
 }
 
-func (this *statement) Query() string {
+func (this *statement) Query(sq.Connection) string {
 	return this.query
 }
 
@@ -241,7 +264,7 @@ func (this *createtable) Unique(columns ...string) sq.CreateTable {
 	return this
 }
 
-func (this *createtable) Query() string {
+func (this *createtable) Query(sq.Connection) string {
 	tokens := []string{"CREATE"}
 	columns := make([]string, len(this.columns), len(this.columns)+len(this.unique)+1)
 
@@ -298,7 +321,7 @@ func (this *droptable) IfExists() sq.DropTable {
 	return this
 }
 
-func (this *droptable) Query() string {
+func (this *droptable) Query(sq.Connection) string {
 	tokens := []string{"DROP TABLE"}
 
 	// Add flags
@@ -326,7 +349,7 @@ func (this *insertreplace) DefaultValues() sq.InsertOrReplace {
 	return this
 }
 
-func (this *insertreplace) Query() string {
+func (this *insertreplace) Query(conn sq.Connection) string {
 	tokens := []string{"INSERT INTO"}
 
 	// Add table name
@@ -334,25 +357,40 @@ func (this *insertreplace) Query() string {
 
 	// Add column names
 	if len(this.columns) > 0 {
-		// TODO
-		tokens = append(tokens, "()")
+		tokens = append(tokens, "("+sq.QuoteIdentifiers(this.columns...)+")")
 	}
 
 	// If default values
-	if this.defaultvalues {
+	if this.defaultvalues || (len(this.columns) == 0 && conn == nil) {
 		tokens = append(tokens, "DEFAULT VALUES")
+	} else if len(this.columns) > 0 {
+		tokens = append(tokens, "VALUES", this.argsN(len(this.columns)))
+	} else if columns, err := conn.ColumnsForTable(this.tablename.name, this.tablename.schema); err != nil {
+		// Error returned
+		return ""
+	} else if len(columns) == 0 {
+		// Table not found
+		return ""
 	} else {
-		tokens = append(tokens, "VALUES ()")
+		tokens = append(tokens, "VALUES", this.argsN(len(columns)))
 	}
 
 	// Return the query
 	return strings.Join(tokens, " ")
 }
 
+func (this *insertreplace) argsN(n int) string {
+	if n < 1 {
+		return ""
+	} else {
+		return "(" + strings.Repeat("?,", n-1) + "?)"
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // TABLE INFO
 
-func (this *tableinfo) Query() string {
+func (this *tableinfo) Query(sq.Connection) string {
 	//PRAGMA schema.table_info(table-name);
 	tokens := "PRAGMA "
 	if this.tablename.schema != "" {
@@ -360,4 +398,68 @@ func (this *tableinfo) Query() string {
 	}
 	tokens += "table_info(" + sq.QuoteIdentifier(this.tablename.name) + ")"
 	return tokens
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// DATA SOURCE IMPLEMENTATION
+
+func (this *source) Schema(schema string) sq.Source {
+	this.tablename.Schema(schema)
+	return this
+}
+
+func (this *source) Alias(alias string) sq.Source {
+	this.alias = strings.TrimSpace(alias)
+	return this
+}
+
+func (this *source) Query(sq.Connection) string {
+	if this.alias == "" {
+		return this.tablename.Query()
+	} else {
+		return this.tablename.Query() + " AS " + sq.QuoteIdentifier(this.alias)
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// SELECT IMPLEMENTATION
+
+func (this *query) Distinct() sq.Select {
+	this.distinct = true
+	return this
+}
+
+func (this *query) LimitOffset(limit, offset uint) sq.Select {
+	this.offset, this.limit = offset, limit
+	return this
+}
+
+func (this *query) Query(conn sq.Connection) string {
+	tokens := []string{"SELECT"}
+
+	// Add distinct keyword
+	if this.distinct {
+		tokens = append(tokens, "DISTINCT")
+	}
+
+	// Add column expressions
+	// TODO
+	tokens = append(tokens, "*")
+
+	// Add source
+	if this.source != nil {
+		tokens = append(tokens, "FROM", this.source.Query(conn))
+	}
+
+	// Add offset and limit
+	if this.limit == 0 && this.offset > 0 {
+		tokens = append(tokens, "OFFSET", fmt.Sprint(this.offset))
+	} else if this.limit > 0 && this.offset == 0 {
+		tokens = append(tokens, "LIMIT", fmt.Sprint(this.limit))
+	} else if this.limit > 0 && this.offset > 0 {
+		tokens = append(tokens, "LIMIT", fmt.Sprint(this.limit)+","+fmt.Sprint(this.offset))
+	}
+
+	// Return the query
+	return strings.Join(tokens, " ")
 }

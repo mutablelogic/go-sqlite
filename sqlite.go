@@ -22,17 +22,7 @@ import (
 // Database connection
 type Connection interface {
 	gopi.Driver
-
-	// Return table column and data source
-	NewColumn(name, decltype string, nullable bool) Column
-	NewSource(name string) Source
-
-	// Return statements
-	NewStatement(string) Statement
-	NewCreateTable(string, ...Column) CreateTable
-	NewDropTable(string) DropTable
-	NewInsert(string, ...string) InsertOrReplace
-	NewSelect(Source) Select
+	Statements
 
 	// Free statement resources
 	Destroy(Statement) error
@@ -58,10 +48,27 @@ type Connection interface {
 	Reflect(interface{}) ([]Column, error)
 }
 
+type Statements interface {
+	// Return statements
+	NewStatement(string) Statement
+	NewCreateTable(string, ...Column) CreateTable
+	NewDropTable(string) DropTable
+	NewInsert(string, ...string) InsertOrReplace
+	NewSelect(Source) Select
+
+	// Return table column and data source
+	NewColumn(name, decltype string, nullable bool) Column
+	NewSource(name string) Source
+
+	// Return expressions
+	//Expr(string) Expression
+	//ExprArray(...string) []Expression
+}
+
 // Statement that can be executed
 type Statement interface {
 	// Return the statement query
-	Query() string
+	Query(Connection) string
 }
 
 // Rows increments over returned rows from a query
@@ -139,9 +146,7 @@ type Select interface {
 	Statement
 
 	Distinct() Select
-	OrderAsc(...string) Select
-	OrderDesc(...string) Select
-	Limit(uint, uint) Select
+	LimitOffset(uint, uint) Select
 }
 
 // Source represents a simple table source

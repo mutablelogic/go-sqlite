@@ -47,7 +47,7 @@ func Main(app *gopi.AppInstance, done chan<- struct{}) error {
 	} else if columns, err := db.ColumnsForTable("device", ""); err != nil {
 		return err
 	} else {
-		fmt.Println(table.Query(), columns)
+		fmt.Println(table.Query(db), columns)
 	}
 
 	// Success

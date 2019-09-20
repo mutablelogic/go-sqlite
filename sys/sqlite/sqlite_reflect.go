@@ -31,6 +31,7 @@ type tagflag int
 const (
 	TAG_NAME tagflag = iota
 	TAG_NULLABLE
+	TAG_PRIMARY
 	TAG_DECLTYPE
 )
 
@@ -73,11 +74,13 @@ func reflectField(v reflect.Value, i, pos int) (sq.Column, error) {
 		return nil, fmt.Errorf("Unsupported type for field %v", strconv.Quote(tags[TAG_NAME]))
 	} else {
 		_, nullable := tags[TAG_NULLABLE]
+		_, primary := tags[TAG_PRIMARY]
 		this := &column{
 			name:     tags[TAG_NAME],
 			pos:      pos,
 			nullable: nullable,
 			decltype: decltype,
+			primary:  primary,
 		}
 		return this, nil
 	}
@@ -107,6 +110,10 @@ func reflectFieldTags(v reflect.Value, i int) map[tagflag]string {
 		// Check nullable
 		if tagHasOption(options, "NULLABLE") {
 			tags[TAG_NULLABLE] = "NULLABLE"
+		}
+		// Check primary
+		if tagHasOption(options, "PRIMARY") {
+			tags[TAG_PRIMARY] = "PRIMARY"
 		}
 		// Check types - choose first one from list of supported types
 		for _, decltype := range sq.SupportedTypes() {

@@ -48,6 +48,7 @@ type column struct {
 	name     string
 	decltype string
 	nullable bool
+	primary  bool
 	pos      int
 }
 

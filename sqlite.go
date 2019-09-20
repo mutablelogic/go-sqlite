@@ -57,7 +57,7 @@ type Statements interface {
 	NewSelect(Source) Select
 
 	// Return table column and data source
-	NewColumn(name, decltype string, nullable bool) Column
+	NewColumn(name, decltype string, nullable, primary bool) Column
 	NewSource(name string) Source
 
 	// Return expressions
@@ -85,6 +85,7 @@ type Column interface {
 	Name() string
 	DeclType() string
 	Nullable() bool
+	PrimaryKey() bool
 	Query() string
 }
 
@@ -121,7 +122,6 @@ type CreateTable interface {
 	IfNotExists() CreateTable
 	Temporary() CreateTable
 	WithoutRowID() CreateTable
-	PrimaryKey(...string) CreateTable
 	Unique(...string) CreateTable
 }
 

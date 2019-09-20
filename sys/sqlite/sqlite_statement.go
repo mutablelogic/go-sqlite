@@ -38,7 +38,6 @@ type createtable struct {
 	temporary    bool
 	ifnotexists  bool
 	withoutrowid bool
-	primarykey   string
 	unique       []string
 	columns      []sq.Column
 }
@@ -80,8 +79,8 @@ type source struct {
 ////////////////////////////////////////////////////////////////////////////////
 // NEW STATEMENTS
 
-func (this *sqlite) NewColumn(name, decltype string, nullable bool) sq.Column {
-	this.log.Debug2("<sqlite.NewColumn>{ name=%v decltype=%v nullable=%v }", strconv.Quote(name), strconv.Quote(decltype), nullable)
+func (this *sqlite) NewColumn(name, decltype string, nullable, primary bool) sq.Column {
+	this.log.Debug2("<sqlite.NewColumn>{ name=%v decltype=%v nullable=%v primary=%v }", strconv.Quote(name), strconv.Quote(decltype), nullable, primary)
 
 	if this.conn == nil {
 		return nil
@@ -91,7 +90,7 @@ func (this *sqlite) NewColumn(name, decltype string, nullable bool) sq.Column {
 		return nil
 	} else {
 		return &column{
-			name, decltype, nullable, -1,
+			name, decltype, nullable, false, -1,
 		}
 	}
 }
@@ -117,7 +116,7 @@ func (this *sqlite) NewCreateTable(name string, columns ...sq.Column) sq.CreateT
 		return nil
 	} else {
 		return &createtable{
-			prepared{nil}, tablename{name, ""}, false, false, false, "", nil, columns,
+			prepared{nil}, tablename{name, ""}, false, false, false, nil, columns,
 		}
 	}
 }
@@ -236,17 +235,6 @@ func (this *createtable) WithoutRowID() sq.CreateTable {
 	return this
 }
 
-func (this *createtable) PrimaryKey(columns ...string) sq.CreateTable {
-	this.primarykey = ""
-	for i, column := range columns {
-		if i > 0 {
-			this.primarykey += ","
-		}
-		this.primarykey += sq.QuoteIdentifier(column)
-	}
-	return this
-}
-
 func (this *createtable) Unique(columns ...string) sq.CreateTable {
 	if this.unique == nil || len(columns) == 0 {
 		this.unique = make([]string, 0, 1)
@@ -269,13 +257,17 @@ func (this *createtable) Query(sq.Connection) string {
 	columns := make([]string, len(this.columns), len(this.columns)+len(this.unique)+1)
 
 	// Set the columns
+	primary := []string{}
 	for i, column := range this.columns {
 		columns[i] = column.Query()
+		if column.PrimaryKey() {
+			primary = append(primary, column.Name())
+		}
 	}
 
 	// Add primary key
-	if this.primarykey != "" {
-		columns = append(columns, "PRIMARY KEY ("+this.primarykey+")")
+	if len(primary) > 0 {
+		columns = append(columns, "PRIMARY KEY ("+sq.QuoteIdentifiers(primary...)+")")
 	}
 
 	// Add unique indexes

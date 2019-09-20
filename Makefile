@@ -20,6 +20,9 @@ install: sq_import
 sq_import:
 	$(GOINSTALL) $(GOFLAGS) ./cmd/sq_import/...
 
+reflect_data:
+	$(GOINSTALL) $(GOFLAGS) ./cmd/reflect_data/...
+
 test: 
 	$(GOTEST) -v ./...
 

@@ -284,7 +284,7 @@ func Test_Create_014(t *testing.T) {
 		driver_ := driver.(sq.Connection)
 		defer driver_.Close()
 
-		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
+		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false, false), driver_.NewColumn("b", "TEXT", true, false)); statement == nil {
 			t.Error("Statement returned is nil")
 		} else if statement.Query(driver_) != "CREATE TABLE test (a TEXT NOT NULL,b TEXT)" {
 			t.Errorf("Unexpected value, %v", statement.Query(driver_))
@@ -299,9 +299,9 @@ func Test_Create_015(t *testing.T) {
 		driver_ := driver.(sq.Connection)
 		defer driver_.Close()
 
-		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
+		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false, true), driver_.NewColumn("b", "TEXT", true, false)); statement == nil {
 			t.Error("Statement returned is nil")
-		} else if statement.PrimaryKey("a").Query(driver_) != "CREATE TABLE test (a TEXT NOT NULL,b TEXT,PRIMARY KEY (a))" {
+		} else if statement.Query(driver_) != "CREATE TABLE test (a TEXT NOT NULL,b TEXT,PRIMARY KEY (a))" {
 			t.Errorf("Unexpected value, %v", statement.Query(driver_))
 		}
 	}
@@ -314,13 +314,13 @@ func Test_Create_016(t *testing.T) {
 		driver_ := driver.(sq.Connection)
 		defer driver_.Close()
 
-		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
+		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false, true), driver_.NewColumn("b", "TEXT", true, false)); statement == nil {
 			t.Error("Statement returned is nil")
-		} else if statement.PrimaryKey("a").Unique("a", "b").Query(driver_) != "CREATE TABLE test (a TEXT NOT NULL,b TEXT,PRIMARY KEY (a),UNIQUE (a,b))" {
+		} else if statement.Unique("a", "b").Query(driver_) != "CREATE TABLE test (a TEXT NOT NULL,b TEXT,PRIMARY KEY (a),UNIQUE (a,b))" {
 			t.Errorf("Unexpected value, %v", statement.Query(driver_))
 		}
 
-		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
+		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false, false), driver_.NewColumn("b", "TEXT", true, false)); statement == nil {
 			t.Error("Statement returned is nil")
 		} else if statement.Unique("a").Unique("b").Query(driver_) != "CREATE TABLE test (a TEXT NOT NULL,b TEXT,UNIQUE (a),UNIQUE (b))" {
 			t.Errorf("Unexpected value, %v", statement.Query(driver_))
@@ -336,7 +336,7 @@ func Test_Create_017(t *testing.T) {
 		driver_ := driver.(sq.Connection)
 		defer driver_.Close()
 
-		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
+		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false, false), driver_.NewColumn("b", "TEXT", true, false)); statement == nil {
 			t.Error("Statement returned is nil")
 		} else if _, err := driver_.DoOnce(statement.Query(driver_)); err != nil {
 			t.Error(err)
@@ -346,9 +346,9 @@ func Test_Create_017(t *testing.T) {
 			t.Error(err)
 		}
 
-		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false), driver_.NewColumn("b", "TEXT", true)); statement == nil {
+		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false, false), driver_.NewColumn("b", "TEXT", true, true)); statement == nil {
 			t.Error("Statement returned is nil")
-		} else if _, err := driver_.DoOnce(statement.PrimaryKey("b").Query(driver_)); err != nil {
+		} else if _, err := driver_.DoOnce(statement.Query(driver_)); err != nil {
 			t.Error(err)
 		}
 
@@ -378,7 +378,7 @@ func Test_Insert_019(t *testing.T) {
 		driver_ := driver.(sq.Connection)
 		defer driver_.Close()
 
-		if column := driver_.NewColumn("a", "TEST", false); column == nil {
+		if column := driver_.NewColumn("a", "TEST", false, false); column == nil {
 			t.Fail()
 		} else if create := driver_.NewCreateTable("test", column); create == nil {
 			t.Fail()

@@ -90,7 +90,7 @@ func (this *sqlite) NewColumn(name, decltype string, nullable, primary bool) sq.
 		return nil
 	} else {
 		return &column{
-			name, decltype, nullable, false, -1,
+			name, decltype, nullable, primary, -1,
 		}
 	}
 }

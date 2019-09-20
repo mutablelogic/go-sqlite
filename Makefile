@@ -15,7 +15,7 @@ GOFLAGS = -ldflags "-s -w $(GOLDFLAGS)"
 
 all: test install
 
-install: sq_import
+install: sq_import reflect_data
 
 sq_import:
 	$(GOINSTALL) $(GOFLAGS) ./cmd/sq_import/...

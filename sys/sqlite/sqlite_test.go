@@ -326,6 +326,17 @@ func Test_Create_016(t *testing.T) {
 			t.Errorf("Unexpected value, %v", statement.Query(driver_))
 		}
 
+		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false, true), driver_.NewColumn("b", "TEXT", true, true)); statement == nil {
+			t.Error("Statement returned is nil")
+		} else if statement.Query(driver_) != "CREATE TABLE test (a TEXT NOT NULL,b TEXT,PRIMARY KEY (a,b))" {
+			t.Errorf("Unexpected value, %v", statement.Query(driver_))
+		}
+
+		if statement := driver_.NewCreateTable("test", driver_.NewColumn("a", "TEXT", false, true), driver_.NewColumn("b", "TEXT", true, true)); statement == nil {
+			t.Error("Statement returned is nil")
+		} else if statement.Unique("a", "b").Query(driver_) != "CREATE TABLE test (a TEXT NOT NULL,b TEXT,PRIMARY KEY (a,b),UNIQUE (a,b))" {
+			t.Errorf("Unexpected value, %v", statement.Query(driver_))
+		}
 	}
 }
 
@@ -569,5 +580,53 @@ func Test_Reflect_002(t *testing.T) {
 			t.Log(columns)
 		}
 
+	}
+}
+
+func Test_Reflect_003(t *testing.T) {
+	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
+		t.Error(err)
+	} else {
+		driver_ := driver.(sq.Connection)
+		defer driver_.Close()
+
+		if columns, err := driver_.Reflect(struct {
+			A int `sql:"test,primary"`
+		}{}); err != nil {
+			t.Error(err)
+		} else if len(columns) != 1 {
+			t.Error("Expected two returned columns", columns)
+		} else if columns[0].Name() != "test" {
+			t.Error("Expected column name 'test'", columns)
+		} else if columns[0].PrimaryKey() != true {
+			t.Error("Expected column 'test' with primary key", columns)
+		} else {
+			t.Log(columns)
+		}
+
+		if columns, err := driver_.Reflect(struct {
+			A int `sql:"a,primary"`
+			B int `sql:"b,primary,nullable"`
+		}{}); err != nil {
+			t.Error(err)
+		} else if len(columns) != 2 {
+			t.Error("Expected two returned columns", columns)
+		} else if columns[0].Name() != "a" {
+			t.Error("Expected column name 'a'", columns)
+		} else if columns[0].PrimaryKey() != true {
+			t.Error("Expected column 'b' with primary key", columns)
+		} else if columns[1].Name() != "b" {
+			t.Error("Expected column name 'b'", columns)
+		} else if columns[1].PrimaryKey() != true {
+			t.Error("Expected column 'b' with primary key", columns)
+		} else if create := driver_.NewCreateTable("test", columns...); create == nil {
+			t.Fail()
+		} else if query := create.Query(driver_); query == "" {
+			t.Fail()
+		} else if query != "CREATE TABLE test (a INTEGER NOT NULL,b INTEGER,PRIMARY KEY (a,b))" {
+			t.Errorf("Unexpected query %v", query)
+		} else {
+			t.Log(query)
+		}
 	}
 }

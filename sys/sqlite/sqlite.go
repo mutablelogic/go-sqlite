@@ -34,9 +34,8 @@ type sqlite struct {
 	statements []*statement
 }
 
-type statement struct {
-	query     string
-	statement *driver.SQLiteStmt
+type prepared struct {
+	*driver.SQLiteStmt
 }
 
 type resultset struct {
@@ -49,12 +48,21 @@ type column struct {
 	name     string
 	decltype string
 	nullable bool
+	primary  bool
 	pos      int
 }
 
 type value struct {
 	v sql.Value
 	c *column
+}
+
+type statement_iface interface {
+	// Get prepared statement
+	Stmt() *driver.SQLiteStmt
+
+	// Set prepared statement
+	SetStmt(*driver.SQLiteStmt)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,7 +74,7 @@ var (
 )
 
 const (
-	DEFAULT_COLUMN_TYPE = "TEXT"
+	DEFAULT_STRUCT_TAG = "sql"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,9 +110,9 @@ func (this *sqlite) Close() error {
 
 	// Cycle through prepared statements to destroy
 	for _, s := range this.statements {
-		if s.statement != nil {
+		if s.prepared.SQLiteStmt != nil {
 			this.log.Debug2("<sqlite.Destroy>{ %v }", s)
-			err.Add(s.statement.Close())
+			err.Add(s.prepared.SQLiteStmt.Close())
 		}
 	}
 
@@ -146,6 +154,33 @@ func (this *sqlite) Tables() []string {
 	}
 }
 
+func (this *sqlite) ColumnsForTable(name, schema string) ([]sq.Column, error) {
+	if this.conn == nil {
+		return nil, gopi.ErrAppError
+	} else if st := this.NewTableInfo(name, schema); st == nil {
+		return nil, gopi.ErrBadParameter
+	} else if rows, err := this.Query(st); err != nil {
+		return nil, err
+	} else {
+		columns := make([]sq.Column, 0, 10)
+		for {
+			row := sq.RowMap(rows.Next())
+			if row == nil {
+				break
+			} else {
+				c := &column{
+					name:     row["name"].String(),
+					decltype: row["type"].String(),
+					pos:      len(columns),
+					nullable: row["notnull"].Bool() == false,
+				}
+				columns = append(columns, c)
+			}
+		}
+		return columns, nil
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
@@ -156,20 +191,6 @@ func (this *sqlite) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (this *sqlite) Prepare(query string) (sq.Statement, error) {
-	this.log.Debug2("<sqlite.Prepare>{ %v }", strconv.Quote(query))
-
-	if this.conn == nil {
-		return nil, gopi.ErrAppError
-	} else if prepared, err := this.conn.Prepare(query); err != nil {
-		return nil, err
-	} else {
-		st := &statement{query, prepared.(*driver.SQLiteStmt)}
-		this.statements = append(this.statements, st)
-		return st, nil
-	}
-}
-
 func (this *sqlite) Destroy(query sq.Statement) error {
 	this.log.Debug2("<sqlite.Destroy>{ %v }", query)
 
@@ -179,28 +200,22 @@ func (this *sqlite) Destroy(query sq.Statement) error {
 		return gopi.ErrBadParameter
 	} else {
 		var err error
-		if query_.statement != nil {
-			err = query_.statement.Close()
-			query_.statement = nil
+		if query_.prepared.SQLiteStmt != nil {
+			err = query_.prepared.SQLiteStmt.Close()
+			query_.prepared.SQLiteStmt = nil
 		}
 		return err
 	}
 }
 
 func (this *sqlite) Do(query sq.Statement, args ...interface{}) (sq.Result, error) {
-	this.log.Debug2("<sqlite.Do>{ %v num_input=%v }", query, len(args))
+	this.log.Debug2("<sqlite.Do>{ %v num_input=%v }", query.Query(this), len(args))
 
 	if this.conn == nil {
 		return sq.Result{}, gopi.ErrAppError
 	} else if query == nil {
 		return sq.Result{}, gopi.ErrBadParameter
-	} else if query_, ok := query.(*statement); ok == false || query_.statement == nil {
-		return sq.Result{}, gopi.ErrBadParameter
-	} else if query_.statement == nil {
-		return sq.Result{}, gopi.ErrBadParameter
-	} else if values, err := to_values(args, query_.statement.NumInput()); err != nil {
-		return sq.Result{}, err
-	} else if results, err := query_.statement.Exec(values); err != nil {
+	} else if results, err := this.do(query, args); err != nil {
 		return sq.Result{}, err
 	} else if lastInsertID, err := results.LastInsertId(); err != nil {
 		return sq.Result{}, err
@@ -236,11 +251,7 @@ func (this *sqlite) Query(query sq.Statement, args ...interface{}) (sq.Rows, err
 		return nil, gopi.ErrAppError
 	} else if query == nil {
 		return nil, gopi.ErrBadParameter
-	} else if query_, ok := query.(*statement); ok == false || query_.statement == nil {
-		return nil, gopi.ErrBadParameter
-	} else if values, err := to_values(args, query_.statement.NumInput()); err != nil {
-		return nil, err
-	} else if rows, err := query_.statement.Query(values); err != nil {
+	} else if rows, err := this.query(query, args); err != nil {
 		return nil, err
 	} else if rs, err := to_rows(rows.(*driver.SQLiteRows)); err != nil {
 		return nil, err
@@ -248,7 +259,7 @@ func (this *sqlite) Query(query sq.Statement, args ...interface{}) (sq.Rows, err
 		// Check columns
 		for _, column := range rs.Columns() {
 			if sq.IsSupportedType(column.DeclType()) == false {
-				this.log.Warn("Warning: Column %v is not a supported type", strconv.Quote(column.Name()))
+				this.log.Warn("Warning: Column %v is not a supported type (%v)", strconv.Quote(column.Name()), column.DeclType())
 			}
 		}
 		// Return resultset
@@ -298,5 +309,51 @@ func (this *sqlite) Tx(cb func(sq.Connection) error) error {
 	} else {
 		this.log.Debug("<sqlite.Tx>{ COMMIT OK }")
 		return nil
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func (this *sqlite) prepare(query sq.Statement) (*driver.SQLiteStmt, error) {
+	if st, ok := query.(statement_iface); ok == false {
+		return nil, gopi.ErrBadParameter
+	} else {
+		if st.Stmt() == nil {
+			if prepared, err := this.conn.Prepare(query.Query(this)); err != nil {
+				return nil, err
+			} else {
+				st.SetStmt(prepared.(*driver.SQLiteStmt))
+			}
+		}
+		return st.Stmt(), nil
+	}
+}
+
+func (this *sqlite) do(query sq.Statement, args []interface{}) (sql.Result, error) {
+	if st, err := this.prepare(query); err != nil {
+		return &driver.SQLiteResult{}, err
+	} else if st == nil {
+		return &driver.SQLiteResult{}, gopi.ErrAppError
+	} else if values, err := to_values(args, st.NumInput()); err != nil {
+		return &driver.SQLiteResult{}, err
+	} else if results, err := st.Exec(values); err != nil {
+		return &driver.SQLiteResult{}, err
+	} else {
+		return results, nil
+	}
+}
+
+func (this *sqlite) query(query sq.Statement, args []interface{}) (sql.Rows, error) {
+	if st, err := this.prepare(query); err != nil {
+		return nil, err
+	} else if st == nil {
+		return nil, gopi.ErrAppError
+	} else if values, err := to_values(args, st.NumInput()); err != nil {
+		return nil, err
+	} else if rows, err := st.Query(values); err != nil {
+		return nil, err
+	} else {
+		return rows, nil
 	}
 }

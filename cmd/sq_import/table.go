@@ -15,7 +15,6 @@ import (
 	"strings"
 
 	// Frameworks
-
 	"github.com/djthorpe/sqlite"
 )
 
@@ -31,9 +30,11 @@ type Table struct {
 	// NotNull excludes NULL values from columns
 	NotNull bool
 	// Columns is the name of the columns
-	Columns []string
+	Columns []sqlite.Column
 	// Candidates for the column type
 	Candidates []map[string]bool
+	// Database connection
+	db sqlite.Connection
 	// File handle
 	fh io.ReadSeeker
 	// CSV Reader
@@ -45,12 +46,13 @@ type Table struct {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Create a new empty table to be imported
-func NewTable(fh io.ReadSeeker, name string) *Table {
+func NewTable(fh io.ReadSeeker, db sqlite.Connection, name string) *Table {
 	this := new(Table)
 	this.Name = strings.ToLower(name)
 	this.NoHeader = false
 	this.NotNull = false
 	this.SkipComments = true
+	this.db = db
 	this.fh = fh
 	this.reader = csv.NewReader(fh)
 	this.first = -1
@@ -77,11 +79,11 @@ func (this *Table) Scan() (int, error) {
 			// Skip rows with comments
 		} else if i == 0 && this.NoHeader == false {
 			// Set column headers
-			this.Columns = row
+			this.Columns = this.namedColumns(row)
 		} else {
 			if this.Columns == nil {
 				// Set columns with generic names
-				this.Columns = genericColumns(len(row))
+				this.Columns = this.genericColumns(len(row))
 			}
 			if this.Candidates == nil {
 				// Set empty type candidates
@@ -98,6 +100,11 @@ func (this *Table) Scan() (int, error) {
 			}
 			affectedRows = affectedRows + 1
 		}
+	}
+
+	// Now we can set the declared types for columns
+	for i, column := range this.Columns {
+		this.Columns[i] = this.db.NewColumn(column.Name(), this.TypeForColumn(i), column.Nullable(), column.PrimaryKey())
 	}
 
 	// Success
@@ -157,10 +164,7 @@ func checkCandidates(candidates map[string]bool, types []string) {
 	}
 }
 
-func (this *Table) DropTable() string {
-	return fmt.Sprintf("DROP TABLE IF EXISTS %v", sqlite.QuoteIdentifier(this.Name))
-}
-
+/*
 func (this *Table) CreateTable() string {
 	columns := make([]string, len(this.Columns))
 	for i := range this.Columns {
@@ -168,6 +172,7 @@ func (this *Table) CreateTable() string {
 	}
 	return fmt.Sprintf("CREATE TABLE IF NOT EXISTS %v (%v)", sqlite.QuoteIdentifier(this.Name), strings.Join(columns, ","))
 }
+*/
 
 func (this *Table) InsertRow() string {
 	columns := make([]string, len(this.Columns))
@@ -192,10 +197,21 @@ func isComment(row []string) bool {
 	}
 }
 
-func genericColumns(size int) []string {
-	columns := make([]string, size)
+func (this *Table) genericColumns(size int) []sqlite.Column {
+	columns := make([]sqlite.Column, size)
+	default_type := sqlite.SupportedTypes()[0]
 	for i := 0; i < size; i++ {
-		columns[i] = fmt.Sprintf("column%03d", i)
+		name := fmt.Sprintf("column%03d", i)
+		columns[i] = this.db.NewColumn(name, default_type, this.NotNull == false, false)
+	}
+	return columns
+}
+
+func (this *Table) namedColumns(names []string) []sqlite.Column {
+	columns := make([]sqlite.Column, len(names))
+	default_type := sqlite.SupportedTypes()[0]
+	for i, name := range names {
+		columns[i] = this.db.NewColumn(name, default_type, this.NotNull == false, false)
 	}
 	return columns
 }

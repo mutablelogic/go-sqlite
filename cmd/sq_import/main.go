@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	// Frameworks
@@ -39,16 +40,15 @@ func CreateTable(db sqlite.Connection, table *Table) (int, error) {
 
 	// Wrap SQL statements in a transaction
 	return affectedRows, db.Tx(func(db sqlite.Connection) error {
-		if _, err := db.DoOnce(table.DropTable()); err != nil {
+		if _, err := db.Do(db.NewDropTable(table.Name).IfExists()); err != nil {
 			return err
 		}
-		if _, err := db.DoOnce(table.CreateTable()); err != nil {
+		if _, err := db.Do(db.NewCreateTable(table.Name, table.Columns...)); err != nil {
 			return err
 		}
-		if insert, err := db.Prepare(table.InsertRow()); err != nil {
-			return err
+		if insert := db.NewInsert(table.Name); insert == nil {
+			return gopi.ErrBadParameter
 		} else {
-			defer db.Destroy(insert)
 			for {
 				if row, err := table.Next(); err == io.EOF {
 					break
@@ -66,9 +66,8 @@ func CreateTable(db sqlite.Connection, table *Table) (int, error) {
 }
 
 func Process(app *gopi.AppInstance, db sqlite.Connection, name string, fh io.ReadSeeker) error {
-
 	// Create a table
-	table := NewTable(fh, name)
+	table := NewTable(fh, db, name)
 	table.NoHeader, _ = app.AppFlags.GetBool("noheader")
 	table.SkipComments, _ = app.AppFlags.GetBool("skipcomments")
 	table.NotNull, _ = app.AppFlags.GetBool("notnull")
@@ -79,7 +78,7 @@ func Process(app *gopi.AppInstance, db sqlite.Connection, name string, fh io.Rea
 	}
 
 	// Create the table if it doesn't exist
-	app.Logger.Info("Creating table %v with columns: %v", table.Name, strings.Join(table.Columns, ","))
+	app.Logger.Info("Creating table %v with %d columns", strconv.Quote(table.Name), len(table.Columns))
 
 	// Repeat until all rows read
 	if affectedRows, err := CreateTable(db, table); err != nil {

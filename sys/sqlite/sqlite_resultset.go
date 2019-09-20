@@ -11,6 +11,7 @@ package sqlite
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	// Frameworks
 	sq "github.com/djthorpe/sqlite"
@@ -35,6 +36,10 @@ func (this *column) Nullable() bool {
 	return this.nullable
 }
 
+func (this *column) PrimaryKey() bool {
+	return this.primary
+}
+
 func (this *column) Query() string {
 	if this.nullable {
 		return fmt.Sprintf("%v %v", sq.QuoteIdentifier(this.name), this.decltype)
@@ -44,11 +49,17 @@ func (this *column) Query() string {
 }
 
 func (this *column) String() string {
-	if this.pos >= 0 {
-		return fmt.Sprintf("<sqlite.Column>{ name=%v decltype=%v pos=%v }", strconv.Quote(this.name), strconv.Quote(this.decltype), this.pos)
-	} else {
-		return fmt.Sprintf("<sqlite.Column>{ name=%v decltype=%v }", strconv.Quote(this.name), strconv.Quote(this.decltype))
+	tokens := []string{}
+	if this.primary {
+		tokens = append(tokens, "primary")
 	}
+	if this.nullable {
+		tokens = append(tokens, "nullable")
+	}
+	if this.pos >= 0 {
+		tokens = append(tokens, fmt.Sprintf("pos=%v", this.pos))
+	}
+	return fmt.Sprintf("<sqlite.Column>{ name=%v decltype=%v %v }", strconv.Quote(this.name), strconv.Quote(this.decltype), strings.Join(tokens, " "))
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,6 +13,9 @@ import (
 	"math"
 	"reflect"
 	"time"
+
+	// Frameworks
+	sq "github.com/djthorpe/sqlite"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,10 +157,10 @@ func (this *value) Bytes() []byte {
 	}
 }
 
-func (this *value) DeclType() string {
+func (this *value) Column() sq.Column {
 	if this.c != nil {
-		return this.c.decltype
+		return this.c
 	} else {
-		return DEFAULT_COLUMN_TYPE
+		return nil
 	}
 }

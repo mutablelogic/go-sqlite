@@ -87,6 +87,22 @@ func QuoteIdentifier(value string) string {
 	}
 }
 
+// QuoteIdentifiers returns a safe version of a list of identifiers,
+// separated by commas
+func QuoteIdentifiers(values ...string) string {
+	if len(values) == 0 {
+		return ""
+	} else if len(values) == 1 {
+		return QuoteIdentifier(values[0])
+	} else {
+		arr := make([]string, len(values))
+		for i, value := range values {
+			arr[i] = QuoteIdentifier(value)
+		}
+		return strings.Join(arr, ",")
+	}
+}
+
 // IsSupportedType returns true if the value provided is
 // a reserved type
 func IsSupportedType(value string) bool {
@@ -98,29 +114,47 @@ func SupportedTypes() []string {
 	return strings.Fields(reserved_types)
 }
 
-// QuoteRow returns a row as a string
+// RowString returns a row as a string
 func RowString(row []Value) string {
 	if row == nil {
 		return "<nil>"
 	}
 	str := make([]string, len(row))
 	for i, v := range row {
+		decltype := ""
+		if v.Column() != nil {
+			decltype = v.Column().DeclType()
+		}
 		switch {
 		case v.IsNull():
 			str[i] = "<nil>"
-		case v.DeclType() == "TEXT":
+		case decltype == "TEXT":
 			str[i] = strconv.Quote(v.String())
-		case v.DeclType() == "INTEGER" || v.DeclType() == "FLOAT" || v.DeclType() == "BOOL":
+		case decltype == "INTEGER" || decltype == "FLOAT" || decltype == "BOOL":
 			str[i] = v.String()
-		case v.DeclType() == "TIMESTAMP" || v.DeclType() == "DATETIME":
+		case decltype == "TIMESTAMP" || decltype == "DATETIME":
 			str[i] = v.Timestamp().Format(time.RFC3339)
-		case v.DeclType() == "BLOB":
+		case decltype == "BLOB":
 			str[i] = strings.ToUpper(hex.EncodeToString(v.Bytes()))
 		default:
-			str[i] = fmt.Sprintf("<%v>%v", v.DeclType(), strconv.Quote(v.String()))
+			str[i] = fmt.Sprintf("<%v>%v", decltype, strconv.Quote(v.String()))
 		}
 	}
 	return fmt.Sprint("[" + strings.Join(str, ",") + "]")
+}
+
+// RowMap returns a row as <name>,<value> pairs
+func RowMap(row []Value) map[string]Value {
+	if row == nil {
+		return nil
+	}
+	row_ := make(map[string]Value, len(row))
+	for _, value := range row {
+		if value.Column() != nil {
+			row_[value.Column().Name()] = value
+		}
+	}
+	return row_
 }
 
 // ToSupportedType converts from a string to a supported type. If the
@@ -212,6 +246,27 @@ func SupportedTypesForValue(value string) []string {
 
 	// Return supported types in priority order
 	return supported_types
+}
+
+func SupportedTypeForType(v interface{}) string {
+	switch v.(type) {
+	case int, int8, int16, int32, int64:
+		return "INTEGER"
+	case uint, uint8, uint16, uint32, uint64:
+		return "INTEGER"
+	case string:
+		return "TEXT"
+	case []byte:
+		return "BLOB"
+	case time.Time:
+		return "TIMESTAMP"
+	case float32, float64:
+		return "FLOAT"
+	case bool:
+		return "BOOL"
+	default:
+		return ""
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

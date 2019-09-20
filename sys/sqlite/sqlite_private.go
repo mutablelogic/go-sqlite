@@ -63,6 +63,7 @@ func to_rows(r *driver.SQLiteRows) (sq.Rows, error) {
 	// Populate columns
 	columns := r.Columns()
 	decltypes := r.DeclTypes()
+	defaulttype := sq.SupportedTypes()[0]
 	if len(columns) == 0 || len(columns) != len(decltypes) {
 		return nil, gopi.ErrBadParameter
 	}
@@ -75,10 +76,10 @@ func to_rows(r *driver.SQLiteRows) (sq.Rows, error) {
 			decltype = r.ColumnTypeDatabaseTypeName(i)
 		}
 		if decltype == "" {
-			decltype = DEFAULT_COLUMN_TYPE
+			decltype = defaulttype
 		}
 		nullable, _ := r.ColumnTypeNullable(i)
-		this.columns[i] = &column{name, strings.ToUpper(decltype), nullable, i}
+		this.columns[i] = &column{name, strings.ToUpper(decltype), nullable, false, i}
 	}
 
 	// Success

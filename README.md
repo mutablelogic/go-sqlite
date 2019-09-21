@@ -57,7 +57,7 @@ func Main(app *gopi.AppInstance, done chan<- struct{}) error {
       if row := rows.Next(); row == nil {
         break
       } else {
-        fmt.Println(sqlite.RowSting(row))
+        fmt.Println(sqlite.RowString(row))
       }
     }
   }

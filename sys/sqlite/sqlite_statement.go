@@ -89,9 +89,21 @@ func (this *sqlite) NewColumn(name, decltype string, nullable, primary bool) sq.
 	} else if decltype = strings.TrimSpace(decltype); decltype == "" {
 		return nil
 	} else {
-		return &column{
-			name, decltype, nullable, primary, -1,
-		}
+		return &column{name, decltype, nullable, primary, -1}
+	}
+}
+
+func (this *sqlite) NewColumnWithIndex(name, decltype string, nullable, primary bool, index int) sq.Column {
+	this.log.Debug2("<sqlite.NewColumn>{ name=%v decltype=%v nullable=%v primary=%v index=%v }", strconv.Quote(name), strconv.Quote(decltype), nullable, primary, index)
+
+	if this.conn == nil {
+		return nil
+	} else if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else if decltype = strings.TrimSpace(decltype); decltype == "" {
+		return nil
+	} else {
+		return &column{name, decltype, nullable, primary, index}
 	}
 }
 

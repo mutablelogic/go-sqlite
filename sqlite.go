@@ -9,11 +9,21 @@
 package sqlite
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	// Frameworks
 	"github.com/djthorpe/gopi"
+)
+
+////////////////////////////////////////////////////////////////////////////////
+// ERRORS
+
+var (
+	ErrUnsupportedType = errors.New("Unsupported type")
+	ErrInvalidDate     = errors.New("Invalid date")
+	ErrNotFound        = errors.New("Not Found")
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,9 +53,6 @@ type Connection interface {
 	Tables() []string
 	//Tables(schema string, include_temporary bool) []string
 	ColumnsForTable(name, schema string) ([]Column, error)
-
-	// Reflect columns from struct
-	Reflect(interface{}) ([]Column, error)
 }
 
 type Statements interface {
@@ -58,6 +65,7 @@ type Statements interface {
 
 	// Return table column and data source
 	NewColumn(name, decltype string, nullable, primary bool) Column
+	NewColumnWithIndex(name, decltype string, nullable, primary bool, index int) Column
 	NewSource(name string) Source
 
 	// Return expressions
@@ -86,6 +94,7 @@ type Column interface {
 	DeclType() string
 	Nullable() bool
 	PrimaryKey() bool
+	Index() int
 	Query() string
 }
 

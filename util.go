@@ -10,7 +10,6 @@ package sqlite
 
 import (
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -55,11 +54,6 @@ var (
 	regexpDatetimeDD_MM_YYYY = regexp.MustCompile("^(\\d{2})\\/(\\d{2})\\/(\\d{4})$")
 	regexpDatetimeDDMMYY     = regexp.MustCompile("^(\\d{2})(\\d{2})(\\d{2})$")
 	regexpDatetimeDD_MM_YY   = regexp.MustCompile("^(\\d{2})\\/(\\d{2})\\/(\\d{2})$")
-)
-
-var (
-	ErrUnsupportedType = errors.New("Unsupported type")
-	ErrInvalidDate     = errors.New("Invalid date")
 )
 
 /////////////////////////////////////////////////////////////////////

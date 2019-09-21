@@ -20,12 +20,13 @@ import (
 	// Modules
 	_ "github.com/djthorpe/gopi/sys/logger"
 	_ "github.com/djthorpe/sqlite/sys/sqlite"
+	_ "github.com/djthorpe/sqlite/sys/sqobj"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 
 type Device struct {
-	ID          uint      `sql:"device_id"`
+	ID          int       `sql:"device_id"`
 	Name        string    `sql:"name"`
 	DateAdded   time.Time `sql:"date_added"`
 	DateUpdated time.Time `sql:"date_updated,nullable"`
@@ -36,18 +37,16 @@ type Device struct {
 
 func Main(app *gopi.AppInstance, done chan<- struct{}) error {
 
-	if db := app.ModuleInstance("db/sqlite").(sqlite.Connection); db == nil {
+	if db := app.ModuleInstance("db/sqobj").(sqlite.Objects); db == nil {
 		return gopi.ErrAppError
-	} else if columns, err := db.Reflect(Device{}); err != nil {
+	} else if class, err := db.RegisterStruct("device", Device{}); err != nil {
 		return err
-	} else if table := db.NewCreateTable("device", columns...); table == nil {
-		return gopi.ErrBadParameter
-	} else if _, err := db.Do(table); err != nil {
+	} else if device_a, err := class.Insert(&Device{ID: 1, Name: "Test"}); err != nil {
 		return err
-	} else if columns, err := db.ColumnsForTable("device", ""); err != nil {
+	} else if device_b, err := class.Insert(&Device{ID: -1, Name: "Test"}); err != nil {
 		return err
 	} else {
-		fmt.Println(table.Query(db), columns)
+		fmt.Println(device_a, device_b)
 	}
 
 	// Success
@@ -59,7 +58,7 @@ func Main(app *gopi.AppInstance, done chan<- struct{}) error {
 
 func main() {
 	// Create the configuration
-	config := gopi.NewAppConfig("db/sqlite")
+	config := gopi.NewAppConfig("db/sqobj")
 
 	// Run the command line tool
 	os.Exit(gopi.CommandLineTool2(config, Main))

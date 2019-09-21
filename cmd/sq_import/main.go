@@ -15,10 +15,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	// Frameworks
 	gopi "github.com/djthorpe/gopi"
 	sqlite "github.com/djthorpe/sqlite"
+	tablewriter "github.com/olekukonko/tablewriter"
 
 	// Modules
 	_ "github.com/djthorpe/gopi/sys/logger"
@@ -26,10 +28,14 @@ import (
 )
 
 // BoundRow returns a slice of type []interface{} from a slice of type []string
-func BoundRow(row []string) []interface{} {
+func BoundRow(row []string, notnull bool) []interface{} {
 	row_ := []interface{}{}
 	for i := range row {
-		row_ = append(row_, row[i])
+		if row[i] == "" && notnull == false {
+			row_ = append(row_, nil)
+		} else {
+			row_ = append(row_, row[i])
+		}
 	}
 	return row_
 }
@@ -50,11 +56,11 @@ func CreateTable(db sqlite.Connection, table *Table) (int, error) {
 			return gopi.ErrBadParameter
 		} else {
 			for {
-				if row, err := table.Next(); err == io.EOF {
+				if row, _, err := table.Next(); err == io.EOF {
 					break
 				} else if err != nil {
 					return err
-				} else if result, err := db.Do(insert, BoundRow(row)...); err != nil {
+				} else if result, err := db.Do(insert, BoundRow(row, table.NotNull)...); err != nil {
 					return err
 				} else {
 					affectedRows = affectedRows + int(result.RowsAffected)
@@ -65,23 +71,70 @@ func CreateTable(db sqlite.Connection, table *Table) (int, error) {
 	})
 }
 
+// ShowTable outputs an SQL table to the screen
+func ShowTable(db sqlite.Connection, table *Table) error {
+	if src := db.NewSource(table.Name); src == nil {
+		return gopi.ErrBadParameter
+	} else if st := db.NewSelect(src); st == nil {
+		return gopi.ErrBadParameter
+	} else if rows, err := db.Query(st); err != nil {
+		return err
+	} else {
+		tablewriter := tablewriter.NewWriter(os.Stdout)
+		header := make([]string, len(rows.Columns()))
+		for i, column := range rows.Columns() {
+			header[i] = column.Name()
+		}
+		tablewriter.SetHeader(header)
+		tablewriter.SetAutoFormatHeaders(false)
+
+		for {
+			if values := rows.Next(); values == nil {
+				break
+			} else {
+				row := make([]string, len(values))
+				for i, value := range values {
+					if value.IsNull() {
+						row[i] = "<null>"
+					} else {
+						row[i] = value.String()
+					}
+				}
+				tablewriter.Append(row)
+
+			}
+		}
+		tablewriter.Render()
+	}
+
+	// Success
+	return nil
+}
+
 func Process(app *gopi.AppInstance, db sqlite.Connection, name string, fh io.ReadSeeker) error {
 	// Create a table
 	table := NewTable(fh, db, name)
 	table.NoHeader, _ = app.AppFlags.GetBool("noheader")
-	table.SkipComments, _ = app.AppFlags.GetBool("skipcomments")
 	table.NotNull, _ = app.AppFlags.GetBool("notnull")
 
-	// Scan rows for column names and types
-	if affectedRows, err := table.Scan(); err != nil {
-		return fmt.Errorf("%v (line %v)", err, affectedRows)
+	// Set the comment
+	if comment, exists := app.AppFlags.GetString("comment"); exists {
+		table.Comment, _ = utf8.DecodeRuneInString(comment)
 	}
 
-	// Create the table if it doesn't exist
+	// Infer column headers and types
+	if affectedRows, err := table.Scan(); err != nil {
+		return err
+	} else {
+		app.Logger.Info("%v rows scanned", affectedRows)
+	}
+
 	app.Logger.Info("Creating table %v with %d columns", strconv.Quote(table.Name), len(table.Columns))
 
 	// Repeat until all rows read
 	if affectedRows, err := CreateTable(db, table); err != nil {
+		return err
+	} else if err := ShowTable(db, table); err != nil {
 		return err
 	} else {
 		app.Logger.Info("%v rows imported", affectedRows)
@@ -128,7 +181,7 @@ func main() {
 
 	// Set arguments
 	config.AppFlags.FlagBool("noheader", false, "Do not use the first row as column names")
-	config.AppFlags.FlagBool("skipcomments", true, "Skip comment lines")
+	config.AppFlags.FlagString("comment", "#", "Comment line prefix")
 	config.AppFlags.FlagBool("notnull", false, "Don't use NULL values for empty values")
 
 	// Run the command line tool

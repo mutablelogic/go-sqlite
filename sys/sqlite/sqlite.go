@@ -49,7 +49,7 @@ type column struct {
 	decltype string
 	nullable bool
 	primary  bool
-	pos      int
+	index    int
 }
 
 type value struct {
@@ -71,10 +71,6 @@ type statement_iface interface {
 var (
 	sqLiteDriver        = &driver.SQLiteDriver{}
 	sqLiteVersion, _, _ = driver.Version()
-)
-
-const (
-	DEFAULT_STRUCT_TAG = "sql"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -171,7 +167,6 @@ func (this *sqlite) ColumnsForTable(name, schema string) ([]sq.Column, error) {
 				c := &column{
 					name:     row["name"].String(),
 					decltype: row["type"].String(),
-					pos:      len(columns),
 					nullable: row["notnull"].Bool() == false,
 				}
 				columns = append(columns, c)

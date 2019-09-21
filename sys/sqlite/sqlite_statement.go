@@ -89,9 +89,7 @@ func (this *sqlite) NewColumn(name, decltype string, nullable, primary bool) sq.
 	} else if decltype = strings.TrimSpace(decltype); decltype == "" {
 		return nil
 	} else {
-		return &column{
-			name, decltype, nullable, primary, -1,
-		}
+		return &column{name, decltype, nullable, primary}
 	}
 }
 

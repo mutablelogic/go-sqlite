@@ -6,7 +6,7 @@
 	For Licensing and Usage information, please see LICENSE file
 */
 
-package sqlite
+package sqobj
 
 import (
 	"fmt"
@@ -38,9 +38,7 @@ const (
 ////////////////////////////////////////////////////////////////////////////////
 // REFLECT IMPLEMENTATION
 
-func (this *sqlite) Reflect(v interface{}) ([]sq.Column, error) {
-	this.log.Debug2("<sqlite.Reflect>{ %T }", v)
-
+func (this *sqobj) ReflectStruct(v interface{}) ([]sq.Column, error) {
 	// Dereference the pointer
 	v_ := reflect.ValueOf(v)
 	for v_.Kind() == reflect.Ptr {
@@ -53,12 +51,13 @@ func (this *sqlite) Reflect(v interface{}) ([]sq.Column, error) {
 	// Enumerate struct fields
 	columns := make([]sq.Column, 0, v_.Type().NumField())
 	for i := 0; i < v_.Type().NumField(); i++ {
-		if column, err := reflectField(v_, i, len(columns)); err != nil {
+		if column, err := this.reflectField(v_, i, len(columns)); err != nil {
 			return nil, err
 		} else if column != nil {
 			columns = append(columns, column)
 		}
 	}
+
 	// Return columns
 	return columns, nil
 }
@@ -66,7 +65,7 @@ func (this *sqlite) Reflect(v interface{}) ([]sq.Column, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func reflectField(v reflect.Value, i, pos int) (sq.Column, error) {
+func (this *sqobj) reflectField(v reflect.Value, i, pos int) (sq.Column, error) {
 	if tags := reflectFieldTags(v, i); tags == nil {
 		// Ignore if no tags returned, or private name
 		return nil, nil
@@ -75,14 +74,7 @@ func reflectField(v reflect.Value, i, pos int) (sq.Column, error) {
 	} else {
 		_, nullable := tags[TAG_NULLABLE]
 		_, primary := tags[TAG_PRIMARY]
-		this := &column{
-			name:     tags[TAG_NAME],
-			pos:      pos,
-			nullable: nullable,
-			decltype: decltype,
-			primary:  primary,
-		}
-		return this, nil
+		return this.conn.NewColumn(tags[TAG_NAME], decltype, nullable, primary), nil
 	}
 }
 

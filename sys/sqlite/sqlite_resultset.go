@@ -20,10 +20,6 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // COLUMN IMPLEMENTATION
 
-func (this *column) Pos() int {
-	return this.pos
-}
-
 func (this *column) DeclType() string {
 	return this.decltype
 }
@@ -55,9 +51,6 @@ func (this *column) String() string {
 	}
 	if this.nullable {
 		tokens = append(tokens, "nullable")
-	}
-	if this.pos >= 0 {
-		tokens = append(tokens, fmt.Sprintf("pos=%v", this.pos))
 	}
 	return fmt.Sprintf("<sqlite.Column>{ name=%v decltype=%v %v }", strconv.Quote(this.name), strconv.Quote(this.decltype), strings.Join(tokens, " "))
 }

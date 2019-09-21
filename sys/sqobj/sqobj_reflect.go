@@ -51,7 +51,7 @@ func (this *sqobj) ReflectStruct(v interface{}) ([]sq.Column, error) {
 	// Enumerate struct fields
 	columns := make([]sq.Column, 0, v_.Type().NumField())
 	for i := 0; i < v_.Type().NumField(); i++ {
-		if column, err := this.reflectField(v_, i, len(columns)); err != nil {
+		if column, err := this.reflectField(v_, i); err != nil {
 			return nil, err
 		} else if column != nil {
 			columns = append(columns, column)
@@ -65,7 +65,7 @@ func (this *sqobj) ReflectStruct(v interface{}) ([]sq.Column, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func (this *sqobj) reflectField(v reflect.Value, i, pos int) (sq.Column, error) {
+func (this *sqobj) reflectField(v reflect.Value, i int) (sq.Column, error) {
 	if tags := reflectFieldTags(v, i); tags == nil {
 		// Ignore if no tags returned, or private name
 		return nil, nil
@@ -74,7 +74,7 @@ func (this *sqobj) reflectField(v reflect.Value, i, pos int) (sq.Column, error) 
 	} else {
 		_, nullable := tags[TAG_NULLABLE]
 		_, primary := tags[TAG_PRIMARY]
-		return this.conn.NewColumn(tags[TAG_NAME], decltype, nullable, primary), nil
+		return this.conn.NewColumnWithIndex(tags[TAG_NAME], decltype, nullable, primary, i), nil
 	}
 }
 

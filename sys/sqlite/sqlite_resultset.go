@@ -36,6 +36,10 @@ func (this *column) PrimaryKey() bool {
 	return this.primary
 }
 
+func (this *column) Index() int {
+	return this.index
+}
+
 func (this *column) Query() string {
 	if this.nullable {
 		return fmt.Sprintf("%v %v", sq.QuoteIdentifier(this.name), this.decltype)
@@ -51,6 +55,9 @@ func (this *column) String() string {
 	}
 	if this.nullable {
 		tokens = append(tokens, "nullable")
+	}
+	if this.index >= 0 {
+		tokens = append(tokens, "index="+fmt.Sprint(this.index))
 	}
 	return fmt.Sprintf("<sqlite.Column>{ name=%v decltype=%v %v }", strconv.Quote(this.name), strconv.Quote(this.decltype), strings.Join(tokens, " "))
 }

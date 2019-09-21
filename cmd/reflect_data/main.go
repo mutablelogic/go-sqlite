@@ -26,7 +26,7 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 
 type Device struct {
-	ID          uint      `sql:"device_id"`
+	ID          int       `sql:"device_id"`
 	Name        string    `sql:"name"`
 	DateAdded   time.Time `sql:"date_added"`
 	DateUpdated time.Time `sql:"date_updated,nullable"`
@@ -41,8 +41,12 @@ func Main(app *gopi.AppInstance, done chan<- struct{}) error {
 		return gopi.ErrAppError
 	} else if class, err := db.RegisterStruct("device", Device{}); err != nil {
 		return err
+	} else if device_a, err := class.Insert(&Device{ID: 1, Name: "Test"}); err != nil {
+		return err
+	} else if device_b, err := class.Insert(&Device{ID: -1, Name: "Test"}); err != nil {
+		return err
 	} else {
-		fmt.Println(class)
+		fmt.Println(device_a, device_b)
 	}
 
 	// Success

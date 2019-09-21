@@ -28,6 +28,7 @@ type Objects interface {
 }
 
 type Class interface {
+	// Return name of the class
 	Name() string
 }
 

@@ -14,7 +14,7 @@ import (
 	"strconv"
 
 	gopi "github.com/djthorpe/gopi"
-	sqlite "github.com/djthorpe/sqlite"
+	sq "github.com/djthorpe/sqlite"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,7 +22,7 @@ import (
 
 type Config struct {
 	// The sqlite.Connection object
-	Conn sqlite.Connection
+	Conn sq.Connection
 
 	// When true, create tables and views if they don't exist when register called
 	Create bool
@@ -30,15 +30,16 @@ type Config struct {
 
 type sqobj struct {
 	create bool
-	conn   sqlite.Connection
+	conn   sq.Connection
 	log    gopi.Logger
 }
 
 type sqclass struct {
-	name   string
-	insert sqlite.InsertOrReplace
-	conn   sqlite.Connection
-	log    gopi.Logger
+	name    string
+	columns []sq.Column
+	insert  sq.InsertOrReplace
+	conn    sq.Connection
+	log     gopi.Logger
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,7 +84,7 @@ func (this *sqobj) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // REGISTER
 
-func (this *sqobj) RegisterStruct(name string, v interface{}) (sqlite.StructClass, error) {
+func (this *sqobj) RegisterStruct(name string, v interface{}) (sq.StructClass, error) {
 	this.log.Debug2("<sqobj.RegisterStruct>{ %T }", v)
 
 	if name == "" {
@@ -92,11 +93,11 @@ func (this *sqobj) RegisterStruct(name string, v interface{}) (sqlite.StructClas
 		return nil, err
 	} else if len(columns) == 0 {
 		this.log.Warn("No colmns for struct: %v", strconv.Quote(name))
-		return nil, sqlite.ErrUnsupportedType
+		return nil, sq.ErrUnsupportedType
 	} else {
 		if this.isExistingTable(name) == false {
 			if this.create == false {
-				return nil, sqlite.ErrNotFound
+				return nil, sq.ErrNotFound
 			} else if st := this.conn.NewCreateTable(name, columns...); st == nil {
 				return nil, gopi.ErrBadParameter
 			} else if _, err := this.conn.Do(st.IfNotExists()); err != nil {
@@ -105,7 +106,7 @@ func (this *sqobj) RegisterStruct(name string, v interface{}) (sqlite.StructClas
 				this.log.Debug(st.Query(this.conn))
 			}
 		}
-		if class := this.NewClass(name); class == nil {
+		if class := this.NewClass(name, columns); class == nil {
 			return nil, gopi.ErrBadParameter
 		} else {
 			return class, nil

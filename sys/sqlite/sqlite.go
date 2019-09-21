@@ -49,6 +49,7 @@ type column struct {
 	decltype string
 	nullable bool
 	primary  bool
+	index    int
 }
 
 type value struct {

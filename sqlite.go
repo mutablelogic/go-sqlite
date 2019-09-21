@@ -65,6 +65,7 @@ type Statements interface {
 
 	// Return table column and data source
 	NewColumn(name, decltype string, nullable, primary bool) Column
+	NewColumnWithIndex(name, decltype string, nullable, primary bool, index int) Column
 	NewSource(name string) Source
 
 	// Return expressions
@@ -93,6 +94,7 @@ type Column interface {
 	DeclType() string
 	Nullable() bool
 	PrimaryKey() bool
+	Index() int
 	Query() string
 }
 

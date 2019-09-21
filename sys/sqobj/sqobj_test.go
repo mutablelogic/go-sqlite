@@ -2,6 +2,7 @@ package sqobj_test
 
 import (
 	"testing"
+	"time"
 
 	// Frameworks
 	"github.com/djthorpe/gopi"
@@ -222,6 +223,90 @@ func Test_Reflect_004(t *testing.T) {
 				t.Errorf("Unexpected query %v", query)
 			} else {
 				t.Log(query)
+			}
+		}
+	}
+}
+
+func Test_Insert_001(t *testing.T) {
+	config := gopi.NewAppConfig("db/sqobj")
+	if app, err := gopi.NewAppInstance(config); err != nil {
+		t.Fatal(err)
+	} else {
+		defer app.Close()
+		if db := app.ModuleInstance("db/sqobj").(sqlite.Objects); db == nil {
+			t.Fail()
+		} else if sqlite := app.ModuleInstance("db/sqlite").(sqlite.Connection); sqlite == nil {
+			t.Fail()
+		} else {
+
+			type Device struct {
+				ID          int       `sql:"device_id"`
+				Name        string    `sql:"name"`
+				DateAdded   time.Time `sql:"date_added"`
+				DateUpdated time.Time `sql:"date_updated,nullable"`
+				Enabled     bool      `sql:"enabled"`
+			}
+
+			if class, err := db.RegisterStruct("device", Device{}); err != nil {
+				t.Error(err)
+			} else {
+				// In this case, the primary key is auto-generated and the first two rows
+				// will have rowid of 1 and 2
+				if rowid, err := class.Insert(&Device{ID: 100}); err != nil {
+					t.Error(err)
+				} else if rowid != 1 {
+					t.Error("Unexpected rowid", rowid)
+				}
+
+				if rowid, err := class.Insert(&Device{ID: 101}); err != nil {
+					t.Error(err)
+				} else if rowid != 2 {
+					t.Error("Unexpected rowid", rowid)
+				}
+
+			}
+		}
+	}
+}
+
+func Test_Insert_002(t *testing.T) {
+	config := gopi.NewAppConfig("db/sqobj")
+	if app, err := gopi.NewAppInstance(config); err != nil {
+		t.Fatal(err)
+	} else {
+		defer app.Close()
+		if db := app.ModuleInstance("db/sqobj").(sqlite.Objects); db == nil {
+			t.Fail()
+		} else if sqlite := app.ModuleInstance("db/sqlite").(sqlite.Connection); sqlite == nil {
+			t.Fail()
+		} else {
+
+			type Device struct {
+				ID          int       `sql:"device_id,primary"`
+				Name        string    `sql:"name"`
+				DateAdded   time.Time `sql:"date_added"`
+				DateUpdated time.Time `sql:"date_updated,nullable"`
+				Enabled     bool      `sql:"enabled"`
+			}
+
+			if class, err := db.RegisterStruct("device", Device{}); err != nil {
+				t.Error(err)
+			} else {
+				// In this case, the primary key is row ID auto-generated and the first two rows
+				// will have rowid of 100 and 101
+				if rowid, err := class.Insert(&Device{ID: 100}); err != nil {
+					t.Error(err)
+				} else if rowid != 100 {
+					t.Error("Unexpected rowid", rowid)
+				}
+
+				if rowid, err := class.Insert(&Device{ID: 101}); err != nil {
+					t.Error(err)
+				} else if rowid != 101 {
+					t.Error("Unexpected rowid", rowid)
+				}
+
 			}
 		}
 	}

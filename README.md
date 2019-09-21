@@ -39,13 +39,13 @@ to use the component:
 package main
 
 import (
-	// Frameworks
-	gopi "github.com/djthorpe/gopi"
-	sqlite "github.com/djthorpe/sqlite"
+  // Frameworks
+  gopi "github.com/djthorpe/gopi"
+  sqlite "github.com/djthorpe/sqlite"
 
-	// Modules
-	_ "github.com/djthorpe/gopi/sys/logger"
-	_ "github.com/djthorpe/sqlite/sys/sqlite"
+  // Modules
+  _ "github.com/djthorpe/gopi/sys/logger"
+  _ "github.com/djthorpe/sqlite/sys/sqlite"
 )
 
 func Main(app *gopi.AppInstance, done chan<- struct{}) error {
@@ -65,7 +65,7 @@ func Main(app *gopi.AppInstance, done chan<- struct{}) error {
 }
 
 func main() {
-	os.Exit(gopi.CommandLineTool2(gopi.NewAppConfig("db/sqlite"), Main))
+  os.Exit(gopi.CommandLineTool2(gopi.NewAppConfig("db/sqlite"), Main))
 }
 ```
 
@@ -92,18 +92,18 @@ sq_import <flags> <csv_file>...
 
 Flags:
   -noheader
-    	Do not use the first row as column names
+      Do not use the first row as column names
   -notnull
-    	Dont use NULL values for empty values
+      Dont use NULL values for empty values
   -skipcomments
-    	Skip comment lines (default true) which start with # or //
+      Skip comment lines (default true) which start with # or //
   -sqlite.dsn string
-    	Database source (default ":memory:")
+      Database source (default ":memory:")
   -verbose
-    	Verbose logging
+      Verbose logging
   -version
-    	Print version information and exit
+      Print version information and exit
   -debug
-    	Set debugging mode
+      Set debugging mode
 ```
 

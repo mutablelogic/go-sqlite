@@ -19,6 +19,7 @@ import (
 	// Frameworks
 	gopi "github.com/djthorpe/gopi"
 	sqlite "github.com/djthorpe/sqlite"
+	tablewriter "github.com/olekukonko/tablewriter"
 
 	// Modules
 	_ "github.com/djthorpe/gopi/sys/logger"
@@ -65,6 +66,47 @@ func CreateTable(db sqlite.Connection, table *Table) (int, error) {
 	})
 }
 
+// ShowTable outputs an SQL table to the screen
+func ShowTable(db sqlite.Connection, table *Table) error {
+	if src := db.NewSource(table.Name); src == nil {
+		return gopi.ErrBadParameter
+	} else if st := db.NewSelect(src); st == nil {
+		return gopi.ErrBadParameter
+	} else if rows, err := db.Query(st); err != nil {
+		return err
+	} else {
+		tablewriter := tablewriter.NewWriter(os.Stdout)
+		header := make([]string, len(rows.Columns()))
+		for i, column := range rows.Columns() {
+			header[i] = column.Name()
+		}
+		tablewriter.SetHeader(header)
+		tablewriter.SetAutoFormatHeaders(false)
+
+		for {
+			if values := rows.Next(); values == nil {
+				break
+			} else {
+				row := make([]string, len(values))
+				for i, value := range values {
+					if value.IsNull() {
+						row[i] = "<null>"
+					} else {
+						row[i] = value.String()
+					}
+				}
+				tablewriter.Append(row)
+
+			}
+		}
+
+		tablewriter.Render()
+	}
+
+	// Success
+	return nil
+}
+
 func Process(app *gopi.AppInstance, db sqlite.Connection, name string, fh io.ReadSeeker) error {
 	// Create a table
 	table := NewTable(fh, db, name)
@@ -82,6 +124,8 @@ func Process(app *gopi.AppInstance, db sqlite.Connection, name string, fh io.Rea
 
 	// Repeat until all rows read
 	if affectedRows, err := CreateTable(db, table); err != nil {
+		return err
+	} else if err := ShowTable(db, table); err != nil {
 		return err
 	} else {
 		app.Logger.Info("%v rows imported", affectedRows)

@@ -69,6 +69,98 @@ func main() {
 }
 ```
 
+The `Connection` component includes methods for returning database
+information (`Version`, `Tables` and `ColumnsForTable`) and executing
+actions on the data:
+
+```go
+type Connection interface {
+  // Return version number of the underlying sqlite library
+  Version() string
+
+  // Return table names for a particulr schema. Temporary tables
+  // are not included by default
+  Tables(schema string, include_temporary bool) []string
+  
+  // Return the columns for a table
+	ColumnsForTable(name, schema string) ([]Column, error)
+}
+```
+
+The `Query` and `QueryOnce` methods return a `Rows` object which can
+be used to iterate through the set of results, whereas the `Do` and
+`DoOnce` methods can be used for inserting, updating and deleting
+table rows (and executing other database actions which don't return
+a set of results):
+
+```go
+type Connection interface {
+	// Execute statement (without returning the rows)
+	Do(Statement, ...interface{}) (Result, error)
+	DoOnce(string, ...interface{}) (Result, error)
+
+	// Query to return sets of results
+	Query(Statement, ...interface{}) (Rows, error)
+	QueryOnce(string, ...interface{}) (Rows, error)
+}
+```
+
+The difference between `Do` and `DoOnce` are that the statements
+are either built through building a `Statement` object (which is
+subsequently prepared for repeated use in subsequent actions) and
+parsing the string into an action, and discarding when the action
+has been performed. When no error is returned, a `Result` will
+be returned with information about the action executed:
+
+```go
+type Result struct {
+  // The last primary key (rowid) on INSERT or REPLACE
+  LastInsertId int64
+  
+  // The number of rows affected by the action if UPDATE or DELETE
+	RowsAffected uint64
+}
+```
+
+A number of update, delete and insert actions can be performed
+within a transaction, which can either be commited to the database
+or rolled back if an error occurs:
+
+```go
+type Connection interface {
+	// Perform operations within a transaction, rollback on error
+	Txn(func(Transaction) error) error
+}
+```
+
+Here's an example of a transaction:
+
+```go
+func DeleteRows(rows []int) error {
+  var db sqlite.Connection
+  var sql sqlite.Language
+  return db.Txn(func(txn sqlite.Transaction) error {
+    // Prepare DELETE FROM
+    delete := sql.Delete("table",sql.In("_rowid_",rows))
+    // Execute the statement
+    if _, err := txn.Do(delete); err != nil {
+      // Rollback
+      return err
+    } else {
+      // Commit
+      return nil
+    }
+  })
+}
+```
+
+TODO:
+   * Releasing resources
+   * Result Sets
+   * Supported types
+   * Utility methods
+   * Language builder
+
 ## Using `db/sqobj`
 
 This component implements a very lite object persisence later.

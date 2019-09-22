@@ -42,7 +42,7 @@ func Test_004(t *testing.T) {
 	} else {
 		driver_ := driver.(sq.Connection)
 		defer driver_.Close()
-		if tables := driver_.Tables(); tables == nil {
+		if tables := driver_.TablesEx("", false); tables == nil {
 			t.Error("Expected Tables to return empty slice")
 		}
 	}
@@ -56,7 +56,7 @@ func Test_005(t *testing.T) {
 		defer driver_.Close()
 		if _, err := driver_.DoOnce("CREATE TABLE test (a,b)"); err != nil {
 			t.Error("Expected Tables to return empty slice")
-		} else if tables := driver_.Tables(); tables == nil {
+		} else if tables := driver_.TablesEx("", false); tables == nil {
 			t.Error("Expected Tables to return empty slice")
 		} else if len(tables) != 1 {
 			t.Error("Expected Tables to return a single value")
@@ -74,7 +74,7 @@ func Test_006(t *testing.T) {
 		defer driver_.Close()
 		if _, err := driver_.DoOnce("CREATE TABLE test (a,b); CREATE TABLE test2 (c,d)"); err != nil {
 			t.Error("Expected Tables to return empty slice")
-		} else if tables := driver_.Tables(); tables == nil {
+		} else if tables := driver_.TablesEx("", false); tables == nil {
 			t.Error("Expected Tables to return empty slice")
 		} else if len(tables) != 2 {
 			t.Error("Expected Tables to return a single value")
@@ -245,6 +245,50 @@ func Test_012(t *testing.T) {
 				}
 				t.Log(sq.RowString(row))
 			}
+		}
+	}
+}
+
+func Test_013(t *testing.T) {
+	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
+		t.Error(err)
+	} else {
+		driver_ := driver.(sq.Connection)
+		defer driver_.Close()
+		if schemas := driver_.Schemas(); schemas == nil {
+			t.Fail()
+		} else {
+			t.Log(schemas)
+		}
+	}
+}
+
+func Test_014(t *testing.T) {
+	if driver, err := gopi.Open(sqlite.Config{}, nil); err != nil {
+		t.Error(err)
+	} else {
+		driver_ := driver.(sq.Connection)
+		defer driver_.Close()
+		if _, err := driver_.DoOnce("CREATE TEMPORARY TABLE test (a integer)"); err != nil {
+			t.Error(err)
+		} else if schemas := driver_.Schemas(); schemas == nil {
+			t.Fail()
+		} else if schemas[0] != "main" {
+			t.Fail()
+		} else if schemas[1] != "temp" {
+			t.Fail()
+		} else if tables := driver_.TablesEx("", false); tables == nil {
+			t.Fail()
+		} else if len(tables) != 0 {
+			t.Fail()
+		} else if tables := driver_.TablesEx("temp", false); tables == nil {
+			t.Fail()
+		} else if len(tables) != 1 || tables[0] != "test" {
+			t.Fail()
+		} else if tables := driver_.TablesEx("", true); tables == nil {
+			t.Fail()
+		} else if len(tables) != 1 || tables[0] != "test" {
+			t.Fail()
 		}
 	}
 }

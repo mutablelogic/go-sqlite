@@ -14,6 +14,7 @@ The gopi components provided by this repository are:
 | Component Path | Description                            | Component Name |
 | -------------- | -------------------------------------- |--------------- |
 | sys/sqlite     | SQL Database persisence using sqlite   | db/sqlite      |
+| sys/sqlite     | SQL Language Builder                   | db/sqlang      |
 | sys/sqobj      | General Purpose Hardware Input/Output  | db/sqobj       |
 
 ## Building and installing examples
@@ -69,6 +70,8 @@ func main() {
 }
 ```
 
+### Returning database information
+
 The `Connection` component includes methods for returning database
 information (`Version`, `Tables` and `ColumnsForTable`) and executing
 actions on the data:
@@ -83,9 +86,11 @@ type Connection interface {
   Tables(schema string, include_temporary bool) []string
   
   // Return the columns for a table
-	ColumnsForTable(name, schema string) ([]Column, error)
+  ColumnsForTable(name, schema string) ([]Column, error)
 }
 ```
+
+### Database actions
 
 The `Query` and `QueryOnce` methods return a `Rows` object which can
 be used to iterate through the set of results, whereas the `Do` and
@@ -95,13 +100,15 @@ a set of results):
 
 ```go
 type Connection interface {
-	// Execute statement (without returning the rows)
-	Do(Statement, ...interface{}) (Result, error)
-	DoOnce(string, ...interface{}) (Result, error)
+  gopi.Driver
 
-	// Query to return sets of results
-	Query(Statement, ...interface{}) (Rows, error)
-	QueryOnce(string, ...interface{}) (Rows, error)
+  // Execute statement (without returning the rows)
+  Do(Statement, ...interface{}) (Result, error)
+  DoOnce(string, ...interface{}) (Result, error)
+
+  // Query to return sets of results
+  Query(Statement, ...interface{}) (Rows, error)
+  QueryOnce(string, ...interface{}) (Rows, error)
 }
 ```
 
@@ -109,8 +116,12 @@ The difference between `Do` and `DoOnce` are that the statements
 are either built through building a `Statement` object (which is
 subsequently prepared for repeated use in subsequent actions) and
 parsing the string into an action, and discarding when the action
-has been performed. When no error is returned, a `Result` will
-be returned with information about the action executed:
+has been performed. 
+
+### Action results
+
+When no error is returned which calling `Do` or `DoOnce`, a `Result`
+will be returned with information about the action executed:
 
 ```go
 type Result struct {
@@ -118,9 +129,18 @@ type Result struct {
   LastInsertId int64
   
   // The number of rows affected by the action if UPDATE or DELETE
-	RowsAffected uint64
+  RowsAffected uint64
 }
 ```
+
+### Queries and Rows
+
+When using `Query` and `QueryOnce` a `Rows` object is returned,
+which provides details on each set of results:
+
+TODO
+
+### Transactions
 
 A number of update, delete and insert actions can be performed
 within a transaction, which can either be commited to the database
@@ -129,7 +149,7 @@ or rolled back if an error occurs:
 ```go
 type Connection interface {
 	// Perform operations within a transaction, rollback on error
-	Txn(func(Transaction) error) error
+	Tx(func(Transaction) error) error
 }
 ```
 
@@ -139,7 +159,7 @@ Here's an example of a transaction:
 func DeleteRows(rows []int) error {
   var db sqlite.Connection
   var sql sqlite.Language
-  return db.Txn(func(txn sqlite.Transaction) error {
+  return db.Tx(func(txn sqlite.Transaction) error {
     // Prepare DELETE FROM
     delete := sql.Delete("table",sql.In("_rowid_",rows))
     // Execute the statement
@@ -161,11 +181,25 @@ TODO:
    * Utility methods
    * Language builder
 
+## Using `db/sqlang`
+
+TODO:
+   * Language builder
+
 ## Using `db/sqobj`
 
 This component implements a very lite object persisence later.
 
-## sq_import
+TODO:
+   * Defining tables
+   * Registering struct as a table, and setting the table name
+   * Inserting into the table and updating
+   * Querying the table
+   * Deleting from the table
+
+## Example Commands
+
+### sq_import
 
 The `sq_import` command line tool allows you to import and query CSV files. In order to compile
 the sq_import tool,
@@ -187,15 +221,7 @@ Flags:
       Do not use the first row as column names
   -notnull
       Dont use NULL values for empty values
-  -skipcomments
-      Skip comment lines (default true) which start with # or //
   -sqlite.dsn string
       Database source (default ":memory:")
-  -verbose
-      Verbose logging
-  -version
-      Print version information and exit
-  -debug
-      Set debugging mode
 ```
 

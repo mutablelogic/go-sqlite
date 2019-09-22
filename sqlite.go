@@ -34,9 +34,6 @@ type Connection interface {
 	gopi.Driver
 	Statements
 
-	// Free statement resources
-	Destroy(Statement) error
-
 	// Execute statement (without returning the rows)
 	Do(Statement, ...interface{}) (Result, error)
 	DoOnce(string, ...interface{}) (Result, error)
@@ -45,14 +42,23 @@ type Connection interface {
 	Query(Statement, ...interface{}) (Rows, error)
 	QueryOnce(string, ...interface{}) (Rows, error)
 
+	// Free statement resources
+	Destroy(Statement) error
+
 	// Perform operations within a transaction, rollback on error
 	Tx(func(Connection) error) error
 
 	// Return sqlite information
 	Version() string
+	Schemas() []string
 	Tables() []string
-	//Tables(schema string, include_temporary bool) []string
+	TablesEx(schema string, include_temporary bool) []string
 	ColumnsForTable(name, schema string) ([]Column, error)
+
+	// Attach and detach other databases, schema cannot be
+	// 'main' or 'temp'
+	Attach(schema, dsn string) error
+	Detach(schema string) error
 }
 
 type Statements interface {

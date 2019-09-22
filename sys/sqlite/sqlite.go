@@ -127,10 +127,58 @@ func (this *sqlite) Version() string {
 	return sqLiteVersion
 }
 
-func (this *sqlite) Tables() []string {
+func (this *sqlite) Schemas() []string {
 	if this.conn == nil {
 		return nil
-	} else if rows, err := this.QueryOnce("SELECT name FROM sqlite_master WHERE type=? ORDER BY name ASC", "table"); err != nil {
+	} else if rows, err := this.QueryOnce("PRAGMA database_list"); err != nil {
+		this.log.Error("Schemas: %v", err)
+		return nil
+	} else {
+		schemas := make([]string, 0, 1)
+		for {
+			row := sq.RowMap(rows.Next())
+			if row == nil {
+				break
+			} else if name, exists := row["name"]; exists {
+				schemas = append(schemas, name.String())
+			}
+		}
+		return schemas
+	}
+}
+
+func (this *sqlite) Tables() []string {
+	return this.TablesEx("", false)
+}
+
+func (this *sqlite) TablesEx(schema string, temp bool) []string {
+	// Create the query
+	query := ""
+	if this.conn == nil {
+		return nil
+	} else if temp {
+		query = `
+			SELECT name FROM 
+   				(SELECT name,type FROM %ssqlite_master UNION ALL SELECT name,type FROM %ssqlite_temp_master)
+			WHERE type=? AND name NOT LIKE 'sqlite_%%'
+			ORDER BY name ASC
+		`
+	} else {
+		query = `
+			SELECT name FROM 
+				%ssqlite_master 
+			WHERE type=? AND name NOT LIKE 'sqlite_%%'
+			ORDER BY name ASC -- %s
+		`
+	}
+	// Append the schema
+	if schema != "" {
+		query = fmt.Sprintf(query, sq.QuoteIdentifier(schema)+".", sq.QuoteIdentifier(schema)+".")
+	} else {
+		query = fmt.Sprintf(query, "", "")
+	}
+	// Perform the query
+	if rows, err := this.QueryOnce(query, "table"); err != nil {
 		this.log.Error("Tables: %v", err)
 		return nil
 	} else {
@@ -174,6 +222,14 @@ func (this *sqlite) ColumnsForTable(name, schema string) ([]sq.Column, error) {
 		}
 		return columns, nil
 	}
+}
+
+func (this *sqlite) Attach(schema, dsn string) error {
+	return gopi.ErrNotImplemented
+}
+
+func (this *sqlite) Detach(schema string) error {
+	return gopi.ErrNotImplemented
 }
 
 ////////////////////////////////////////////////////////////////////////////////

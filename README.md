@@ -2,10 +2,7 @@
 
 [![CircleCI](https://circleci.com/gh/djthorpe/sqlite/tree/master.svg?style=svg)](https://circleci.com/gh/djthorpe/sqlite/tree/master)
 
-This repository contains a higher-level interface to SQLite, to provide database persistence.
-It implements two components for [gopi](http://github.com/djthorpe/gopi) and some example 
-programs in the `cmd` folder. The repository depends on golang version 1.12 and 
-above (in order to support modules).
+This repository contains a higher-level interface to SQLite, to provide database persistence. It implements two components for [gopi](http://github.com/djthorpe/gopi) and some example programs in the `cmd` folder. The repository depends on golang version 1.12 and above (in order to support modules).
 
 ## Components
 
@@ -15,7 +12,7 @@ The gopi components provided by this repository are:
 | -------------- | -------------------------------------- |--------------- |
 | sys/sqlite     | SQL Database persisence using sqlite   | db/sqlite      |
 | sys/sqlite     | SQL Language Builder                   | db/sqlang      |
-| sys/sqobj      | General Purpose Hardware Input/Output  | db/sqobj       |
+| sys/sqobj      | Lightweight object layer               | db/sqobj       |
 
 ## Building and installing examples
 
@@ -30,11 +27,13 @@ bash% make all
 The resulting binaries are as follows. Use the `-help` flag to see the different options for each:
 
   * `sq_import` Imports data from CSV files into an SQLite database
+  * `fs_indexer` Indexe files into a database to implement a full-text search
+
+You can also build these tools separately using `make sq_import` and `make fs_indexer` respectively.
 
 ## Using `db/sqlite`
 
-Database persistence is implemented using the `db/sqlite` component. Here's an example of how
-to use the component:
+Database persistence is implemented using the `db/sqlite` component. Here's an example of how to use the component:
 
 ```go
 package main
@@ -81,12 +80,35 @@ type Connection interface {
   // Return version number of the underlying sqlite library
   Version() string
 
-  // Return table names for a particulr schema. Temporary tables
-  // are not included by default
-  Tables(schema string, include_temporary bool) []string
+  // Return attached schemas
+  Schemas() []string
+
+  // Return table names for the main schema. The extended version
+  // returns table names for a different schema, or can include
+  // temporary tables
+  Tables() []string
+  TablesEx(schema string, include_temporary bool) []string
   
   // Return the columns for a table
   ColumnsForTable(name, schema string) ([]Column, error)
+}
+```
+
+The table column interface is specified as follows:
+
+```go
+type Column interface {
+  // Name returns the column name
+  Name() string
+  
+  // DeclType returns the declared type for the column
+  DeclType() string
+  
+  // Nullable returns true if  a column cell can include the NULL value
+  Nullable() bool
+  
+  // PrimaryKey returns true if the column is part of the primary key
+  PrimaryKey() bool
 }
 ```
 
@@ -100,13 +122,15 @@ a set of results):
 
 ```go
 type Connection interface {
-  gopi.Driver
+  Transaction
+}
 
+type Transaction interface {
   // Execute statement (without returning the rows)
   Do(Statement, ...interface{}) (Result, error)
   DoOnce(string, ...interface{}) (Result, error)
 
-  // Query to return sets of results
+  // Query to return rows from result
   Query(Statement, ...interface{}) (Rows, error)
   QueryOnce(string, ...interface{}) (Rows, error)
 }
@@ -125,10 +149,10 @@ will be returned with information about the action executed:
 
 ```go
 type Result struct {
-  // The last primary key (rowid) on INSERT or REPLACE
+  // LastInsertId returns the rowid on INSERT or REPLACE
   LastInsertId int64
   
-  // The number of rows affected by the action if UPDATE or DELETE
+  // RowsAffected returns number of affected rows on UPDATE or DELETE
   RowsAffected uint64
 }
 ```
@@ -138,28 +162,50 @@ type Result struct {
 When using `Query` and `QueryOnce` a `Rows` object is returned,
 which provides details on each set of results:
 
-TODO
+```go
+type Rows interface {
+  // Columns returns the columns for the rows
+  Columns() []Column
+
+  // Next returns the next row of the results, or nil otherwise
+  Next() []Value
+}
+
+type Value interface {
+  String() string       // Return value as string
+  Int() int64           // Return value as int
+  Bool() bool           // Return value as bool
+  Float() float64       // Return value as float
+  Timestamp() time.Time // Return value as timestamp
+  Bytes() []byte        // Return value as blob
+
+  // IsNull returns true if value is NULL
+  IsNull() bool
+}
+```
+
+When returning a timestamp, the timezone is by default the local timezone,
+or another timezone when it's specified by the `-sqlite.tz` command-line flag.
 
 ### Transactions
 
-A number of update, delete and insert actions can be performed
-within a transaction, which can either be commited to the database
-or rolled back if an error occurs:
+Actions can be performed within a transaction, which can either be commited
+or rolled back if an error occurs. 
 
 ```go
 type Connection interface {
 	// Perform operations within a transaction, rollback on error
-	Tx(func(Transaction) error) error
+	Txn(func(Transaction) error) error
 }
 ```
 
-Here's an example of a transaction:
+A transaction is specified using a function which should return an error if the actions should be rolled back:
 
 ```go
 func DeleteRows(rows []int) error {
   var db sqlite.Connection
   var sql sqlite.Language
-  return db.Tx(func(txn sqlite.Transaction) error {
+  return db.Txn(func(txn sqlite.Transaction) error {
     // Prepare DELETE FROM
     delete := sql.Delete("table",sql.In("_rowid_",rows))
     // Execute the statement
@@ -176,12 +222,30 @@ func DeleteRows(rows []int) error {
 
 TODO:
    * Releasing resources
+   * Attach and detach
    * Result Sets
    * Supported types
    * Utility methods
-   * Language builder
 
 ## Using `db/sqlang`
+
+SQL statements can be created from a string using the `NewStatement` function:
+
+```go
+type Transaction interface {
+  NewStatement(string) Statement
+}
+```
+
+However, it's also possible to use a `sqlite.Language` object to construct SQL statements programmatically. For example,
+
+```go
+// Returns SELECT * FROM table LIMIT <nnn>
+func NewQuery(limit uint) sqlite.Statement {
+  var sql sqlite.Language
+  return sql.Select("table").Limit(limit)
+}
+```
 
 TODO:
    * Language builder

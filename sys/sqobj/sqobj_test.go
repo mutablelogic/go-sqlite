@@ -38,12 +38,15 @@ func Test_003(t *testing.T) {
 		t.Fail()
 	} else {
 		defer app.Close()
-		if class, err := db.RegisterStruct("test", struct{ A int }{}); err != nil {
+		type Test struct {
+			A int
+		}
+		if class, err := db.RegisterStruct(Test{}); err != nil {
 			t.Error(err)
-		} else if class.Name() != "test" {
+		} else if class.Name() != "Test" {
 			t.Errorf("Unexpected class name: %v", class.Name())
 		} else {
-			t.Log(class)
+			t.Log(db)
 		}
 	}
 }
@@ -59,11 +62,13 @@ func Test_004(t *testing.T) {
 			A, B int
 		}
 		defer app.Close()
-		if class, err := db.RegisterStruct("test", Test{}); err != nil {
+		if class, err := db.RegisterStruct(Test{}); err != nil {
 			t.Error(err)
-		} else if rowid, err := class.Insert(Test{}); err != nil {
+		} else if class.Name() != "Test" {
+			t.Fail()
+		} else if rowid, err := db.Insert(Test{}); err != nil {
 			t.Error(err)
-		} else if rowid == 0 {
+		} else if len(rowid) != 1 || rowid[0] == 0 {
 			t.Error("Unexpected rowid", rowid)
 		} else {
 			t.Log("rowid=", rowid)
@@ -71,7 +76,7 @@ func Test_004(t *testing.T) {
 	}
 }
 
-func Test_Reflect_001(t *testing.T) {
+func Test_Reflect_005(t *testing.T) {
 	config := gopi.NewAppConfig("db/sqlite", "db/sqobj")
 	if app, err := gopi.NewAppInstance(config); err != nil {
 		t.Fatal(err)
@@ -87,7 +92,7 @@ func Test_Reflect_001(t *testing.T) {
 	}
 }
 
-func Test_Reflect_002(t *testing.T) {
+func Test_Reflect_006(t *testing.T) {
 	config := gopi.NewAppConfig("db/sqlite", "db/sqobj")
 	if app, err := gopi.NewAppInstance(config); err != nil {
 		t.Fatal(err)
@@ -163,7 +168,7 @@ func Test_Reflect_002(t *testing.T) {
 	}
 }
 
-func Test_Reflect_003(t *testing.T) {
+func Test_Reflect_007(t *testing.T) {
 	config := gopi.NewAppConfig("db/sqlite", "db/sqobj")
 	if app, err := gopi.NewAppInstance(config); err != nil {
 		t.Fatal(err)
@@ -189,15 +194,15 @@ func Test_Reflect_003(t *testing.T) {
 	}
 }
 
-func Test_Reflect_004(t *testing.T) {
-	config := gopi.NewAppConfig("db/sqlite", "db/sqobj")
+func Test_Reflect_008(t *testing.T) {
+	config := gopi.NewAppConfig("db/sqobj")
 	if app, err := gopi.NewAppInstance(config); err != nil {
 		t.Fatal(err)
 	} else {
 		defer app.Close()
 		if db := app.ModuleInstance("db/sqobj").(sqlite.Objects); db == nil {
 			t.Fail()
-		} else if sqlite := app.ModuleInstance("db/sqlite").(sqlite.Connection); sqlite == nil {
+		} else if lang_ := app.ModuleInstance("db/sqlang").(sqlite.Language); lang_ == nil {
 			t.Fail()
 		} else {
 			if columns, err := db.ReflectStruct(struct {
@@ -215,9 +220,9 @@ func Test_Reflect_004(t *testing.T) {
 				t.Error("Expected column name 'b'", columns)
 			} else if columns[1].PrimaryKey() != true {
 				t.Error("Expected column 'b' with primary key", columns)
-			} else if create := sqlite.NewCreateTable("test", columns...); create == nil {
+			} else if create := lang_.NewCreateTable("test", columns...); create == nil {
 				t.Fail()
-			} else if query := create.Query(sqlite); query == "" {
+			} else if query := create.Query(); query == "" {
 				t.Fail()
 			} else if query != "CREATE TABLE test (a INTEGER NOT NULL,b INTEGER,PRIMARY KEY (a,b))" {
 				t.Errorf("Unexpected query %v", query)
@@ -228,15 +233,13 @@ func Test_Reflect_004(t *testing.T) {
 	}
 }
 
-func Test_Insert_001(t *testing.T) {
+func Test_Insert_009(t *testing.T) {
 	config := gopi.NewAppConfig("db/sqobj")
 	if app, err := gopi.NewAppInstance(config); err != nil {
 		t.Fatal(err)
 	} else {
 		defer app.Close()
 		if db := app.ModuleInstance("db/sqobj").(sqlite.Objects); db == nil {
-			t.Fail()
-		} else if sqlite := app.ModuleInstance("db/sqlite").(sqlite.Connection); sqlite == nil {
 			t.Fail()
 		} else {
 
@@ -248,20 +251,20 @@ func Test_Insert_001(t *testing.T) {
 				Enabled     bool      `sql:"enabled"`
 			}
 
-			if class, err := db.RegisterStruct("device", Device{}); err != nil {
+			if _, err := db.RegisterStruct(Device{}); err != nil {
 				t.Error(err)
 			} else {
 				// In this case, the primary key is auto-generated and the first two rows
 				// will have rowid of 1 and 2
-				if rowid, err := class.Insert(&Device{ID: 100}); err != nil {
+				if rowid, err := db.Insert(&Device{ID: 100}); err != nil {
 					t.Error(err)
-				} else if rowid != 1 {
+				} else if len(rowid) < 1 || rowid[0] != 1 {
 					t.Error("Unexpected rowid", rowid)
 				}
 
-				if rowid, err := class.Insert(&Device{ID: 101}); err != nil {
+				if rowid, err := db.Insert(&Device{ID: 101}); err != nil {
 					t.Error(err)
-				} else if rowid != 2 {
+				} else if len(rowid) < 1 || rowid[0] != 2 {
 					t.Error("Unexpected rowid", rowid)
 				}
 
@@ -278,8 +281,6 @@ func Test_Insert_002(t *testing.T) {
 		defer app.Close()
 		if db := app.ModuleInstance("db/sqobj").(sqlite.Objects); db == nil {
 			t.Fail()
-		} else if sqlite := app.ModuleInstance("db/sqlite").(sqlite.Connection); sqlite == nil {
-			t.Fail()
 		} else {
 
 			type Device struct {
@@ -290,20 +291,20 @@ func Test_Insert_002(t *testing.T) {
 				Enabled     bool      `sql:"enabled"`
 			}
 
-			if class, err := db.RegisterStruct("device", Device{}); err != nil {
+			if _, err := db.RegisterStruct(Device{}); err != nil {
 				t.Error(err)
 			} else {
 				// In this case, the primary key is row ID auto-generated and the first two rows
 				// will have rowid of 100 and 101
-				if rowid, err := class.Insert(&Device{ID: 100}); err != nil {
+				if rowid, err := db.Insert(&Device{ID: 100}); err != nil {
 					t.Error(err)
-				} else if rowid != 100 {
+				} else if rowid[0] != 100 {
 					t.Error("Unexpected rowid", rowid)
 				}
 
-				if rowid, err := class.Insert(&Device{ID: 101}); err != nil {
+				if rowid, err := db.Insert(&Device{ID: 101}); err != nil {
 					t.Error(err)
-				} else if rowid != 101 {
+				} else if rowid[0] != 101 {
 					t.Error("Unexpected rowid", rowid)
 				}
 

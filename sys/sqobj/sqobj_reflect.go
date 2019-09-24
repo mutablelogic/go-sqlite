@@ -58,12 +58,24 @@ func (this *sqobj) ReflectStruct(v interface{}) ([]sq.Column, error) {
 		}
 	}
 
-	// Return columns
+	// Return name of struct and columns
 	return columns, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+func (this *sqobj) reflectName(v interface{}) (string, string) {
+	v_ := reflect.ValueOf(v)
+	for v_.Kind() == reflect.Ptr {
+		v_ = v_.Elem()
+	}
+	if v_.Type() == nil {
+		return "", ""
+	} else {
+		return v_.Type().Name(), v_.Type().PkgPath()
+	}
+}
 
 func (this *sqobj) reflectField(v reflect.Value, i int) (sq.Column, error) {
 	if tags := reflectFieldTags(v, i); tags == nil {

@@ -21,7 +21,7 @@ func init() {
 	gopi.RegisterModule(gopi.Module{
 		Name:     "db/sqobj",
 		Type:     gopi.MODULE_TYPE_OTHER,
-		Requires: []string{"db/sqlite"},
+		Requires: []string{"db/sqlite", "db/sqlang"},
 		Config: func(config *gopi.AppConfig) {
 			config.AppFlags.FlagBool("sqlite.create", true, "Create tables")
 		},
@@ -29,6 +29,7 @@ func init() {
 			create, _ := app.AppFlags.GetBool("sqlite.create")
 			return gopi.Open(Config{
 				Conn:   app.ModuleInstance("db/sqlite").(sqlite.Connection),
+				Lang:   app.ModuleInstance("db/sqlang").(sqlite.Language),
 				Create: create,
 			}, app.Logger)
 		},

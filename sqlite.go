@@ -29,13 +29,32 @@ var (
 ////////////////////////////////////////////////////////////////////////////////
 // INTERFACES
 
-// Database connection
+// Connection to a database
 type Connection interface {
 	gopi.Driver
-	Statements
+	Transaction
 
-	// Free statement resources
-	Destroy(Statement) error
+	// Perform operations within a transaction, rollback on error
+	Txn(func(Transaction) error) error
+
+	// Return sqlite information
+	Version() string
+	Schemas() []string
+	Tables() []string
+	TablesEx(schema string, include_temporary bool) []string
+	ColumnsForTable(name, schema string) ([]Column, error)
+
+	// Attach and detach other databases, schema cannot be 'main' or 'temp'
+	Attach(schema, dsn string) error
+	Detach(schema string) error
+}
+
+// Transaction that can be committed/rolled back
+type Transaction interface {
+	// Return statement anc column
+	NewStatement(string) Statement
+	NewColumn(name, decltype string, nullable, primary bool) Column
+	NewColumnWithIndex(name, decltype string, nullable, primary bool, index int) Column
 
 	// Execute statement (without returning the rows)
 	Do(Statement, ...interface{}) (Result, error)
@@ -44,39 +63,11 @@ type Connection interface {
 	// Query to return the rows
 	Query(Statement, ...interface{}) (Rows, error)
 	QueryOnce(string, ...interface{}) (Rows, error)
-
-	// Perform operations within a transaction, rollback on error
-	Tx(func(Connection) error) error
-
-	// Return sqlite information
-	Version() string
-	Tables() []string
-	//Tables(schema string, include_temporary bool) []string
-	ColumnsForTable(name, schema string) ([]Column, error)
-}
-
-type Statements interface {
-	// Return statements
-	NewStatement(string) Statement
-	NewCreateTable(string, ...Column) CreateTable
-	NewDropTable(string) DropTable
-	NewInsert(string, ...string) InsertOrReplace
-	NewSelect(Source) Select
-
-	// Return table column and data source
-	NewColumn(name, decltype string, nullable, primary bool) Column
-	NewColumnWithIndex(name, decltype string, nullable, primary bool, index int) Column
-	NewSource(name string) Source
-
-	// Return expressions
-	//Expr(string) Expression
-	//ExprArray(...string) []Expression
 }
 
 // Statement that can be executed
 type Statement interface {
-	// Return the statement query
-	Query(Connection) string
+	Query() string
 }
 
 // Rows increments over returned rows from a query
@@ -118,52 +109,6 @@ type Value interface {
 type Result struct {
 	LastInsertId int64
 	RowsAffected uint64
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// STATEMENTS
-
-// CreateTable statement
-type CreateTable interface {
-	Statement
-
-	Schema(string) CreateTable
-	IfNotExists() CreateTable
-	Temporary() CreateTable
-	WithoutRowID() CreateTable
-	Unique(...string) CreateTable
-}
-
-// DropTable statement
-type DropTable interface {
-	Statement
-
-	Schema(string) DropTable
-	IfExists() DropTable
-}
-
-// Insert statement
-type InsertOrReplace interface {
-	Statement
-
-	Schema(string) InsertOrReplace
-	DefaultValues() InsertOrReplace
-}
-
-// Select statement
-type Select interface {
-	Statement
-
-	Distinct() Select
-	LimitOffset(uint, uint) Select
-}
-
-// Source represents a simple table source
-type Source interface {
-	Statement
-
-	Schema(string) Source
-	Alias(string) Source
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -41,18 +41,18 @@ func BoundRow(row []string, notnull bool) []interface{} {
 }
 
 // CreateTable creates a new table and inserts rows from CSV file
-func CreateTable(db sqlite.Connection, table *Table) (int, error) {
+func CreateTable(db sqlite.Connection, lang sqlite.Language, table *Table) (int, error) {
 	affectedRows := 0
 
 	// Wrap SQL statements in a transaction
-	return affectedRows, db.Tx(func(db sqlite.Connection) error {
-		if _, err := db.Do(db.NewDropTable(table.Name).IfExists()); err != nil {
+	return affectedRows, db.Txn(func(txn sqlite.Transaction) error {
+		if _, err := txn.Do(lang.NewDropTable(table.Name).IfExists()); err != nil {
 			return err
 		}
-		if _, err := db.Do(db.NewCreateTable(table.Name, table.Columns...)); err != nil {
+		if _, err := txn.Do(lang.NewCreateTable(table.Name, table.Columns...)); err != nil {
 			return err
 		}
-		if insert := db.NewInsert(table.Name); insert == nil {
+		if insert := lang.NewInsert(table.Name); insert == nil {
 			return gopi.ErrBadParameter
 		} else {
 			for {
@@ -72,10 +72,10 @@ func CreateTable(db sqlite.Connection, table *Table) (int, error) {
 }
 
 // ShowTable outputs an SQL table to the screen
-func ShowTable(db sqlite.Connection, table *Table) error {
-	if src := db.NewSource(table.Name); src == nil {
+func ShowTable(db sqlite.Connection, lang sqlite.Language, table *Table) error {
+	if src := lang.NewSource(table.Name); src == nil {
 		return gopi.ErrBadParameter
-	} else if st := db.NewSelect(src); st == nil {
+	} else if st := lang.NewSelect(src); st == nil {
 		return gopi.ErrBadParameter
 	} else if rows, err := db.Query(st); err != nil {
 		return err
@@ -111,7 +111,11 @@ func ShowTable(db sqlite.Connection, table *Table) error {
 	return nil
 }
 
-func Process(app *gopi.AppInstance, db sqlite.Connection, name string, fh io.ReadSeeker) error {
+func Process(app *gopi.AppInstance, name string, fh io.ReadSeeker) error {
+	// Components
+	db := app.ModuleInstance("db/sqlite").(sqlite.Connection)
+	lang := app.ModuleInstance("db/sqlang").(sqlite.Language)
+
 	// Create a table
 	table := NewTable(fh, db, name)
 	table.NoHeader, _ = app.AppFlags.GetBool("noheader")
@@ -132,9 +136,9 @@ func Process(app *gopi.AppInstance, db sqlite.Connection, name string, fh io.Rea
 	app.Logger.Info("Creating table %v with %d columns", strconv.Quote(table.Name), len(table.Columns))
 
 	// Repeat until all rows read
-	if affectedRows, err := CreateTable(db, table); err != nil {
+	if affectedRows, err := CreateTable(db, lang, table); err != nil {
 		return err
-	} else if err := ShowTable(db, table); err != nil {
+	} else if err := ShowTable(db, lang, table); err != nil {
 		return err
 	} else {
 		app.Logger.Info("%v rows imported", affectedRows)
@@ -145,10 +149,7 @@ func Process(app *gopi.AppInstance, db sqlite.Connection, name string, fh io.Rea
 }
 
 func Main(app *gopi.AppInstance, done chan<- struct{}) error {
-
-	if db := app.ModuleInstance("db/sqlite").(sqlite.Connection); db == nil {
-		return gopi.ErrAppError
-	} else if len(app.AppFlags.Args()) == 0 {
+	if len(app.AppFlags.Args()) == 0 {
 		return gopi.ErrHelp
 	} else {
 		for _, filename := range app.AppFlags.Args() {
@@ -161,7 +162,7 @@ func Main(app *gopi.AppInstance, done chan<- struct{}) error {
 				return err
 			} else {
 				defer fh.Close()
-				if err := Process(app, db, name, fh); err != nil {
+				if err := Process(app, name, fh); err != nil {
 					return fmt.Errorf("%v: %v", name, err)
 				}
 			}
@@ -177,7 +178,7 @@ func Main(app *gopi.AppInstance, done chan<- struct{}) error {
 
 func main() {
 	// Create the configuration
-	config := gopi.NewAppConfig("db/sqlite")
+	config := gopi.NewAppConfig("db/sqlite", "db/sqlang")
 
 	// Set arguments
 	config.AppFlags.FlagBool("noheader", false, "Do not use the first row as column names")

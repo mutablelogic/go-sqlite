@@ -41,11 +41,11 @@ type sqobj struct {
 }
 
 type sqclass struct {
-	name    string
-	columns []sq.Column
-	insert  sq.InsertOrReplace
-	conn    sq.Connection
-	log     gopi.Logger
+	name, pkgpath string
+	columns       []sq.Column
+	insert        sq.InsertOrReplace
+	conn          sq.Connection
+	log           gopi.Logger
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -113,6 +113,7 @@ func (this *sqobj) String() string {
 func (this *sqobj) RegisterStruct(v interface{}) (sq.StructClass, error) {
 	this.log.Debug2("<sqobj.RegisterStruct>{ %T }", v)
 
+	var class *sqclass
 	if columns, err := this.ReflectStruct(v); err != nil {
 		return nil, err
 	} else if len(columns) == 0 {
@@ -121,7 +122,7 @@ func (this *sqobj) RegisterStruct(v interface{}) (sq.StructClass, error) {
 	} else if name, pkgpath := this.reflectName(v); name == "" {
 		this.log.Warn("Struct without name is unsupported")
 		return nil, sq.ErrUnsupportedType
-	} else if class := this.registeredClass(name, pkgpath); class != nil {
+	} else if class = this.registeredClass(name, pkgpath); class != nil {
 		this.log.Warn("Duplicate registration for %v/%v", pkgpath, name)
 		return nil, gopi.ErrBadParameter
 	} else if class = this.NewClass(name, pkgpath, columns); class == nil {
@@ -134,17 +135,65 @@ func (this *sqobj) RegisterStruct(v interface{}) (sq.StructClass, error) {
 		} else if _, err := this.conn.Do(st.IfNotExists()); err != nil {
 			return nil, fmt.Errorf("%v (table %v)", err, strconv.Quote(class.Name()))
 		}
-		return class, nil
-	} else {
-		return class, nil
 	}
+
+	// Register the class here
+	if _, exists := this.class[class.pkgpath]; exists == false {
+		this.class[class.pkgpath] = make(map[string]*sqclass)
+	}
+	this.class[class.pkgpath][class.name] = class
+
+	// Return the class
+	return class, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // INSERT
 
-func (this *sqobj) Insert(...interface{}) ([]int64, error) {
-	return nil, gopi.ErrNotImplemented
+func (this *sqobj) Insert(v ...interface{}) ([]int64, error) {
+	this.log.Debug2("<sqobj.Insert>{ %v }", v)
+
+	// Check for v
+	if len(v) == 0 {
+		return nil, gopi.ErrBadParameter
+	}
+
+	// Check to ensure every object is the same name and pkgpath
+	var class *sqclass
+	for _, value := range v {
+		if name, pkgpath := this.reflectName(value); name == "" {
+			this.log.Warn("Insert: No struct name")
+			return nil, gopi.ErrBadParameter
+		} else if class_ := this.registeredClass(name, pkgpath); class_ == nil {
+			this.log.Warn("Insert: No registered class for %v (in path %v)", name, strconv.Quote(pkgpath))
+			return nil, gopi.ErrBadParameter
+		} else if class != nil && class_ != class {
+			this.log.Warn("Insert: Mixed argument types for %v (in path %v)", name, strconv.Quote(pkgpath))
+			return nil, gopi.ErrBadParameter
+		} else {
+			class = class_
+		}
+	}
+
+	// Perform the insert in a transaction
+	rowid := make([]int64, len(v))
+	if err := this.conn.Txn(func(txn sq.Transaction) error {
+		for i, v_ := range v {
+			if args := class.BoundArgs(v_); args == nil {
+				return gopi.ErrAppError
+			} else if r, err := txn.Do(class.insert, class.BoundArgs(v_)...); err != nil {
+				return err
+			} else {
+				rowid[i] = r.LastInsertId
+			}
+		}
+		// Success
+		return nil
+	}); err != nil {
+		return nil, err
+	} else {
+		return rowid, nil
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -160,5 +209,11 @@ func (this *sqobj) isExistingTable(name string) bool {
 }
 
 func (this *sqobj) registeredClass(name, pkgpath string) *sqclass {
-	return nil
+	if classes, exists := this.class[pkgpath]; exists == false {
+		return nil
+	} else if class, exists := classes[name]; exists == false {
+		return nil
+	} else {
+		return class
+	}
 }

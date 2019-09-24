@@ -9,7 +9,6 @@
 package main
 
 import (
-	"fmt"
 	"path/filepath"
 
 	// Frameworks
@@ -21,8 +20,8 @@ type Indexer struct {
 }
 
 type File struct {
-	Root string
-	Path string
+	Root string `sql:"root"`
+	Path string `sql:"path"`
 }
 
 func NewIndexer(sqobj sqlite.Objects) *Indexer {
@@ -36,11 +35,11 @@ func NewIndexer(sqobj sqlite.Objects) *Indexer {
 	return this
 }
 
-func (this *Indexer) Do(path, root string) error {
+func (this *Indexer) Do(root, path string) error {
 	if path, err := filepath.Rel(root, path); err != nil {
 		return err
-	} else {
-		fmt.Println(path, "=>", root)
+	} else if _, err := this.sqobj.Insert(&File{root, path}); err != nil {
+		return err
 	}
 	return nil
 }

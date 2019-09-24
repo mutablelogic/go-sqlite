@@ -21,6 +21,7 @@ import (
 	// Modules
 	_ "github.com/djthorpe/gopi/sys/logger"
 	_ "github.com/djthorpe/sqlite/sys/sqlite"
+	_ "github.com/djthorpe/sqlite/sys/sqobj"
 )
 
 func Index(app *gopi.AppInstance, indexer *Indexer, folder string) {
@@ -36,12 +37,14 @@ func Index(app *gopi.AppInstance, indexer *Indexer, folder string) {
 			return nil
 		} else if strings.HasPrefix(info.Name(), ".") {
 			// Ignore hidden files
-		} else if err := indexer.Do(path, folder); err != nil {
+		} else if err := indexer.Do(folder, path); err != nil {
 			return err
 		}
 		return nil
 	}); err != nil {
 		app.Logger.Error("Error: %v", err)
+	} else {
+		app.Logger.Info("Indexed: %v", folder)
 	}
 }
 
@@ -78,7 +81,7 @@ func Main(app *gopi.AppInstance, done chan<- struct{}) error {
 
 func main() {
 	// Create the configuration
-	config := gopi.NewAppConfig("db/sqlite", "db/sqlang")
+	config := gopi.NewAppConfig("db/sqobj")
 
 	// Run the command line tool
 	os.Exit(gopi.CommandLineTool2(config, Main))

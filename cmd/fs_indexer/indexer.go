@@ -11,17 +11,14 @@ package main
 import (
 	"path/filepath"
 
+	"github.com/djthorpe/gopi"
+
 	// Frameworks
 	sqlite "github.com/djthorpe/sqlite"
 )
 
 type Indexer struct {
 	sqobj sqlite.Objects
-}
-
-type File struct {
-	Root string `sql:"root"`
-	Path string `sql:"path"`
 }
 
 func NewIndexer(sqobj sqlite.Objects) *Indexer {
@@ -35,11 +32,14 @@ func NewIndexer(sqobj sqlite.Objects) *Indexer {
 	return this
 }
 
-func (this *Indexer) Do(root, path string) error {
-	if path, err := filepath.Rel(root, path); err != nil {
+func (this *Indexer) Do(file *File) error {
+	if file == nil || file.Id == 0 || file.Path == "" || file.Root == "" {
+		return gopi.ErrBadParameter
+	} else if path, err := filepath.Rel(file.Root, file.Path); err != nil {
 		return err
-	} else if _, err := this.sqobj.Insert(&File{root, path}); err != nil {
+	} else if _, err := this.sqobj.Insert(&File{file.Id, path, file.Root}); err != nil {
 		return err
+	} else {
+		return nil
 	}
-	return nil
 }

@@ -15,13 +15,13 @@ GOFLAGS = -ldflags "-s -w $(GOLDFLAGS)"
 
 all: test install
 
-install: sq_import reflect_data
+install: sq_import fs_indexer
 
 sq_import:
 	$(GOINSTALL) $(GOFLAGS) ./cmd/sq_import/...
 
-reflect_data:
-	$(GOINSTALL) $(GOFLAGS) ./cmd/reflect_data/...
+fs_indexer:
+	$(GOINSTALL) $(GOFLAGS) ./cmd/fs_indexer/...
 
 test: 
 	$(GOTEST) -v ./...

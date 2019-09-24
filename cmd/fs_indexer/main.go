@@ -24,7 +24,17 @@ import (
 	_ "github.com/djthorpe/sqlite/sys/sqobj"
 )
 
-func Index(app *gopi.AppInstance, indexer *Indexer, folder string) {
+type File struct {
+	Id   int64  `sql:"id,primary"`
+	Root string `sql:"root,primary"`
+	Path string `sql:"path"`
+}
+
+var (
+	file_chan = make(chan *File, 0)
+)
+
+func Index(app *gopi.AppInstance, folder string) {
 	if err := filepath.Walk(folder, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -37,8 +47,10 @@ func Index(app *gopi.AppInstance, indexer *Indexer, folder string) {
 			return nil
 		} else if strings.HasPrefix(info.Name(), ".") {
 			// Ignore hidden files
-		} else if err := indexer.Do(folder, path); err != nil {
-			return err
+		} else if inode := inodeForInfo(info); inode == 0 {
+			// inode not obtained
+		} else {
+			file_chan <- &File{inode, folder, path}
 		}
 		return nil
 	}); err != nil {
@@ -48,12 +60,29 @@ func Index(app *gopi.AppInstance, indexer *Indexer, folder string) {
 	}
 }
 
+func IndexFile(app *gopi.AppInstance, start chan<- struct{}, stop <-chan struct{}) error {
+	sqobj := app.ModuleInstance("db/sqobj").(sqlite.Objects)
+	indexer := NewIndexer(sqobj)
+
+	start <- gopi.DONE
+FOR_LOOP:
+	for {
+		select {
+		case file := <-file_chan:
+			if err := indexer.Do(file); err != nil {
+				app.Logger.Error("Error: %v: %v", filepath.Base(file.Path), err)
+			}
+		case <-stop:
+			break FOR_LOOP
+		}
+	}
+	return nil
+}
+
 func Main(app *gopi.AppInstance, done chan<- struct{}) error {
 	if len(app.AppFlags.Args()) == 0 {
 		return gopi.ErrHelp
 	} else {
-		sqobj := app.ModuleInstance("db/sqobj").(sqlite.Objects)
-		indexer := NewIndexer(sqobj)
 		for _, folder := range app.AppFlags.Args() {
 			name := strings.TrimSuffix(filepath.Base(folder), filepath.Ext(folder))
 			if s, err := os.Stat(folder); os.IsNotExist(err) {
@@ -63,7 +92,7 @@ func Main(app *gopi.AppInstance, done chan<- struct{}) error {
 			} else if s.Mode().IsDir() == false {
 				return fmt.Errorf("%v: Not a folder", name)
 			} else {
-				go Index(app, indexer, filepath.Clean(folder))
+				go Index(app, filepath.Clean(folder))
 			}
 		}
 	}
@@ -84,5 +113,5 @@ func main() {
 	config := gopi.NewAppConfig("db/sqobj")
 
 	// Run the command line tool
-	os.Exit(gopi.CommandLineTool2(config, Main))
+	os.Exit(gopi.CommandLineTool2(config, Main, IndexFile))
 }

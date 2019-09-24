@@ -9,13 +9,14 @@
 package sqlite
 
 import (
+	// Frameworks
 	"github.com/djthorpe/gopi"
 )
 
-// Frameworks
-
 ////////////////////////////////////////////////////////////////////////////////
 // INTERFACES
+
+type Flag uint
 
 type Objects interface {
 	gopi.Driver
@@ -28,6 +29,7 @@ type Objects interface {
 
 	// Insert structs, rollback on error
 	Insert(...interface{}) ([]int64, error)
+	//Insert(Flag, ...interface{}) ([]int64, error)
 }
 
 type Class interface {
@@ -38,3 +40,12 @@ type Class interface {
 type StructClass interface {
 	Class
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// CONSTANTS
+
+const (
+	FLAG_INSERT Flag = (1 << iota)
+	FLAG_REPLACE
+	FLAG_NONE Flag = 0
+)

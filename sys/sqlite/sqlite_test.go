@@ -585,7 +585,7 @@ func Test_Types_024(t *testing.T) {
 	}
 }
 
-func Test_Types_026(t *testing.T) {
+func DISABLED_Test_Types_026(t *testing.T) {
 	if driver, err := gopi.Open(sqlite.Database{
 		Location: "UTC",
 	}, nil); err != nil {
@@ -625,7 +625,7 @@ func Test_Types_026(t *testing.T) {
 	}
 }
 
-func Test_Types_027(t *testing.T) {
+func DISABLED_Test_Types_027(t *testing.T) {
 	if driver, err := gopi.Open(sqlite.Database{
 		Location: "Local",
 	}, nil); err != nil {

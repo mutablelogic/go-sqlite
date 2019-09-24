@@ -44,6 +44,10 @@ func to_values(args []interface{}, num_input int) ([]sql.Value, error) {
 			v[i] = int64(arg.(int32))
 		case string, int64, time.Time, bool, nil, []byte:
 			v[i] = arg
+		case float64:
+			v[i] = float64(arg.(float64))
+		case float32:
+			v[i] = float64(arg.(float32))
 		default:
 			return nil, fmt.Errorf("Unsupported bind type: %v (argument %v)", reflect.TypeOf(arg), i)
 		}

@@ -21,10 +21,13 @@ type Objects interface {
 	gopi.Driver
 
 	// RegisterStruct registers a struct against a database table
-	RegisterStruct(string, interface{}) (StructClass, error)
+	RegisterStruct(interface{}) (StructClass, error)
 
 	// ReflectStruct returns SQL table columns from a struct
 	ReflectStruct(v interface{}) ([]Column, error)
+
+	// Insert structs, rollback on error
+	Insert(...interface{}) ([]int64, error)
 }
 
 type Class interface {
@@ -34,7 +37,4 @@ type Class interface {
 
 type StructClass interface {
 	Class
-
-	// Insert a new record and return the rowid of the inserted row
-	Insert(interface{}) (int64, error)
 }

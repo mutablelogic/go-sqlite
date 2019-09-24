@@ -23,19 +23,24 @@ import (
 type Table struct {
 	// Table is the name of the table
 	Name string
+
 	// NoHeader when set to false uses row 1 as header names
 	NoHeader bool
+
 	// Comment prefix
 	Comment rune
+
 	// NotNull excludes NULL values from columns
 	NotNull bool
+
 	// Columns is the name of the columns
 	Columns []sqlite.Column
+
 	// Candidates for the column type
 	candidates []map[string]bool
 	// Database connection
 	db sqlite.Connection
-	// File handles
+	// File handle, CSV reader
 	fh  io.ReadSeeker
 	csv *csv.Reader
 	// First row (seek to zero positon)
@@ -45,7 +50,7 @@ type Table struct {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Create a new empty table to be imported
+// NewTable creates a new empty table to be imported
 func NewTable(fh io.ReadSeeker, db sqlite.Connection, name string) *Table {
 	this := new(Table)
 	this.Name = strings.ToLower(name)
@@ -61,7 +66,7 @@ func NewTable(fh io.ReadSeeker, db sqlite.Connection, name string) *Table {
 	return this
 }
 
-// NextRow scans the CSV file and returns an io.EOF error on end of the file
+// nextRow scans the CSV file and returns an io.EOF error on end of the file
 func (this *Table) nextRow() ([]string, error) {
 	if this.first {
 		// Seek to start of file

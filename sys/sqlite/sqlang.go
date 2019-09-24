@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 
+	gopi "github.com/djthorpe/gopi"
 	sq "github.com/djthorpe/sqlite"
 	driver "github.com/mattn/go-sqlite3"
 )
@@ -20,10 +21,12 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type statement struct {
-	prepared
+type Language struct {
+	// No configuration
+}
 
-	query string
+type sqlang struct {
+	log gopi.Logger
 }
 
 type tablename struct {
@@ -57,11 +60,6 @@ type insertreplace struct {
 	columns       []string
 }
 
-type tableinfo struct {
-	prepared
-	tablename
-}
-
 type query struct {
 	prepared
 
@@ -77,54 +75,32 @@ type source struct {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// OPEN AND CLOSE
+
+func (config Language) Open(logger gopi.Logger) (gopi.Driver, error) {
+	logger.Debug("<sqlang.Open>{ }")
+
+	this := new(sqlang)
+	this.log = logger
+
+	// Success
+	return this, nil
+}
+
+func (this *sqlang) Close() error {
+	this.log.Debug("<sqlang.Close>{ }")
+
+	// Return success
+	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // NEW STATEMENTS
 
-func (this *sqlite) NewColumn(name, decltype string, nullable, primary bool) sq.Column {
-	this.log.Debug2("<sqlite.NewColumn>{ name=%v decltype=%v nullable=%v primary=%v }", strconv.Quote(name), strconv.Quote(decltype), nullable, primary)
+func (this *sqlang) NewCreateTable(name string, columns ...sq.Column) sq.CreateTable {
+	this.log.Debug2("<sqlang.NewCreateTable>{ name=%v columns=%v }", strconv.Quote(name), columns)
 
-	if this.conn == nil {
-		return nil
-	} else if name = strings.TrimSpace(name); name == "" {
-		return nil
-	} else if decltype = strings.TrimSpace(decltype); decltype == "" {
-		return nil
-	} else {
-		return &column{name, decltype, nullable, primary, -1}
-	}
-}
-
-func (this *sqlite) NewColumnWithIndex(name, decltype string, nullable, primary bool, index int) sq.Column {
-	this.log.Debug2("<sqlite.NewColumn>{ name=%v decltype=%v nullable=%v primary=%v index=%v }", strconv.Quote(name), strconv.Quote(decltype), nullable, primary, index)
-
-	if this.conn == nil {
-		return nil
-	} else if name = strings.TrimSpace(name); name == "" {
-		return nil
-	} else if decltype = strings.TrimSpace(decltype); decltype == "" {
-		return nil
-	} else {
-		return &column{name, decltype, nullable, primary, index}
-	}
-}
-
-func (this *sqlite) NewStatement(query string) sq.Statement {
-	this.log.Debug2("<sqlite.NewStatement>{ %v }", strconv.Quote(query))
-
-	if this.conn == nil {
-		return nil
-	} else if query == "" {
-		return nil
-	} else {
-		return &statement{prepared{nil}, query}
-	}
-}
-
-func (this *sqlite) NewCreateTable(name string, columns ...sq.Column) sq.CreateTable {
-	this.log.Debug2("<sqlite.NewCreateTable>{ name=%v columns=%v }", strconv.Quote(name), columns)
-
-	if this.conn == nil {
-		return nil
-	} else if name = strings.TrimSpace(name); name == "" {
+	if name = strings.TrimSpace(name); name == "" {
 		return nil
 	} else {
 		return &createtable{
@@ -133,12 +109,10 @@ func (this *sqlite) NewCreateTable(name string, columns ...sq.Column) sq.CreateT
 	}
 }
 
-func (this *sqlite) NewDropTable(name string) sq.DropTable {
-	this.log.Debug2("<sqlite.NewDropTable>{ name=%v }", strconv.Quote(name))
+func (this *sqlang) NewDropTable(name string) sq.DropTable {
+	this.log.Debug2("<sqlang.NewDropTable>{ name=%v }", strconv.Quote(name))
 
-	if this.conn == nil {
-		return nil
-	} else if name = strings.TrimSpace(name); name == "" {
+	if name = strings.TrimSpace(name); name == "" {
 		return nil
 	} else {
 		return &droptable{
@@ -147,12 +121,10 @@ func (this *sqlite) NewDropTable(name string) sq.DropTable {
 	}
 }
 
-func (this *sqlite) NewInsert(name string, columns ...string) sq.InsertOrReplace {
-	this.log.Debug2("<sqlite.NewInsert>{ name=%v columns=%v }", strconv.Quote(name), columns)
+func (this *sqlang) NewInsert(name string, columns ...string) sq.InsertOrReplace {
+	this.log.Debug2("<sqlang.NewInsert>{ name=%v columns=%v }", strconv.Quote(name), columns)
 
-	if this.conn == nil {
-		return nil
-	} else if name = strings.TrimSpace(name); name == "" {
+	if name = strings.TrimSpace(name); name == "" {
 		return nil
 	} else {
 		return &insertreplace{
@@ -161,34 +133,16 @@ func (this *sqlite) NewInsert(name string, columns ...string) sq.InsertOrReplace
 	}
 }
 
-func (this *sqlite) NewTableInfo(name, schema string) sq.Statement {
-	this.log.Debug2("<sqlite.NewTableInfo>{ name=%v schema=%v }", strconv.Quote(name), strconv.Quote(schema))
+func (this *sqlang) NewSelect(source sq.Source) sq.Select {
+	this.log.Debug2("<sqlang.NewSelect>{ source=%v }", source)
 
-	if this.conn == nil {
-		return nil
-	} else if name = strings.TrimSpace(name); name == "" {
-		return nil
-	} else {
-		return &tableinfo{
-			prepared{nil}, tablename{name, strings.TrimSpace(schema)},
-		}
-	}
+	return &query{prepared{nil}, source, false, 0, 0}
 }
 
-func (this *sqlite) NewSelect(source sq.Source) sq.Select {
-	this.log.Debug2("<sqlite.NewSelect>{ source=%v }", source)
-	if this.conn == nil {
-		return nil
-	} else {
-		return &query{prepared{nil}, source, false, 0, 0}
-	}
-}
+func (this *sqlang) NewSource(name string) sq.Source {
+	this.log.Debug2("<sqlang.NewSource>{ name=%v }", strconv.Quote(name))
 
-func (this *sqlite) NewSource(name string) sq.Source {
-	this.log.Debug2("<sqlite.NewSource>{ name=%v }", strconv.Quote(name))
-	if this.conn == nil {
-		return nil
-	} else if name = strings.TrimSpace(name); name == "" {
+	if name = strings.TrimSpace(name); name == "" {
 		return nil
 	} else {
 		return &source{
@@ -212,7 +166,7 @@ func (this *tablename) Query() string {
 	}
 }
 
-func (this *statement) Query(sq.Connection) string {
+func (this *statement) Query() string {
 	return this.query
 }
 
@@ -264,7 +218,7 @@ func (this *createtable) Unique(columns ...string) sq.CreateTable {
 	return this
 }
 
-func (this *createtable) Query(sq.Connection) string {
+func (this *createtable) Query() string {
 	tokens := []string{"CREATE"}
 	columns := make([]string, len(this.columns), len(this.columns)+len(this.unique)+1)
 
@@ -325,7 +279,7 @@ func (this *droptable) IfExists() sq.DropTable {
 	return this
 }
 
-func (this *droptable) Query(sq.Connection) string {
+func (this *droptable) Query() string {
 	tokens := []string{"DROP TABLE"}
 
 	// Add flags
@@ -353,7 +307,7 @@ func (this *insertreplace) DefaultValues() sq.InsertOrReplace {
 	return this
 }
 
-func (this *insertreplace) Query(conn sq.Connection) string {
+func (this *insertreplace) Query() string {
 	tokens := []string{"INSERT INTO"}
 
 	// Add table name
@@ -365,18 +319,13 @@ func (this *insertreplace) Query(conn sq.Connection) string {
 	}
 
 	// If default values
-	if this.defaultvalues || (len(this.columns) == 0 && conn == nil) {
+	if this.defaultvalues || (len(this.columns) == 0) {
 		tokens = append(tokens, "DEFAULT VALUES")
 	} else if len(this.columns) > 0 {
 		tokens = append(tokens, "VALUES", this.argsN(len(this.columns)))
-	} else if columns, err := conn.ColumnsForTable(this.tablename.name, this.tablename.schema); err != nil {
-		// Error returned
-		return ""
-	} else if len(columns) == 0 {
-		// Table not found
-		return ""
 	} else {
-		tokens = append(tokens, "VALUES", this.argsN(len(columns)))
+		// No columns, return empty query
+		return ""
 	}
 
 	// Return the query
@@ -392,19 +341,6 @@ func (this *insertreplace) argsN(n int) string {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// TABLE INFO
-
-func (this *tableinfo) Query(sq.Connection) string {
-	//PRAGMA schema.table_info(table-name);
-	tokens := "PRAGMA "
-	if this.tablename.schema != "" {
-		tokens += sq.QuoteIdentifier(this.tablename.schema) + "."
-	}
-	tokens += "table_info(" + sq.QuoteIdentifier(this.tablename.name) + ")"
-	return tokens
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // DATA SOURCE IMPLEMENTATION
 
 func (this *source) Schema(schema string) sq.Source {
@@ -417,7 +353,7 @@ func (this *source) Alias(alias string) sq.Source {
 	return this
 }
 
-func (this *source) Query(sq.Connection) string {
+func (this *source) Query() string {
 	if this.alias == "" {
 		return this.tablename.Query()
 	} else {
@@ -438,7 +374,7 @@ func (this *query) LimitOffset(limit, offset uint) sq.Select {
 	return this
 }
 
-func (this *query) Query(conn sq.Connection) string {
+func (this *query) Query() string {
 	tokens := []string{"SELECT"}
 
 	// Add distinct keyword
@@ -452,7 +388,7 @@ func (this *query) Query(conn sq.Connection) string {
 
 	// Add source
 	if this.source != nil {
-		tokens = append(tokens, "FROM", this.source.Query(conn))
+		tokens = append(tokens, "FROM", this.source.Query())
 	}
 
 	// Add offset and limit

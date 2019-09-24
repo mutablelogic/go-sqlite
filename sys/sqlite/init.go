@@ -22,12 +22,23 @@ func init() {
 		Type: gopi.MODULE_TYPE_OTHER,
 		Config: func(config *gopi.AppConfig) {
 			config.AppFlags.FlagString("sqlite.dsn", ":memory:", "Database source")
+			config.AppFlags.FlagString("sqlite.tz", "", "Timezone for parsed timestamps")
 		},
 		New: func(app *gopi.AppInstance) (gopi.Driver, error) {
 			dsn, _ := app.AppFlags.GetString("sqlite.dsn")
-			return gopi.Open(Config{
-				Path: dsn,
+			tz, _ := app.AppFlags.GetString("sqlite.tz")
+			return gopi.Open(Database{
+				Path:     dsn,
+				Location: tz,
 			}, app.Logger)
+		},
+	})
+
+	gopi.RegisterModule(gopi.Module{
+		Name: "db/sqlang",
+		Type: gopi.MODULE_TYPE_OTHER,
+		New: func(app *gopi.AppInstance) (gopi.Driver, error) {
+			return gopi.Open(Language{}, app.Logger)
 		},
 	})
 }

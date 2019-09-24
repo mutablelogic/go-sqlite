@@ -21,9 +21,9 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (this *sqobj) NewClass(name string, columns []sq.Column) *sqclass {
+func (this *sqobj) NewClass(name, pkgpath string, columns []sq.Column) *sqclass {
 	class := &sqclass{name, columns, nil, this.conn, this.log}
-	if class.insert = this.conn.NewInsert(name); class.insert == nil {
+	if class.insert = this.lang.NewInsert(name); class.insert == nil {
 		return nil
 	} else {
 		return class
@@ -36,7 +36,7 @@ func (this *sqclass) Name() string {
 
 func (this *sqclass) Insert(v interface{}) (int64, error) {
 	var rowid int64
-	err := this.conn.Tx(func(txn sq.Connection) error {
+	err := this.conn.Txn(func(txn sq.Transaction) error {
 		if args := this.BoundArgs(v); args == nil {
 			return gopi.ErrBadParameter
 		} else if result, err := txn.Do(this.insert, args...); err != nil {

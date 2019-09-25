@@ -1,6 +1,8 @@
 package sqlite_test
 
 import (
+	"fmt"
+	"math"
 	"strconv"
 	"testing"
 
@@ -171,6 +173,31 @@ func Test_Drop_007(t *testing.T) {
 		} else if statement.Schema("test"); statement.Query() != "DROP TABLE IF EXISTS test.test" {
 			t.Error("Unexpected query:", statement.Query())
 		}
+
+		if statement := lang_.DropIndex("test"); statement.Query() != "DROP INDEX test" {
+			t.Error("Unexpected query:", statement.Query())
+		} else if statement.IfExists(); statement.Query() != "DROP INDEX IF EXISTS test" {
+			t.Error("Unexpected query:", statement.Query())
+		} else if statement.Schema("test"); statement.Query() != "DROP INDEX IF EXISTS test.test" {
+			t.Error("Unexpected query:", statement.Query())
+		}
+
+		if statement := lang_.DropView("test"); statement.Query() != "DROP VIEW test" {
+			t.Error("Unexpected query:", statement.Query())
+		} else if statement.IfExists(); statement.Query() != "DROP VIEW IF EXISTS test" {
+			t.Error("Unexpected query:", statement.Query())
+		} else if statement.Schema("test"); statement.Query() != "DROP VIEW IF EXISTS test.test" {
+			t.Error("Unexpected query:", statement.Query())
+		}
+
+		if statement := lang_.DropTrigger("test"); statement.Query() != "DROP TRIGGER test" {
+			t.Error("Unexpected query:", statement.Query())
+		} else if statement.IfExists(); statement.Query() != "DROP TRIGGER IF EXISTS test" {
+			t.Error("Unexpected query:", statement.Query())
+		} else if statement.Schema("test"); statement.Query() != "DROP TRIGGER IF EXISTS test.test" {
+			t.Error("Unexpected query:", statement.Query())
+		}
+
 	}
 }
 
@@ -291,5 +318,278 @@ func Test_Query_010(t *testing.T) {
 			t.Log(statement.Query())
 		}
 
+	}
+}
+
+func Test_Replace_011(t *testing.T) {
+	if lang, err := gopi.Open(sqlite.Language{}, nil); err != nil {
+		t.Error(err)
+	} else if lang_ := lang.(sq.Language); lang_ == nil {
+		t.Fail()
+	} else {
+		defer lang_.Close()
+
+		if statement := lang_.Replace("test"); statement.Query() != "REPLACE INTO test DEFAULT VALUES" {
+			t.Error("Unexpected query:", statement.Query())
+		} else {
+			t.Log(statement.Query())
+		}
+
+		if statement := lang_.Replace("test", "a", "b"); statement.Query() != "REPLACE INTO test (a,b) VALUES (?,?)" {
+			t.Error("Unexpected query:", statement.Query())
+		} else {
+			t.Log(statement.Query())
+		}
+
+	}
+}
+
+func Test_Create_012(t *testing.T) {
+	if lang, err := gopi.Open(sqlite.Language{}, nil); err != nil {
+		t.Error(err)
+	} else if lang_ := lang.(sq.Language); lang_ == nil {
+		t.Fail()
+	} else {
+		defer lang_.Close()
+
+		if statement := lang_.NewCreateIndex("idx", "t", "a", "b"); statement == nil {
+			t.Fail()
+		} else if statement.Query() != "CREATE INDEX idx ON t (a,b)" {
+			t.Error("Unexpected query:", statement.Query())
+		} else {
+			t.Log(statement.Query())
+		}
+
+		if statement := lang_.NewCreateIndex("idx", "t", "a", "b").Unique(); statement == nil {
+			t.Fail()
+		} else if statement.Query() != "CREATE UNIQUE INDEX idx ON t (a,b)" {
+			t.Error("Unexpected query:", statement.Query())
+		} else {
+			t.Log(statement.Query())
+		}
+
+		if statement := lang_.NewCreateIndex("idx", "t", "a", "b").IfNotExists(); statement == nil {
+			t.Fail()
+		} else if statement.Query() != "CREATE INDEX IF NOT EXISTS idx ON t (a,b)" {
+			t.Error("Unexpected query:", statement.Query())
+		} else {
+			t.Log(statement.Query())
+		}
+
+		if statement := lang_.NewCreateIndex("idx", "t", "a", "b").IfNotExists().Unique(); statement == nil {
+			t.Fail()
+		} else if statement.Query() != "CREATE UNIQUE INDEX IF NOT EXISTS idx ON t (a,b)" {
+			t.Error("Unexpected query:", statement.Query())
+		} else {
+			t.Log(statement.Query())
+		}
+
+	}
+}
+
+func Test_Expr_013(t *testing.T) {
+	if lang, err := gopi.Open(sqlite.Language{}, nil); err != nil {
+		t.Error(err)
+	} else if lang_ := lang.(sq.Language); lang_ == nil {
+		t.Fail()
+	} else {
+		defer lang_.Close()
+
+		if expr := lang_.Null(); expr == nil {
+			t.Fail()
+		} else if expr.Query() != "NULL" {
+			t.Error("Expected NULL, got", expr.Query())
+		} else {
+			t.Log(expr.Query())
+		}
+
+		if expr := lang_.Value(1234); expr == nil {
+			t.Fail()
+		} else if expr.Query() != "1234" {
+			t.Error("Expected 1234, got", expr.Query())
+		} else {
+			t.Log(expr.Query())
+		}
+
+		if expr := lang_.Value(true); expr == nil {
+			t.Fail()
+		} else if expr.Query() != "TRUE" {
+			t.Error("Expected TRUE, got", expr.Query())
+		} else {
+			t.Log(expr.Query())
+		}
+
+		if expr := lang_.Value(false); expr == nil {
+			t.Fail()
+		} else if expr.Query() != "FALSE" {
+			t.Error("Expected FALSE, got", expr.Query())
+		} else {
+			t.Log(expr.Query())
+		}
+
+		if expr := lang_.Value(math.Pi); expr == nil {
+			t.Fail()
+		} else if expr.Query() != fmt.Sprint(math.Pi) {
+			t.Error("Expected", math.Pi, "got", expr.Query())
+		} else {
+			t.Log(expr.Query())
+		}
+
+		if expr := lang_.Value("string value"); expr == nil {
+			t.Fail()
+		} else if expr.Query() != strconv.Quote("string value") {
+			t.Error("Expected", strconv.Quote("string value"), "got", expr.Query())
+		} else {
+			t.Log(expr.Query())
+		}
+
+		if expr := lang_.Value("string '' value"); expr == nil {
+			t.Fail()
+		} else if expr.Query() != strconv.Quote("string '' value") {
+			t.Error("Expected", strconv.Quote("string '' value"), "got", expr.Query())
+		} else {
+			t.Log(expr.Query())
+		}
+
+		if expr := lang_.Value("string \" value"); expr == nil {
+			t.Fail()
+		} else if expr.Query() != "\"string \"\" value\"" {
+			t.Error("Expected", "\"string \"\" value\"", "got", expr.Query())
+		} else {
+			t.Log(expr.Query())
+		}
+
+		if expr := lang_.Equals("test", lang_.Null()); expr == nil {
+			t.Fail()
+		} else if expr.Query() != "test IS NULL" {
+			t.Fail()
+		} else {
+			t.Log(expr.Query())
+		}
+
+		if expr := lang_.NotEquals("test", lang_.Null()); expr == nil {
+			t.Fail()
+		} else if expr.Query() != "test IS NOT NULL" {
+			t.Fail()
+		} else {
+			t.Log(expr.Query())
+		}
+
+		if expr := lang_.Equals("test", lang_.Value("string \" value")); expr == nil {
+			t.Fail()
+		} else if expr.Query() != "test=\"string \"\" value\"" {
+			t.Error("Unexpected value", expr.Query())
+		} else {
+			t.Log(expr.Query())
+		}
+
+		if expr := lang_.And(lang_.Value(0)); expr == nil {
+			t.Fail()
+		} else if expr.Query() != "0" {
+			t.Fail()
+		} else {
+			t.Log(expr.Query())
+		}
+
+		if expr := lang_.And(lang_.Value(1), lang_.Value(2)); expr == nil {
+			t.Fail()
+		} else if expr.Query() != "(1 AND 2)" {
+			t.Fail()
+		} else {
+			t.Log(expr.Query())
+		}
+
+		if expr := lang_.Or(lang_.Value(1), lang_.Value(2)); expr == nil {
+			t.Fail()
+		} else if expr.Query() != "(1 OR 2)" {
+			t.Fail()
+		} else {
+			t.Log(expr.Query())
+		}
+
+		if expr := lang_.Or(lang_.Value(1), lang_.Value(2), lang_.And(lang_.Value(false), lang_.Value(true))); expr == nil {
+			t.Fail()
+		} else if expr.Query() != "(1 OR 2 OR (FALSE AND TRUE))" {
+			t.Fail()
+		} else {
+			t.Log(expr.Query())
+		}
+
+	}
+}
+
+func Test_Delete_013(t *testing.T) {
+	if lang, err := gopi.Open(sqlite.Language{}, nil); err != nil {
+		t.Error(err)
+	} else if lang_ := lang.(sq.Language); lang_ == nil {
+		t.Fail()
+	} else {
+		defer lang_.Close()
+
+		if st := lang_.NewDelete("test"); st == nil {
+			t.Fail()
+		} else if st.Query() != "DELETE FROM test" {
+			t.Fail()
+		} else {
+			t.Log(st.Query())
+		}
+
+		if st := lang_.NewDelete("test").Schema("test"); st == nil {
+			t.Fail()
+		} else if st.Query() != "DELETE FROM test.test" {
+			t.Fail()
+		} else {
+			t.Log(st.Query())
+		}
+
+		if st := lang_.NewDelete("test").Where(lang_.Value(true)); st == nil {
+			t.Fail()
+		} else if st.Query() != "DELETE FROM test WHERE TRUE" {
+			t.Fail()
+		} else {
+			t.Log(st.Query())
+		}
+
+		if st := lang_.NewDelete("test").Where(lang_.Equals("a", lang_.Null())); st == nil {
+			t.Fail()
+		} else if st.Query() != "DELETE FROM test WHERE a IS NULL" {
+			t.Fail()
+		} else {
+			t.Log(st.Query())
+		}
+	}
+}
+
+func Test_Select_014(t *testing.T) {
+	if lang, err := gopi.Open(sqlite.Language{}, nil); err != nil {
+		t.Error(err)
+	} else if lang_ := lang.(sq.Language); lang_ == nil {
+		t.Fail()
+	} else {
+		defer lang_.Close()
+
+		if st := lang_.NewSelect(lang_.NewSource("test")); st == nil {
+			t.Fail()
+		} else if st = st.Where(lang_.Null()); st == nil {
+			t.Fail()
+		} else if st.Query() != "SELECT * FROM test WHERE NULL" {
+			t.Fail()
+		}
+
+		if st := lang_.NewSelect(lang_.NewSource("test")); st == nil {
+			t.Fail()
+		} else if st = st.Where(lang_.Value(0), lang_.Value(1)); st == nil {
+			t.Fail()
+		} else if st.Query() != "SELECT * FROM test WHERE 0 AND 1" {
+			t.Error(st.Query())
+		}
+
+		if st := lang_.NewSelect(lang_.NewSource("test")); st == nil {
+			t.Fail()
+		} else if st = st.Where(lang_.Or(lang_.Value(0), lang_.Value(1))); st == nil {
+			t.Fail()
+		} else if st.Query() != "SELECT * FROM test WHERE 0 OR 1" {
+			t.Error(st.Query())
+		}
 	}
 }

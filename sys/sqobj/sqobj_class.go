@@ -23,7 +23,7 @@ import (
 
 func (this *sqobj) NewClass(name, pkgpath string, object bool, columns []sq.Column) *sqclass {
 	class := &sqclass{name, pkgpath, object, columns, nil, this.conn, this.log}
-	if class.insert = this.lang.NewInsert(name, class.ColumnNames()...); class.insert == nil {
+	if class.insert = this.lang.Insert(name, class.ColumnNames()...); class.insert == nil {
 		return nil
 	} else {
 		return class

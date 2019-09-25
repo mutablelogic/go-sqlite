@@ -211,8 +211,7 @@ func (this *sqobj) Write(flags sq.Flag, v ...interface{}) (uint64, error) {
 	if len(v) == 0 {
 		return 0, gopi.ErrBadParameter
 	}
-	//
-
+	return 0, gopi.ErrNotImplemented
 }
 
 ////////////////////////////////////////////////////////////////////////////////

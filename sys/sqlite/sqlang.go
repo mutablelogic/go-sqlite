@@ -63,6 +63,13 @@ type drop struct {
 	ifexists bool
 }
 
+type delete struct {
+	prepared
+	tablename
+
+	expr sq.Expression
+}
+
 type insertreplace struct {
 	prepared
 	tablename
@@ -77,6 +84,7 @@ type query struct {
 
 	source        sq.Source
 	distinct      bool
+	where         sq.Expression
 	offset, limit uint
 }
 
@@ -84,6 +92,21 @@ type source struct {
 	tablename
 
 	alias string
+}
+
+type expr_equals struct {
+	left  string
+	right sq.Expression
+	not   bool
+}
+
+type expr_value struct {
+	query string
+}
+
+type expr_op struct {
+	op   string
+	expr []sq.Expression
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -216,24 +239,47 @@ func (this *sqlang) Replace(name string, columns ...string) sq.InsertOrReplace {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// SELECT
+// DELETE
 
-func (this *sqlang) NewSelect(source sq.Source) sq.Select {
-	this.log.Debug2("<sqlang.NewSelect>{ source=%v }", source)
-
-	return &query{prepared{nil}, source, false, 0, 0}
-}
-
-func (this *sqlang) NewSource(name string) sq.Source {
-	this.log.Debug2("<sqlang.NewSource>{ name=%v }", strconv.Quote(name))
+func (this *sqlang) NewDelete(name string) sq.Delete {
+	this.log.Debug2("<sqlang.NewDelete>{ name=%v }", strconv.Quote(name))
 
 	if name = strings.TrimSpace(name); name == "" {
 		return nil
 	} else {
-		return &source{
-			tablename{name, ""}, "",
+		return &delete{
+			prepared{nil}, tablename{name, ""}, nil,
 		}
 	}
+}
+
+func (this *delete) Schema(schema string) sq.Delete {
+	this.tablename.Schema(schema)
+	return this
+}
+
+func (this *delete) Where(expr sq.Expression) sq.Delete {
+	if expr == nil {
+		return nil
+	} else {
+		this.expr = expr
+		return this
+	}
+}
+
+func (this *delete) Query() string {
+	tokens := []string{"DELETE FROM"}
+
+	// Add table name
+	tokens = append(tokens, this.tablename.Query())
+
+	// Add where clause
+	if this.expr != nil {
+		tokens = append(tokens, "WHERE", this.expr.Query())
+	}
+
+	// Return the query
+	return strings.Join(tokens, " ")
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -472,6 +518,18 @@ func (this *insertreplace) argsN(n int) string {
 ////////////////////////////////////////////////////////////////////////////////
 // DATA SOURCE IMPLEMENTATION
 
+func (this *sqlang) NewSource(name string) sq.Source {
+	this.log.Debug2("<sqlang.NewSource>{ name=%v }", strconv.Quote(name))
+
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else {
+		return &source{
+			tablename{name, ""}, "",
+		}
+	}
+}
+
 func (this *source) Schema(schema string) sq.Source {
 	this.tablename.Schema(schema)
 	return this
@@ -492,6 +550,23 @@ func (this *source) Query() string {
 
 ////////////////////////////////////////////////////////////////////////////////
 // SELECT IMPLEMENTATION
+
+func (this *sqlang) NewSelect(source sq.Source) sq.Select {
+	this.log.Debug2("<sqlang.NewSelect>{ source=%v }", source)
+
+	return &query{prepared{nil}, source, false, nil, 0, 0}
+}
+
+func (this *query) Where(expr ...sq.Expression) sq.Select {
+	if len(expr) == 0 {
+		this.where = nil
+	} else if len(expr) == 1 {
+		this.where = expr[0]
+	} else {
+		this.where = &expr_op{" AND ", expr}
+	}
+	return this
+}
 
 func (this *query) Distinct() sq.Select {
 	this.distinct = true
@@ -520,6 +595,17 @@ func (this *query) Query() string {
 		tokens = append(tokens, "FROM", this.source.Query())
 	}
 
+	// Add where
+	if this.where != nil {
+		// Remove brackets
+		q := this.where.Query()
+		if strings.HasPrefix(q, "(") && strings.HasSuffix(q, ")") {
+			q = strings.TrimPrefix(q, "(")
+			q = strings.TrimSuffix(q, ")")
+		}
+		tokens = append(tokens, "WHERE", q)
+	}
+
 	// Add offset and limit
 	if this.limit == 0 && this.offset > 0 {
 		tokens = append(tokens, "OFFSET", fmt.Sprint(this.offset))
@@ -531,4 +617,126 @@ func (this *query) Query() string {
 
 	// Return the query
 	return strings.Join(tokens, " ")
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// VALUE EXPRESSIONS
+
+func (this *sqlang) Null() sq.Expression {
+	return &expr_value{"NULL"}
+}
+
+func (this *sqlang) Value(v interface{}) sq.Expression {
+	switch v.(type) {
+	case string:
+		return &expr_value{sq.DoubleQuote(v.(string))}
+	case int:
+		return &expr_value{fmt.Sprint(v.(int))}
+	case int8:
+		return &expr_value{fmt.Sprint(v.(int8))}
+	case int16:
+		return &expr_value{fmt.Sprint(v.(int16))}
+	case int32:
+		return &expr_value{fmt.Sprint(v.(int32))}
+	case int64:
+		return &expr_value{fmt.Sprint(v.(int64))}
+	case uint:
+		return &expr_value{fmt.Sprint(v.(uint))}
+	case uint8:
+		return &expr_value{fmt.Sprint(v.(uint8))}
+	case uint16:
+		return &expr_value{fmt.Sprint(v.(uint16))}
+	case uint32:
+		return &expr_value{fmt.Sprint(v.(uint32))}
+	case uint64:
+		return &expr_value{fmt.Sprint(v.(uint64))}
+	case bool:
+		if v.(bool) {
+			return &expr_value{"TRUE"}
+		} else {
+			return &expr_value{"FALSE"}
+		}
+		return &expr_value{fmt.Sprint(v.(uint64))}
+	case float32:
+		return &expr_value{fmt.Sprint(v.(float32))}
+	case float64:
+		return &expr_value{fmt.Sprint(v.(float64))}
+	default:
+		// Unsupported type
+		return nil
+	}
+}
+
+func (this *expr_value) Query() string {
+	return this.query
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// EQUALITY EXPRESSIONS
+
+func (this *sqlang) Equals(name string, expr sq.Expression) sq.Expression {
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else if expr == nil {
+		return nil
+	} else {
+		return &expr_equals{name, expr, false}
+	}
+}
+
+func (this *sqlang) NotEquals(name string, expr sq.Expression) sq.Expression {
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else if expr == nil {
+		return nil
+	} else {
+		return &expr_equals{name, expr, true}
+	}
+}
+
+func (this *expr_equals) Query() string {
+	if this.right.Query() == "NULL" {
+		if this.not {
+			return sq.QuoteIdentifier(this.left) + " IS NOT NULL"
+		} else {
+			return sq.QuoteIdentifier(this.left) + " IS NULL"
+		}
+	} else {
+		if this.not {
+			return sq.QuoteIdentifier(this.left) + "!=" + this.right.Query()
+		} else {
+			return sq.QuoteIdentifier(this.left) + "=" + this.right.Query()
+		}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AND OR EXPRESSIONS
+
+func (this *sqlang) And(expr ...sq.Expression) sq.Expression {
+	if len(expr) == 0 {
+		return nil
+	} else if len(expr) == 1 {
+		return expr[0]
+	} else {
+		return &expr_op{" AND ", expr}
+	}
+}
+
+func (this *sqlang) Or(expr ...sq.Expression) sq.Expression {
+	if len(expr) == 0 {
+		return nil
+	} else if len(expr) == 1 {
+		return expr[0]
+	} else {
+		return &expr_op{" OR ", expr}
+	}
+}
+
+func (this *expr_op) Query() string {
+	parts := make([]string, len(this.expr))
+	for i, expr := range this.expr {
+		parts[i] = expr.Query()
+	}
+	return "(" + strings.Join(parts, this.op) + ")"
 }

@@ -29,17 +29,24 @@ type Language interface {
 	DropTrigger(string) Drop
 	DropView(string) Drop
 
-	// Insert, replace and select
+	// Insert, replace and update
 	Insert(string, ...string) InsertOrReplace
 	Replace(string, ...string) InsertOrReplace
+	NewDelete(string) Delete
+
+	// Select
 	NewSelect(Source) Select
 
-	// Return data source
+	// Return named data source
 	NewSource(name string) Source
 
-	// Return expressions
-	//Expr(string) Expression
-	//ExprArray(...string) []Expression
+	// Build expressions
+	Null() Expression
+	Value(interface{}) Expression
+	Equals(string, Expression) Expression
+	NotEquals(string, Expression) Expression
+	And(...Expression) Expression
+	Or(...Expression) Expression
 }
 
 // Source represents a simple table source (schema, name and table alias)
@@ -48,6 +55,11 @@ type Source interface {
 
 	Schema(string) Source
 	Alias(string) Source
+}
+
+// Expression represents an expression used in Select
+type Expression interface {
+	Query() string
 }
 
 // CreateTable statement
@@ -78,6 +90,14 @@ type Drop interface {
 	IfExists() Drop
 }
 
+// Delete statement
+type Delete interface {
+	Statement
+
+	Schema(string) Delete
+	Where(Expression) Delete
+}
+
 // InsertOrReplace represents an insert, upsert or replace
 type InsertOrReplace interface {
 	Statement
@@ -91,5 +111,6 @@ type Select interface {
 	Statement
 
 	Distinct() Select
+	Where(...Expression) Select
 	LimitOffset(uint, uint) Select
 }

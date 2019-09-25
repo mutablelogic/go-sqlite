@@ -28,6 +28,7 @@ type File struct {
 	Id   int64  `sql:"id,primary"`
 	Root string `sql:"root,primary"`
 	Path string `sql:"path"`
+	sqlite.Object
 }
 
 var (
@@ -50,7 +51,7 @@ func Index(app *gopi.AppInstance, folder string) {
 		} else if inode := inodeForInfo(info); inode == 0 {
 			// inode not obtained
 		} else {
-			file_chan <- &File{inode, folder, path}
+			file_chan <- &File{inode, folder, path, sqlite.Object{}}
 		}
 		return nil
 	}); err != nil {

@@ -37,9 +37,12 @@ func (this *Indexer) Do(file *File) error {
 		return gopi.ErrBadParameter
 	} else if path, err := filepath.Rel(file.Root, file.Path); err != nil {
 		return err
-	} else if _, err := this.sqobj.Insert(&File{file.Id, path, file.Root}); err != nil {
-		return err
 	} else {
-		return nil
+		file.Path = path
+		if _, err := this.sqobj.Write(sqlite.FLAG_INSERT|sqlite.FLAG_UPDATE, file); err != nil {
+			return err
+		} else {
+			return nil
+		}
 	}
 }

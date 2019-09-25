@@ -24,25 +24,23 @@ type Indexer struct {
 func NewIndexer(sqobj sqlite.Objects) *Indexer {
 	this := new(Indexer)
 	this.sqobj = sqobj
-
 	if _, err := sqobj.RegisterStruct(&File{}); err != nil {
 		return nil
 	}
-
 	return this
 }
 
-func (this *Indexer) Do(file *File) error {
+func (this *Indexer) Do(file *File) (uint64, error) {
 	if file == nil || file.Id == 0 || file.Path == "" || file.Root == "" {
-		return gopi.ErrBadParameter
+		return 0, gopi.ErrBadParameter
 	} else if path, err := filepath.Rel(file.Root, file.Path); err != nil {
-		return err
+		return 0, err
 	} else {
 		file.Path = path
-		if _, err := this.sqobj.Write(sqlite.FLAG_INSERT|sqlite.FLAG_UPDATE, file); err != nil {
-			return err
+		if affected_rows, err := this.sqobj.Write(sqlite.FLAG_INSERT|sqlite.FLAG_UPDATE, file); err != nil {
+			return 0, err
 		} else {
-			return nil
+			return affected_rows, nil
 		}
 	}
 }

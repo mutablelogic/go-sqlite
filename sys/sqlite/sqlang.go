@@ -63,6 +63,14 @@ type drop struct {
 	ifexists bool
 }
 
+type update struct {
+	prepared
+	tablename
+
+	columns []string
+	expr    sq.Expression
+}
+
 type delete struct {
 	prepared
 	tablename
@@ -272,6 +280,62 @@ func (this *delete) Query() string {
 
 	// Add table name
 	tokens = append(tokens, this.tablename.Query())
+
+	// Add where clause
+	if this.expr != nil {
+		tokens = append(tokens, "WHERE", this.expr.Query())
+	}
+
+	// Return the query
+	return strings.Join(tokens, " ")
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// UPDATE
+
+func (this *sqlang) NewUpdate(name string, columns ...string) sq.Update {
+	this.log.Debug2("<sqlang.NewUpdate>{ name=%v columns=%v }", strconv.Quote(name), columns)
+
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else if len(columns) == 0 {
+		return nil
+	} else {
+		return &update{
+			prepared{nil}, tablename{name, ""}, columns, nil,
+		}
+	}
+}
+
+func (this *update) Schema(schema string) sq.Update {
+	this.tablename.Schema(schema)
+	return this
+}
+
+func (this *update) Where(expr sq.Expression) sq.Update {
+	if expr == nil {
+		return nil
+	} else {
+		this.expr = expr
+		return this
+	}
+}
+
+func (this *update) Query() string {
+	tokens := []string{"UPDATE"}
+
+	// Add table name
+	tokens = append(tokens, this.tablename.Query())
+
+	// Columns
+	tokens = append(tokens, "SET")
+	for i, column := range this.columns {
+		if i == len(this.columns)-1 {
+			tokens = append(tokens, sq.QuoteIdentifier(column)+"=?")
+		} else {
+			tokens = append(tokens, sq.QuoteIdentifier(column)+"=?,")
+		}
+	}
 
 	// Add where clause
 	if this.expr != nil {
@@ -624,6 +688,10 @@ func (this *query) Query() string {
 
 func (this *sqlang) Null() sq.Expression {
 	return &expr_value{"NULL"}
+}
+
+func (this *sqlang) Arg() sq.Expression {
+	return &expr_value{"?"}
 }
 
 func (this *sqlang) Value(v interface{}) sq.Expression {

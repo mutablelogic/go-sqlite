@@ -33,6 +33,7 @@ type Language interface {
 	Insert(string, ...string) InsertOrReplace
 	Replace(string, ...string) InsertOrReplace
 	NewDelete(string) Delete
+	NewUpdate(string, ...string) Update
 
 	// Select
 	NewSelect(Source) Select
@@ -42,6 +43,7 @@ type Language interface {
 
 	// Build expressions
 	Null() Expression
+	Arg() Expression
 	Value(interface{}) Expression
 	Equals(string, Expression) Expression
 	NotEquals(string, Expression) Expression
@@ -98,12 +100,20 @@ type Delete interface {
 	Where(Expression) Delete
 }
 
-// InsertOrReplace represents an insert, upsert or replace
+// InsertOrReplace represents an insert or replace
 type InsertOrReplace interface {
 	Statement
 
 	Schema(string) InsertOrReplace
 	DefaultValues() InsertOrReplace
+}
+
+// Update represents an update
+type Update interface {
+	Statement
+
+	Schema(string) Update
+	Where(Expression) Update
 }
 
 // Select statement

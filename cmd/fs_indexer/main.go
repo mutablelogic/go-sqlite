@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	// Frameworks
 	gopi "github.com/djthorpe/gopi"
@@ -64,16 +65,27 @@ func Index(app *gopi.AppInstance, folder string) {
 func IndexFile(app *gopi.AppInstance, start chan<- struct{}, stop <-chan struct{}) error {
 	sqobj := app.ModuleInstance("db/sqobj").(sqlite.Objects)
 	indexer := NewIndexer(sqobj)
+	timer := time.NewTicker(2 * time.Second)
 
 	start <- gopi.DONE
+	total_rows, total_rows_ := uint64(0), uint64(0)
+
 FOR_LOOP:
 	for {
 		select {
 		case file := <-file_chan:
-			if err := indexer.Do(file); err != nil {
+			if affected_rows, err := indexer.Do(file); err != nil {
 				app.Logger.Error("Error: %v: %v", filepath.Base(file.Path), err)
+			} else {
+				total_rows += affected_rows
+			}
+		case <-timer.C:
+			if total_rows_ != total_rows {
+				app.Logger.Info("%v files indexed", total_rows)
+				total_rows_ = total_rows
 			}
 		case <-stop:
+			timer.Stop()
 			break FOR_LOOP
 		}
 	}

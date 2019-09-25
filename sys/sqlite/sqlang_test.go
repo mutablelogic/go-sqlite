@@ -403,6 +403,14 @@ func Test_Expr_013(t *testing.T) {
 			t.Log(expr.Query())
 		}
 
+		if expr := lang_.Arg(); expr == nil {
+			t.Fail()
+		} else if expr.Query() != "?" {
+			t.Error("Expected ?, got", expr.Query())
+		} else {
+			t.Log(expr.Query())
+		}
+
 		if expr := lang_.Value(1234); expr == nil {
 			t.Fail()
 		} else if expr.Query() != "1234" {
@@ -591,5 +599,40 @@ func Test_Select_014(t *testing.T) {
 		} else if st.Query() != "SELECT * FROM test WHERE 0 OR 1" {
 			t.Error(st.Query())
 		}
+	}
+}
+
+func Test_Update_015(t *testing.T) {
+	if lang, err := gopi.Open(sqlite.Language{}, nil); err != nil {
+		t.Error(err)
+	} else if lang_ := lang.(sq.Language); lang_ == nil {
+		t.Fail()
+	} else {
+		defer lang_.Close()
+
+		if st := lang_.NewUpdate("test", "a"); st == nil {
+			t.Error("st == nil")
+		} else if st.Query() != "UPDATE test SET a=?" {
+			t.Error("Unexpected", st.Query())
+		}
+
+		if st := lang_.NewUpdate("test", "a", "b"); st == nil {
+			t.Error("st == nil")
+		} else if st.Query() != "UPDATE test SET a=?, b=?" {
+			t.Error("Unexpected", st.Query())
+		}
+
+		if st := lang_.NewUpdate("test", "a", "b").Where(lang_.Null()); st == nil {
+			t.Error("st == nil")
+		} else if st.Query() != "UPDATE test SET a=?, b=? WHERE NULL" {
+			t.Error("Unexpected", st.Query())
+		}
+
+		if st := lang_.NewUpdate("test", "a", "b").Schema("test"); st == nil {
+			t.Error("st == nil")
+		} else if st.Query() != "UPDATE test.test SET a=?, b=?" {
+			t.Error("Unexpected", st.Query())
+		}
+
 	}
 }

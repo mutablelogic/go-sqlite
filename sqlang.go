@@ -19,17 +19,36 @@ import (
 type Language interface {
 	gopi.Driver
 
+	// Create
 	NewCreateTable(string, ...Column) CreateTable
-	NewDropTable(string) DropTable
-	NewInsert(string, ...string) InsertOrReplace
+	NewCreateIndex(string, string, ...string) CreateIndex
+
+	// Drop
+	DropTable(string) Drop
+	DropIndex(string) Drop
+	DropTrigger(string) Drop
+	DropView(string) Drop
+
+	// Insert, replace and update
+	Insert(string, ...string) InsertOrReplace
+	Replace(string, ...string) InsertOrReplace
+	NewDelete(string) Delete
+	NewUpdate(string, ...string) Update
+
+	// Select
 	NewSelect(Source) Select
 
-	// Return data source
+	// Return named data source
 	NewSource(name string) Source
 
-	// Return expressions
-	//Expr(string) Expression
-	//ExprArray(...string) []Expression
+	// Build expressions
+	Null() Expression
+	Arg() Expression
+	Value(interface{}) Expression
+	Equals(string, Expression) Expression
+	NotEquals(string, Expression) Expression
+	And(...Expression) Expression
+	Or(...Expression) Expression
 }
 
 // Source represents a simple table source (schema, name and table alias)
@@ -38,6 +57,11 @@ type Source interface {
 
 	Schema(string) Source
 	Alias(string) Source
+}
+
+// Expression represents an expression used in Select
+type Expression interface {
+	Query() string
 }
 
 // CreateTable statement
@@ -51,15 +75,32 @@ type CreateTable interface {
 	Unique(...string) CreateTable
 }
 
-// DropTable statement
-type DropTable interface {
+// CreateIndex statement
+type CreateIndex interface {
 	Statement
 
-	Schema(string) DropTable
-	IfExists() DropTable
+	Schema(string) CreateIndex
+	Unique() CreateIndex
+	IfNotExists() CreateIndex
 }
 
-// InsertOrReplace represents an insert, upsert or replace
+// Drop (table,index,trigger,view) statement
+type Drop interface {
+	Statement
+
+	Schema(string) Drop
+	IfExists() Drop
+}
+
+// Delete statement
+type Delete interface {
+	Statement
+
+	Schema(string) Delete
+	Where(Expression) Delete
+}
+
+// InsertOrReplace represents an insert or replace
 type InsertOrReplace interface {
 	Statement
 
@@ -67,10 +108,19 @@ type InsertOrReplace interface {
 	DefaultValues() InsertOrReplace
 }
 
+// Update represents an update
+type Update interface {
+	Statement
+
+	Schema(string) Update
+	Where(Expression) Update
+}
+
 // Select statement
 type Select interface {
 	Statement
 
 	Distinct() Select
+	Where(...Expression) Select
 	LimitOffset(uint, uint) Select
 }

@@ -46,13 +46,13 @@ func CreateTable(db sqlite.Connection, lang sqlite.Language, table *Table) (int,
 
 	// Wrap SQL statements in a transaction
 	return affectedRows, db.Txn(func(txn sqlite.Transaction) error {
-		if _, err := txn.Do(lang.NewDropTable(table.Name).IfExists()); err != nil {
+		if _, err := txn.Do(lang.DropTable(table.Name).IfExists()); err != nil {
 			return err
 		}
 		if _, err := txn.Do(lang.NewCreateTable(table.Name, table.Columns...)); err != nil {
 			return err
 		}
-		if insert := lang.NewInsert(table.Name); insert == nil {
+		if insert := lang.Insert(table.Name); insert == nil {
 			return gopi.ErrBadParameter
 		} else {
 			for {

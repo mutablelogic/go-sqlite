@@ -9,6 +9,7 @@
 package sqobj
 
 import (
+	"reflect"
 	// Frameworks
 	"fmt"
 	"strconv"
@@ -42,10 +43,15 @@ type sqobj struct {
 
 type sqclass struct {
 	name, pkgpath string
+	object        bool
 	columns       []sq.Column
-	insert        sq.InsertOrReplace
 	conn          sq.Connection
 	log           gopi.Logger
+
+	// Statements
+	insert  sq.InsertOrReplace
+	replace sq.InsertOrReplace
+	update  sq.Statement
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,6 +59,7 @@ type sqclass struct {
 
 const (
 	DEFAULT_STRUCT_TAG = "sql"
+	SQLITE_PKGPATH     = "github.com/djthorpe/sqlite"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,7 +132,7 @@ func (this *sqobj) RegisterStruct(v interface{}) (sq.StructClass, error) {
 	} else if class = this.registeredClass(name, pkgpath); class != nil {
 		this.log.Warn("Duplicate registration for %v/%v", pkgpath, name)
 		return nil, gopi.ErrBadParameter
-	} else if class = this.NewClass(name, pkgpath, columns); class == nil {
+	} else if class = this.NewClass(name, pkgpath, this.reflectStructObjectField(v, "RowId") != nil, columns); class == nil {
 		return nil, gopi.ErrBadParameter
 	} else if this.isExistingTable(class.Name()) == false {
 		if this.create == false {
@@ -148,14 +155,14 @@ func (this *sqobj) RegisterStruct(v interface{}) (sq.StructClass, error) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// INSERT
+// INSERT, REPLACE, UPDATE
 
-func (this *sqobj) Insert(v ...interface{}) ([]int64, error) {
-	this.log.Debug2("<sqobj.Insert>{ %v }", v)
-
+// Insert or replace structs, rollback on error
+func (this *sqobj) Write(flags sq.Flag, v ...interface{}) (uint64, error) {
+	this.log.Debug2("<sqobj.Write>{ flags=%v num_objects=%v }", flags, len(v))
 	// Check for v
 	if len(v) == 0 {
-		return nil, gopi.ErrBadParameter
+		return 0, gopi.ErrBadParameter
 	}
 
 	// Check to ensure every object is the same name and pkgpath
@@ -163,37 +170,51 @@ func (this *sqobj) Insert(v ...interface{}) ([]int64, error) {
 	for _, value := range v {
 		if name, pkgpath := this.reflectName(value); name == "" {
 			this.log.Warn("Insert: No struct name")
-			return nil, gopi.ErrBadParameter
+			return 0, gopi.ErrBadParameter
 		} else if class_ := this.registeredClass(name, pkgpath); class_ == nil {
 			this.log.Warn("Insert: No registered class for %v (in path %v)", name, strconv.Quote(pkgpath))
-			return nil, gopi.ErrBadParameter
+			return 0, gopi.ErrBadParameter
 		} else if class != nil && class_ != class {
 			this.log.Warn("Insert: Mixed argument types for %v (in path %v)", name, strconv.Quote(pkgpath))
-			return nil, gopi.ErrBadParameter
+			return 0, gopi.ErrBadParameter
 		} else {
 			class = class_
 		}
 	}
 
-	// Perform the insert in a transaction
-	rowid := make([]int64, len(v))
+	// Perform the action in a transaction, each object's
+	affected_rows := uint64(0)
 	if err := this.conn.Txn(func(txn sq.Transaction) error {
-		for i, v_ := range v {
+		for _, v_ := range v {
 			if args := class.BoundArgs(v_); args == nil {
 				return gopi.ErrAppError
-			} else if r, err := txn.Do(class.insert, class.BoundArgs(v_)...); err != nil {
+			} else if st := class.statement(flags); st == nil {
+				return sq.ErrUnsupportedType
+			} else if r, err := txn.Do(st, class.BoundArgs(v_)...); err != nil {
 				return err
+			} else if class.object && reflect.ValueOf(v_).Kind() == reflect.Ptr {
+				if field := this.reflectStructObjectField(v_, "RowId"); field != nil {
+					field.SetInt(r.LastInsertId)
+				}
+				affected_rows += r.RowsAffected
 			} else {
-				rowid[i] = r.LastInsertId
+				affected_rows += r.RowsAffected
 			}
 		}
 		// Success
 		return nil
 	}); err != nil {
-		return nil, err
+		return affected_rows, err
 	} else {
-		return rowid, nil
+		return affected_rows, nil
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// DELETE
+
+func (this *sqobj) Delete(...interface{}) (uint64, error) {
+	return 0, gopi.ErrNotImplemented
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -112,7 +112,7 @@ func (this *txn) NewColumnWithIndex(name, decltype string, nullable, primary boo
 }
 
 func (this *txn) Do(query sq.Statement, args ...interface{}) (sq.Result, error) {
-	this.log.Debug2("<sqtxn.Do>{ %v num_input=%v }", query, len(args))
+	this.log.Debug2("<sqtxn.Do>{ %v num_input=%v }", strconv.Quote(query.Query()), len(args))
 
 	if this.conn == nil {
 		return sq.Result{}, gopi.ErrAppError
@@ -148,7 +148,7 @@ func (this *txn) DoOnce(query string, args ...interface{}) (sq.Result, error) {
 }
 
 func (this *txn) Query(query sq.Statement, args ...interface{}) (sq.Rows, error) {
-	this.log.Debug2("<sqtxn.Query>{ %v num_input=%v }", query, len(args))
+	this.log.Debug2("<sqtxn.Query>{ %v num_input=%v }", strconv.Quote(query.Query()), len(args))
 
 	if this.conn == nil {
 		return nil, gopi.ErrAppError

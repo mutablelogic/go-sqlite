@@ -1,6 +1,8 @@
 package sqobj_test
 
 import (
+	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -13,6 +15,24 @@ import (
 	_ "github.com/djthorpe/sqlite/sys/sqlite"
 	_ "github.com/djthorpe/sqlite/sys/sqobj"
 )
+
+/////////////////////////////////////////////////////////////////////////////
+
+type Device struct {
+	sqlite.Object
+
+	ID          int       `sql:"device_id"`
+	Name        string    `sql:"name"`
+	DateAdded   time.Time `sql:"date_added"`
+	DateUpdated time.Time `sql:"date_updated,nullable"`
+	Enabled     bool      `sql:"enabled"`
+}
+
+func (this *Device) String() string {
+	return fmt.Sprintf("<Device>{ ID=%v Name=%v Object=%v }", this.ID, strconv.Quote(this.Name), this.Object.String())
+}
+
+/////////////////////////////////////////////////////////////////////////////
 
 func Test_001(t *testing.T) {
 	t.Log("Test_001")
@@ -60,18 +80,17 @@ func Test_004(t *testing.T) {
 	} else {
 		type Test struct {
 			A, B int
+			sqlite.Object
 		}
 		defer app.Close()
 		if class, err := db.RegisterStruct(Test{}); err != nil {
 			t.Error(err)
 		} else if class.Name() != "Test" {
 			t.Fail()
-		} else if rowid, err := db.Insert(Test{}); err != nil {
+		} else if affected_rows, err := db.Write(sqlite.FLAG_INSERT, &Test{}); err != nil {
 			t.Error(err)
-		} else if len(rowid) != 1 || rowid[0] == 0 {
-			t.Error("Unexpected rowid", rowid)
-		} else {
-			t.Log("rowid=", rowid)
+		} else if affected_rows != 1 {
+			t.Fail()
 		}
 	}
 }
@@ -243,29 +262,34 @@ func Test_Insert_009(t *testing.T) {
 			t.Fail()
 		} else {
 
-			type Device struct {
-				ID          int       `sql:"device_id"`
-				Name        string    `sql:"name"`
-				DateAdded   time.Time `sql:"date_added"`
-				DateUpdated time.Time `sql:"date_updated,nullable"`
-				Enabled     bool      `sql:"enabled"`
-			}
-
-			if _, err := db.RegisterStruct(Device{}); err != nil {
+			if class, err := db.RegisterStruct(Device{}); err != nil {
 				t.Error(err)
 			} else {
+				t.Log(class)
+
 				// In this case, the primary key is auto-generated and the first two rows
 				// will have rowid of 1 and 2
-				if rowid, err := db.Insert(&Device{ID: 100}); err != nil {
+				device100 := &Device{ID: 100, Name: "Device100"}
+				device101 := &Device{ID: 101, Name: "Device101"}
+
+				if affected_rows, err := db.Write(sqlite.FLAG_INSERT, device100); err != nil {
 					t.Error(err)
-				} else if len(rowid) < 1 || rowid[0] != 1 {
-					t.Error("Unexpected rowid", rowid)
+				} else if affected_rows != 1 {
+					t.Error()
+				} else if device100.RowId != 1 {
+					t.Error()
+				} else {
+					t.Log(device100, affected_rows)
 				}
 
-				if rowid, err := db.Insert(&Device{ID: 101}); err != nil {
+				if affected_rows, err := db.Write(sqlite.FLAG_INSERT, device101); err != nil {
 					t.Error(err)
-				} else if len(rowid) < 1 || rowid[0] != 2 {
-					t.Error("Unexpected rowid", rowid)
+				} else if affected_rows != 1 {
+					t.Error("affected_rows != 1")
+				} else if device101.RowId != 2 {
+					t.Error("device101.RowId != 2", device101)
+				} else {
+					t.Log(device101, affected_rows)
 				}
 
 			}
@@ -273,7 +297,7 @@ func Test_Insert_009(t *testing.T) {
 	}
 }
 
-func Test_Insert_002(t *testing.T) {
+func Test_Insert_010(t *testing.T) {
 	config := gopi.NewAppConfig("db/sqobj")
 	if app, err := gopi.NewAppInstance(config); err != nil {
 		t.Fatal(err)
@@ -296,16 +320,16 @@ func Test_Insert_002(t *testing.T) {
 			} else {
 				// In this case, the primary key is row ID auto-generated and the first two rows
 				// will have rowid of 100 and 101
-				if rowid, err := db.Insert(&Device{ID: 100}); err != nil {
+				if affected_rows, err := db.Write(sqlite.FLAG_INSERT, &Device{ID: 100}); err != nil {
 					t.Error(err)
-				} else if rowid[0] != 100 {
-					t.Error("Unexpected rowid", rowid)
+				} else {
+					t.Log(affected_rows)
 				}
 
-				if rowid, err := db.Insert(&Device{ID: 101}); err != nil {
+				if affected_rows, err := db.Write(sqlite.FLAG_INSERT, &Device{ID: 101}); err != nil {
 					t.Error(err)
-				} else if rowid[0] != 101 {
-					t.Error("Unexpected rowid", rowid)
+				} else {
+					t.Log(affected_rows)
 				}
 
 			}

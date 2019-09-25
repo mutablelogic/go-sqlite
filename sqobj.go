@@ -9,6 +9,8 @@
 package sqlite
 
 import (
+	"fmt"
+
 	// Frameworks
 	"github.com/djthorpe/gopi"
 )
@@ -27,9 +29,13 @@ type Objects interface {
 	// ReflectStruct returns SQL table columns from a struct
 	ReflectStruct(v interface{}) ([]Column, error)
 
-	// Insert structs, rollback on error
-	Insert(...interface{}) ([]int64, error)
-	//Insert(Flag, ...interface{}) ([]int64, error)
+	// Insert, replace and update structs, rollback on error
+	// and return number of affected rows
+	Write(Flag, ...interface{}) (uint64, error)
+
+	// Delete structs  or by rowid, rollback on error
+	// and return number of affected rows
+	Delete(...interface{}) (uint64, error)
 }
 
 type Class interface {
@@ -41,11 +47,26 @@ type StructClass interface {
 	Class
 }
 
+type Object struct {
+	RowId int64
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // CONSTANTS
 
 const (
 	FLAG_INSERT Flag = (1 << iota)
-	FLAG_REPLACE
+	FLAG_UPDATE
 	FLAG_NONE Flag = 0
 )
+
+////////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (this *Object) String() string {
+	if this.RowId == 0 {
+		return fmt.Sprintf("<sqobj.Object>{ <new> }")
+	} else {
+		return fmt.Sprintf("<sqobj.Object>{ rowid=%v }", this.RowId)
+	}
+}

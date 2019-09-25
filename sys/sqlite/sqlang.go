@@ -45,17 +45,44 @@ type createtable struct {
 	columns      []sq.Column
 }
 
-type droptable struct {
+type createindex struct {
 	prepared
 	tablename
 
+	name        string
+	unique      bool
+	ifnotexists bool
+	columns     []string
+}
+
+type drop struct {
+	prepared
+	tablename
+
+	token    string
 	ifexists bool
+}
+
+type update struct {
+	prepared
+	tablename
+
+	columns []string
+	expr    sq.Expression
+}
+
+type delete struct {
+	prepared
+	tablename
+
+	expr sq.Expression
 }
 
 type insertreplace struct {
 	prepared
 	tablename
 
+	token         string
 	defaultvalues bool
 	columns       []string
 }
@@ -65,6 +92,7 @@ type query struct {
 
 	source        sq.Source
 	distinct      bool
+	where         sq.Expression
 	offset, limit uint
 }
 
@@ -72,6 +100,21 @@ type source struct {
 	tablename
 
 	alias string
+}
+
+type expr_equals struct {
+	left  string
+	right sq.Expression
+	not   bool
+}
+
+type expr_value struct {
+	query string
+}
+
+type expr_op struct {
+	op   string
+	expr []sq.Expression
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,46 +152,198 @@ func (this *sqlang) NewCreateTable(name string, columns ...sq.Column) sq.CreateT
 	}
 }
 
-func (this *sqlang) NewDropTable(name string) sq.DropTable {
-	this.log.Debug2("<sqlang.NewDropTable>{ name=%v }", strconv.Quote(name))
+func (this *sqlang) NewCreateIndex(name, table string, columns ...string) sq.CreateIndex {
+	this.log.Debug2("<sqlang.NewCreateTable>{ name=%v table=%v columns=%v }", strconv.Quote(name), strconv.Quote(table), columns)
 
 	if name = strings.TrimSpace(name); name == "" {
 		return nil
+	} else if table = strings.TrimSpace(table); table == "" {
+		return nil
+	} else if len(columns) == 0 {
+		return nil
 	} else {
-		return &droptable{
-			prepared{nil}, tablename{name, ""}, false,
+		return &createindex{
+			prepared{nil}, tablename{name, ""}, table, false, false, columns,
 		}
 	}
 }
 
-func (this *sqlang) NewInsert(name string, columns ...string) sq.InsertOrReplace {
-	this.log.Debug2("<sqlang.NewInsert>{ name=%v columns=%v }", strconv.Quote(name), columns)
+////////////////////////////////////////////////////////////////////////////////
+// DROP
+
+func (this *sqlang) DropTable(name string) sq.Drop {
+	this.log.Debug2("<sqlang.DropTable>{ name=%v }", strconv.Quote(name))
+
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else {
+		return &drop{
+			prepared{nil}, tablename{name, ""}, "TABLE", false,
+		}
+	}
+}
+
+func (this *sqlang) DropIndex(name string) sq.Drop {
+	this.log.Debug2("<sqlang.DropIndex>{ name=%v }", strconv.Quote(name))
+
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else {
+		return &drop{
+			prepared{nil}, tablename{name, ""}, "INDEX", false,
+		}
+	}
+}
+
+func (this *sqlang) DropTrigger(name string) sq.Drop {
+	this.log.Debug2("<sqlang.DropTrigger>{ name=%v }", strconv.Quote(name))
+
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else {
+		return &drop{
+			prepared{nil}, tablename{name, ""}, "TRIGGER", false,
+		}
+	}
+}
+
+func (this *sqlang) DropView(name string) sq.Drop {
+	this.log.Debug2("<sqlang.DropView>{ name=%v }", strconv.Quote(name))
+
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else {
+		return &drop{
+			prepared{nil}, tablename{name, ""}, "VIEW", false,
+		}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// INSERT OR REPLACE
+
+func (this *sqlang) Insert(name string, columns ...string) sq.InsertOrReplace {
+	this.log.Debug2("<sqlang.Insert>{ name=%v columns=%v }", strconv.Quote(name), columns)
 
 	if name = strings.TrimSpace(name); name == "" {
 		return nil
 	} else {
 		return &insertreplace{
-			prepared{nil}, tablename{name, ""}, false, columns,
+			prepared{nil}, tablename{name, ""}, "INSERT", false, columns,
 		}
 	}
 }
 
-func (this *sqlang) NewSelect(source sq.Source) sq.Select {
-	this.log.Debug2("<sqlang.NewSelect>{ source=%v }", source)
-
-	return &query{prepared{nil}, source, false, 0, 0}
-}
-
-func (this *sqlang) NewSource(name string) sq.Source {
-	this.log.Debug2("<sqlang.NewSource>{ name=%v }", strconv.Quote(name))
+func (this *sqlang) Replace(name string, columns ...string) sq.InsertOrReplace {
+	this.log.Debug2("<sqlang.Replace>{ name=%v columns=%v }", strconv.Quote(name), columns)
 
 	if name = strings.TrimSpace(name); name == "" {
 		return nil
 	} else {
-		return &source{
-			tablename{name, ""}, "",
+		return &insertreplace{
+			prepared{nil}, tablename{name, ""}, "REPLACE", false, columns,
 		}
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// DELETE
+
+func (this *sqlang) NewDelete(name string) sq.Delete {
+	this.log.Debug2("<sqlang.NewDelete>{ name=%v }", strconv.Quote(name))
+
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else {
+		return &delete{
+			prepared{nil}, tablename{name, ""}, nil,
+		}
+	}
+}
+
+func (this *delete) Schema(schema string) sq.Delete {
+	this.tablename.Schema(schema)
+	return this
+}
+
+func (this *delete) Where(expr sq.Expression) sq.Delete {
+	if expr == nil {
+		return nil
+	} else {
+		this.expr = expr
+		return this
+	}
+}
+
+func (this *delete) Query() string {
+	tokens := []string{"DELETE FROM"}
+
+	// Add table name
+	tokens = append(tokens, this.tablename.Query())
+
+	// Add where clause
+	if this.expr != nil {
+		tokens = append(tokens, "WHERE", this.expr.Query())
+	}
+
+	// Return the query
+	return strings.Join(tokens, " ")
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// UPDATE
+
+func (this *sqlang) NewUpdate(name string, columns ...string) sq.Update {
+	this.log.Debug2("<sqlang.NewUpdate>{ name=%v columns=%v }", strconv.Quote(name), columns)
+
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else if len(columns) == 0 {
+		return nil
+	} else {
+		return &update{
+			prepared{nil}, tablename{name, ""}, columns, nil,
+		}
+	}
+}
+
+func (this *update) Schema(schema string) sq.Update {
+	this.tablename.Schema(schema)
+	return this
+}
+
+func (this *update) Where(expr sq.Expression) sq.Update {
+	if expr == nil {
+		return nil
+	} else {
+		this.expr = expr
+		return this
+	}
+}
+
+func (this *update) Query() string {
+	tokens := []string{"UPDATE"}
+
+	// Add table name
+	tokens = append(tokens, this.tablename.Query())
+
+	// Columns
+	tokens = append(tokens, "SET")
+	for i, column := range this.columns {
+		if i == len(this.columns)-1 {
+			tokens = append(tokens, sq.QuoteIdentifier(column)+"=?")
+		} else {
+			tokens = append(tokens, sq.QuoteIdentifier(column)+"=?,")
+		}
+	}
+
+	// Add where clause
+	if this.expr != nil {
+		tokens = append(tokens, "WHERE", this.expr.Query())
+	}
+
+	// Return the query
+	return strings.Join(tokens, " ")
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -267,20 +462,64 @@ func (this *createtable) Query() string {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// DROP TABLE
+// CREATE INDEX IMPLEMENTATION
 
-func (this *droptable) Schema(schema string) sq.DropTable {
+func (this *createindex) Schema(schema string) sq.CreateIndex {
 	this.tablename.Schema(schema)
 	return this
 }
 
-func (this *droptable) IfExists() sq.DropTable {
+func (this *createindex) IfNotExists() sq.CreateIndex {
+	this.ifnotexists = true
+	return this
+}
+
+func (this *createindex) Unique() sq.CreateIndex {
+	this.unique = true
+	return this
+}
+
+func (this *createindex) Query() string {
+	tokens := []string{"CREATE"}
+
+	if this.unique {
+		tokens = append(tokens, "UNIQUE INDEX")
+	} else {
+		tokens = append(tokens, "INDEX")
+	}
+
+	if this.ifnotexists {
+		tokens = append(tokens, "IF NOT EXISTS")
+	}
+
+	// Add index name
+	tokens = append(tokens, this.tablename.Query())
+
+	// Add table name
+	tokens = append(tokens, "ON", sq.QuoteIdentifier(this.name))
+
+	// Add columns
+	tokens = append(tokens, "("+sq.QuoteIdentifiers(this.columns...)+")")
+
+	// Return the query
+	return strings.Join(tokens, " ")
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// DROP
+
+func (this *drop) Schema(schema string) sq.Drop {
+	this.tablename.Schema(schema)
+	return this
+}
+
+func (this *drop) IfExists() sq.Drop {
 	this.ifexists = true
 	return this
 }
 
-func (this *droptable) Query() string {
-	tokens := []string{"DROP TABLE"}
+func (this *drop) Query() string {
+	tokens := []string{"DROP", this.token}
 
 	// Add flags
 	if this.ifexists {
@@ -308,7 +547,7 @@ func (this *insertreplace) DefaultValues() sq.InsertOrReplace {
 }
 
 func (this *insertreplace) Query() string {
-	tokens := []string{"INSERT INTO"}
+	tokens := []string{this.token, "INTO"}
 
 	// Add table name
 	tokens = append(tokens, this.tablename.Query())
@@ -343,6 +582,18 @@ func (this *insertreplace) argsN(n int) string {
 ////////////////////////////////////////////////////////////////////////////////
 // DATA SOURCE IMPLEMENTATION
 
+func (this *sqlang) NewSource(name string) sq.Source {
+	this.log.Debug2("<sqlang.NewSource>{ name=%v }", strconv.Quote(name))
+
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else {
+		return &source{
+			tablename{name, ""}, "",
+		}
+	}
+}
+
 func (this *source) Schema(schema string) sq.Source {
 	this.tablename.Schema(schema)
 	return this
@@ -363,6 +614,23 @@ func (this *source) Query() string {
 
 ////////////////////////////////////////////////////////////////////////////////
 // SELECT IMPLEMENTATION
+
+func (this *sqlang) NewSelect(source sq.Source) sq.Select {
+	this.log.Debug2("<sqlang.NewSelect>{ source=%v }", source)
+
+	return &query{prepared{nil}, source, false, nil, 0, 0}
+}
+
+func (this *query) Where(expr ...sq.Expression) sq.Select {
+	if len(expr) == 0 {
+		this.where = nil
+	} else if len(expr) == 1 {
+		this.where = expr[0]
+	} else {
+		this.where = &expr_op{" AND ", expr}
+	}
+	return this
+}
 
 func (this *query) Distinct() sq.Select {
 	this.distinct = true
@@ -391,6 +659,17 @@ func (this *query) Query() string {
 		tokens = append(tokens, "FROM", this.source.Query())
 	}
 
+	// Add where
+	if this.where != nil {
+		// Remove brackets
+		q := this.where.Query()
+		if strings.HasPrefix(q, "(") && strings.HasSuffix(q, ")") {
+			q = strings.TrimPrefix(q, "(")
+			q = strings.TrimSuffix(q, ")")
+		}
+		tokens = append(tokens, "WHERE", q)
+	}
+
 	// Add offset and limit
 	if this.limit == 0 && this.offset > 0 {
 		tokens = append(tokens, "OFFSET", fmt.Sprint(this.offset))
@@ -402,4 +681,130 @@ func (this *query) Query() string {
 
 	// Return the query
 	return strings.Join(tokens, " ")
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// VALUE EXPRESSIONS
+
+func (this *sqlang) Null() sq.Expression {
+	return &expr_value{"NULL"}
+}
+
+func (this *sqlang) Arg() sq.Expression {
+	return &expr_value{"?"}
+}
+
+func (this *sqlang) Value(v interface{}) sq.Expression {
+	switch v.(type) {
+	case string:
+		return &expr_value{sq.DoubleQuote(v.(string))}
+	case int:
+		return &expr_value{fmt.Sprint(v.(int))}
+	case int8:
+		return &expr_value{fmt.Sprint(v.(int8))}
+	case int16:
+		return &expr_value{fmt.Sprint(v.(int16))}
+	case int32:
+		return &expr_value{fmt.Sprint(v.(int32))}
+	case int64:
+		return &expr_value{fmt.Sprint(v.(int64))}
+	case uint:
+		return &expr_value{fmt.Sprint(v.(uint))}
+	case uint8:
+		return &expr_value{fmt.Sprint(v.(uint8))}
+	case uint16:
+		return &expr_value{fmt.Sprint(v.(uint16))}
+	case uint32:
+		return &expr_value{fmt.Sprint(v.(uint32))}
+	case uint64:
+		return &expr_value{fmt.Sprint(v.(uint64))}
+	case bool:
+		if v.(bool) {
+			return &expr_value{"TRUE"}
+		} else {
+			return &expr_value{"FALSE"}
+		}
+		return &expr_value{fmt.Sprint(v.(uint64))}
+	case float32:
+		return &expr_value{fmt.Sprint(v.(float32))}
+	case float64:
+		return &expr_value{fmt.Sprint(v.(float64))}
+	default:
+		// Unsupported type
+		return nil
+	}
+}
+
+func (this *expr_value) Query() string {
+	return this.query
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// EQUALITY EXPRESSIONS
+
+func (this *sqlang) Equals(name string, expr sq.Expression) sq.Expression {
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else if expr == nil {
+		return nil
+	} else {
+		return &expr_equals{name, expr, false}
+	}
+}
+
+func (this *sqlang) NotEquals(name string, expr sq.Expression) sq.Expression {
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else if expr == nil {
+		return nil
+	} else {
+		return &expr_equals{name, expr, true}
+	}
+}
+
+func (this *expr_equals) Query() string {
+	if this.right.Query() == "NULL" {
+		if this.not {
+			return sq.QuoteIdentifier(this.left) + " IS NOT NULL"
+		} else {
+			return sq.QuoteIdentifier(this.left) + " IS NULL"
+		}
+	} else {
+		if this.not {
+			return sq.QuoteIdentifier(this.left) + "!=" + this.right.Query()
+		} else {
+			return sq.QuoteIdentifier(this.left) + "=" + this.right.Query()
+		}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// AND OR EXPRESSIONS
+
+func (this *sqlang) And(expr ...sq.Expression) sq.Expression {
+	if len(expr) == 0 {
+		return nil
+	} else if len(expr) == 1 {
+		return expr[0]
+	} else {
+		return &expr_op{" AND ", expr}
+	}
+}
+
+func (this *sqlang) Or(expr ...sq.Expression) sq.Expression {
+	if len(expr) == 0 {
+		return nil
+	} else if len(expr) == 1 {
+		return expr[0]
+	} else {
+		return &expr_op{" OR ", expr}
+	}
+}
+
+func (this *expr_op) Query() string {
+	parts := make([]string, len(this.expr))
+	for i, expr := range this.expr {
+		parts[i] = expr.Query()
+	}
+	return "(" + strings.Join(parts, this.op) + ")"
 }

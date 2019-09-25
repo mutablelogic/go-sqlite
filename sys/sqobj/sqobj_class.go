@@ -21,8 +21,8 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (this *sqobj) NewClass(name, pkgpath string, columns []sq.Column) *sqclass {
-	class := &sqclass{name, pkgpath, columns, nil, this.conn, this.log}
+func (this *sqobj) NewClass(name, pkgpath string, object bool, columns []sq.Column) *sqclass {
+	class := &sqclass{name, pkgpath, object, columns, nil, this.conn, this.log}
 	if class.insert = this.lang.NewInsert(name, class.ColumnNames()...); class.insert == nil {
 		return nil
 	} else {
@@ -65,5 +65,5 @@ func (this *sqclass) BoundArgs(v interface{}) []interface{} {
 // STRINGIFY
 
 func (this *sqclass) String() string {
-	return fmt.Sprintf("<sqobj.Class>{ name=%v }", strconv.Quote(this.name))
+	return fmt.Sprintf("<sqobj.Class>{ name=%v is_object=%v }", strconv.Quote(this.name), this.object)
 }

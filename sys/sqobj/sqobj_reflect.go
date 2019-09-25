@@ -65,6 +65,28 @@ func (this *sqobj) ReflectStruct(v interface{}) ([]sq.Column, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
+func (this *sqobj) reflectStructObjectField(v interface{}, field string) *reflect.Value {
+	// Dereference the pointer
+	v_ := reflect.ValueOf(v)
+	for v_.Kind() == reflect.Ptr {
+		v_ = v_.Elem()
+	}
+	// If not a stuct then return
+	if v_.Kind() != reflect.Struct {
+		return nil
+	}
+	// Get field called 'Object'
+	if f := v_.FieldByName("Object"); f.IsValid() == false {
+		return nil
+	} else if f.Type().PkgPath() != SQLITE_PKGPATH {
+		return nil
+	} else if f = f.FieldByName("RowId"); f.IsValid() == false {
+		return nil
+	} else {
+		return &f
+	}
+}
+
 func (this *sqobj) reflectName(v interface{}) (string, string) {
 	v_ := reflect.ValueOf(v)
 	for v_.Kind() == reflect.Ptr {

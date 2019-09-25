@@ -19,9 +19,19 @@ import (
 type Language interface {
 	gopi.Driver
 
+	// Create
 	NewCreateTable(string, ...Column) CreateTable
-	NewDropTable(string) DropTable
-	NewInsert(string, ...string) InsertOrReplace
+	NewCreateIndex(string, string, ...string) CreateIndex
+
+	// Drop
+	DropTable(string) Drop
+	DropIndex(string) Drop
+	DropTrigger(string) Drop
+	DropView(string) Drop
+
+	// Insert, replace and select
+	Insert(string, ...string) InsertOrReplace
+	Replace(string, ...string) InsertOrReplace
 	NewSelect(Source) Select
 
 	// Return data source
@@ -51,12 +61,21 @@ type CreateTable interface {
 	Unique(...string) CreateTable
 }
 
-// DropTable statement
-type DropTable interface {
+// CreateIndex statement
+type CreateIndex interface {
 	Statement
 
-	Schema(string) DropTable
-	IfExists() DropTable
+	Schema(string) CreateIndex
+	Unique() CreateIndex
+	IfNotExists() CreateIndex
+}
+
+// Drop (table,index,trigger,view) statement
+type Drop interface {
+	Statement
+
+	Schema(string) Drop
+	IfExists() Drop
 }
 
 // InsertOrReplace represents an insert, upsert or replace

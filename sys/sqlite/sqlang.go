@@ -45,10 +45,21 @@ type createtable struct {
 	columns      []sq.Column
 }
 
-type droptable struct {
+type createindex struct {
 	prepared
 	tablename
 
+	name        string
+	unique      bool
+	ifnotexists bool
+	columns     []string
+}
+
+type drop struct {
+	prepared
+	tablename
+
+	token    string
 	ifexists bool
 }
 
@@ -56,6 +67,7 @@ type insertreplace struct {
 	prepared
 	tablename
 
+	token         string
 	defaultvalues bool
 	columns       []string
 }
@@ -109,29 +121,102 @@ func (this *sqlang) NewCreateTable(name string, columns ...sq.Column) sq.CreateT
 	}
 }
 
-func (this *sqlang) NewDropTable(name string) sq.DropTable {
-	this.log.Debug2("<sqlang.NewDropTable>{ name=%v }", strconv.Quote(name))
+func (this *sqlang) NewCreateIndex(name, table string, columns ...string) sq.CreateIndex {
+	this.log.Debug2("<sqlang.NewCreateTable>{ name=%v table=%v columns=%v }", strconv.Quote(name), strconv.Quote(table), columns)
 
 	if name = strings.TrimSpace(name); name == "" {
 		return nil
+	} else if table = strings.TrimSpace(table); table == "" {
+		return nil
+	} else if len(columns) == 0 {
+		return nil
 	} else {
-		return &droptable{
-			prepared{nil}, tablename{name, ""}, false,
+		return &createindex{
+			prepared{nil}, tablename{name, ""}, table, false, false, columns,
 		}
 	}
 }
 
-func (this *sqlang) NewInsert(name string, columns ...string) sq.InsertOrReplace {
-	this.log.Debug2("<sqlang.NewInsert>{ name=%v columns=%v }", strconv.Quote(name), columns)
+////////////////////////////////////////////////////////////////////////////////
+// DROP
+
+func (this *sqlang) DropTable(name string) sq.Drop {
+	this.log.Debug2("<sqlang.DropTable>{ name=%v }", strconv.Quote(name))
+
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else {
+		return &drop{
+			prepared{nil}, tablename{name, ""}, "TABLE", false,
+		}
+	}
+}
+
+func (this *sqlang) DropIndex(name string) sq.Drop {
+	this.log.Debug2("<sqlang.DropIndex>{ name=%v }", strconv.Quote(name))
+
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else {
+		return &drop{
+			prepared{nil}, tablename{name, ""}, "INDEX", false,
+		}
+	}
+}
+
+func (this *sqlang) DropTrigger(name string) sq.Drop {
+	this.log.Debug2("<sqlang.DropTrigger>{ name=%v }", strconv.Quote(name))
+
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else {
+		return &drop{
+			prepared{nil}, tablename{name, ""}, "TRIGGER", false,
+		}
+	}
+}
+
+func (this *sqlang) DropView(name string) sq.Drop {
+	this.log.Debug2("<sqlang.DropView>{ name=%v }", strconv.Quote(name))
+
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else {
+		return &drop{
+			prepared{nil}, tablename{name, ""}, "VIEW", false,
+		}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// INSERT OR REPLACE
+
+func (this *sqlang) Insert(name string, columns ...string) sq.InsertOrReplace {
+	this.log.Debug2("<sqlang.Insert>{ name=%v columns=%v }", strconv.Quote(name), columns)
 
 	if name = strings.TrimSpace(name); name == "" {
 		return nil
 	} else {
 		return &insertreplace{
-			prepared{nil}, tablename{name, ""}, false, columns,
+			prepared{nil}, tablename{name, ""}, "INSERT", false, columns,
 		}
 	}
 }
+
+func (this *sqlang) Replace(name string, columns ...string) sq.InsertOrReplace {
+	this.log.Debug2("<sqlang.Replace>{ name=%v columns=%v }", strconv.Quote(name), columns)
+
+	if name = strings.TrimSpace(name); name == "" {
+		return nil
+	} else {
+		return &insertreplace{
+			prepared{nil}, tablename{name, ""}, "REPLACE", false, columns,
+		}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// SELECT
 
 func (this *sqlang) NewSelect(source sq.Source) sq.Select {
 	this.log.Debug2("<sqlang.NewSelect>{ source=%v }", source)
@@ -267,20 +352,64 @@ func (this *createtable) Query() string {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// DROP TABLE
+// CREATE INDEX IMPLEMENTATION
 
-func (this *droptable) Schema(schema string) sq.DropTable {
+func (this *createindex) Schema(schema string) sq.CreateIndex {
 	this.tablename.Schema(schema)
 	return this
 }
 
-func (this *droptable) IfExists() sq.DropTable {
+func (this *createindex) IfNotExists() sq.CreateIndex {
+	this.ifnotexists = true
+	return this
+}
+
+func (this *createindex) Unique() sq.CreateIndex {
+	this.unique = true
+	return this
+}
+
+func (this *createindex) Query() string {
+	tokens := []string{"CREATE"}
+
+	if this.unique {
+		tokens = append(tokens, "UNIQUE INDEX")
+	} else {
+		tokens = append(tokens, "INDEX")
+	}
+
+	if this.ifnotexists {
+		tokens = append(tokens, "IF NOT EXISTS")
+	}
+
+	// Add index name
+	tokens = append(tokens, this.tablename.Query())
+
+	// Add table name
+	tokens = append(tokens, "ON", sq.QuoteIdentifier(this.name))
+
+	// Add columns
+	tokens = append(tokens, "("+sq.QuoteIdentifiers(this.columns...)+")")
+
+	// Return the query
+	return strings.Join(tokens, " ")
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// DROP
+
+func (this *drop) Schema(schema string) sq.Drop {
+	this.tablename.Schema(schema)
+	return this
+}
+
+func (this *drop) IfExists() sq.Drop {
 	this.ifexists = true
 	return this
 }
 
-func (this *droptable) Query() string {
-	tokens := []string{"DROP TABLE"}
+func (this *drop) Query() string {
+	tokens := []string{"DROP", this.token}
 
 	// Add flags
 	if this.ifexists {
@@ -308,7 +437,7 @@ func (this *insertreplace) DefaultValues() sq.InsertOrReplace {
 }
 
 func (this *insertreplace) Query() string {
-	tokens := []string{"INSERT INTO"}
+	tokens := []string{this.token, "INTO"}
 
 	// Add table name
 	tokens = append(tokens, this.tablename.Query())

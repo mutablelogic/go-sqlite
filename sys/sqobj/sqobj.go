@@ -9,6 +9,7 @@
 package sqobj
 
 import (
+	"reflect"
 	// Frameworks
 	"fmt"
 	"strconv"
@@ -42,6 +43,7 @@ type sqobj struct {
 
 type sqclass struct {
 	name, pkgpath string
+	object        bool
 	columns       []sq.Column
 	insert        sq.InsertOrReplace
 	conn          sq.Connection
@@ -53,6 +55,7 @@ type sqclass struct {
 
 const (
 	DEFAULT_STRUCT_TAG = "sql"
+	SQLITE_PKGPATH     = "github.com/djthorpe/sqlite"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -125,7 +128,7 @@ func (this *sqobj) RegisterStruct(v interface{}) (sq.StructClass, error) {
 	} else if class = this.registeredClass(name, pkgpath); class != nil {
 		this.log.Warn("Duplicate registration for %v/%v", pkgpath, name)
 		return nil, gopi.ErrBadParameter
-	} else if class = this.NewClass(name, pkgpath, columns); class == nil {
+	} else if class = this.NewClass(name, pkgpath, this.reflectStructObjectField(v, "RowId") != nil, columns); class == nil {
 		return nil, gopi.ErrBadParameter
 	} else if this.isExistingTable(class.Name()) == false {
 		if this.create == false {
@@ -183,6 +186,11 @@ func (this *sqobj) Insert(v ...interface{}) ([]int64, error) {
 				return gopi.ErrAppError
 			} else if r, err := txn.Do(class.insert, class.BoundArgs(v_)...); err != nil {
 				return err
+			} else if class.object && reflect.ValueOf(v_).Kind() == reflect.Ptr {
+				if field := this.reflectStructObjectField(v_, "RowId"); field != nil {
+					field.SetInt(r.LastInsertId)
+				}
+				rowid[i] = r.LastInsertId
 			} else {
 				rowid[i] = r.LastInsertId
 			}
@@ -194,6 +202,17 @@ func (this *sqobj) Insert(v ...interface{}) ([]int64, error) {
 	} else {
 		return rowid, nil
 	}
+}
+
+// Insert or replace structs, rollback on error
+func (this *sqobj) Write(flags sq.Flag, v ...interface{}) (uint64, error) {
+	this.log.Debug2("<sqobj.Write>{ flags=%v num_objects=%v }", flags, len(v))
+	// Check for v
+	if len(v) == 0 {
+		return 0, gopi.ErrBadParameter
+	}
+	//
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

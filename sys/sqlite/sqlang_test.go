@@ -143,7 +143,7 @@ func Test_Create_006(t *testing.T) {
 			t.Error(err)
 		}
 
-		if _, err := db_.DoOnce(lang_.NewDropTable("test").Query()); err != nil {
+		if _, err := db_.DoOnce(lang_.DropTable("test").Query()); err != nil {
 			t.Error(err)
 		}
 
@@ -164,7 +164,7 @@ func Test_Drop_007(t *testing.T) {
 	} else {
 		defer lang_.Close()
 
-		if statement := lang_.NewDropTable("test"); statement.Query() != "DROP TABLE test" {
+		if statement := lang_.DropTable("test"); statement.Query() != "DROP TABLE test" {
 			t.Error("Unexpected query:", statement.Query())
 		} else if statement.IfExists(); statement.Query() != "DROP TABLE IF EXISTS test" {
 			t.Error("Unexpected query:", statement.Query())
@@ -193,13 +193,13 @@ func Test_Insert_008(t *testing.T) {
 			t.Fail()
 		} else if _, err := db_.Do(create); err != nil {
 			t.Error(err)
-		} else if statement := lang_.NewInsert("test"); statement.Query() != "INSERT INTO test DEFAULT VALUES" {
+		} else if statement := lang_.Insert("test"); statement.Query() != "INSERT INTO test DEFAULT VALUES" {
 			t.Error("Unexpected query:", statement.Query())
-		} else if statement := lang_.NewInsert("test", "a"); statement.Query() != "INSERT INTO test (a) VALUES (?)" {
+		} else if statement := lang_.Insert("test", "a"); statement.Query() != "INSERT INTO test (a) VALUES (?)" {
 			t.Error("Unexpected query:", statement.Query())
-		} else if statement := lang_.NewInsert("test").DefaultValues(); statement.Query() != "INSERT INTO test DEFAULT VALUES" {
+		} else if statement := lang_.Insert("test").DefaultValues(); statement.Query() != "INSERT INTO test DEFAULT VALUES" {
 			t.Error("Unexpected query:", statement.Query())
-		} else if statement := lang_.NewInsert("test", "a", "b"); statement.Query() != "INSERT INTO test (a,b) VALUES (?,?)" {
+		} else if statement := lang_.Insert("test", "a", "b"); statement.Query() != "INSERT INTO test (a,b) VALUES (?,?)" {
 			t.Error("Unexpected query:", statement.Query())
 		}
 	}

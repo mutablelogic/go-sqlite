@@ -65,16 +65,16 @@ func (this *sqclass) BoundArgs(v interface{}) []interface{} {
 	return values
 }
 
-func (this *sqclass) statement(flags sq.Flag) sq.Statement {
+func (this *sqclass) statement(flags sq.Flag, v interface{}) (sq.Statement, []interface{}) {
 	switch {
 	case flags&(sq.FLAG_INSERT|sq.FLAG_UPDATE) == sq.FLAG_INSERT:
-		return this.insert
+		return this.insert, this.BoundArgs(v)
 	case flags&(sq.FLAG_INSERT|sq.FLAG_UPDATE) == sq.FLAG_INSERT|sq.FLAG_UPDATE:
-		return this.replace
+		return this.replace, this.BoundArgs(v)
 	case flags&(sq.FLAG_INSERT|sq.FLAG_UPDATE) == sq.FLAG_UPDATE:
-		return this.update
+		return this.update, this.BoundArgs(v)
 	default:
-		return nil
+		return nil, nil
 	}
 }
 

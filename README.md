@@ -201,8 +201,8 @@ or rolled back if an error occurs.
 
 ```go
 type Connection interface {
-	// Perform operations within a transaction, rollback on error
-	Txn(func(Transaction) error) error
+  // Perform operations within a transaction, rollback on error
+  Txn(func(Transaction) error) error
 }
 ```
 
@@ -227,12 +227,40 @@ func DeleteRows(rows []int) error {
 }
 ```
 
+### Attaching external databases
+
+The following methods can be used to attach external databases and query the schemas defined:
+
+```go
+type Connection interface {
+	Attach(schema, dsn string) error
+	Detach(schema string) error
+
+  // Return schemas defined, including "main" and "temp"
+  Schemas() []string
+}
+```
+
+The `dsn` is either a filename or the token `":memory:"`for a separate database. The `schema` name cannot be set to `main` or `temp` as those schemas are pre-defined.
+
+### Supported types
+
+The following go types are supported, and their associated database declared type:
+
+| Type       | Decltype  | Example              |
+| ---------- | --------- | -------------------- |
+| string     | TEXT      | "string"             |
+| bool       | BOOL      | true                 |
+| int64      | INTEGER   | 1234                 |
+| float64    | REAL      | 3.1416               |
+| timestamp  | DATETIME  | 2019-07-10T12:34:56Z |
+| []byte     | BLOB      | 123456789ABCDE       |
+
 TODO:
-   * Releasing resources
-   * Attach and detach
-   * Result Sets
-   * Supported types
-   * Utility methods
+  * Converting from bound argments...
+  * Quote identifiers...
+  * Quote strings...
+
 
 ## Using `db/sqlang`
 

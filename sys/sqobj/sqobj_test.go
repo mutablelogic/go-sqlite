@@ -306,15 +306,6 @@ func Test_Insert_010(t *testing.T) {
 		if db := app.ModuleInstance("db/sqobj").(sqlite.Objects); db == nil {
 			t.Fail()
 		} else {
-
-			type Device struct {
-				ID          int       `sql:"device_id,primary"`
-				Name        string    `sql:"name"`
-				DateAdded   time.Time `sql:"date_added"`
-				DateUpdated time.Time `sql:"date_updated,nullable"`
-				Enabled     bool      `sql:"enabled"`
-			}
-
 			if _, err := db.RegisterStruct(Device{}); err != nil {
 				t.Error(err)
 			} else {
@@ -333,6 +324,110 @@ func Test_Insert_010(t *testing.T) {
 				}
 
 			}
+		}
+	}
+}
+
+func Test_Update_011(t *testing.T) {
+	config := gopi.NewAppConfig("db/sqobj")
+	if app, err := gopi.NewAppInstance(config); err != nil {
+		t.Fatal(err)
+	} else {
+		defer app.Close()
+		db := app.ModuleInstance("db/sqobj").(sqlite.Objects)
+
+		type Test struct {
+			sqlite.Object
+			ID   int    `sql:"id,primary"`
+			Name string `sql:"name"`
+		}
+
+		// Register device
+		if _, err := db.RegisterStruct(Test{}); err != nil {
+			t.Error(err)
+		}
+
+		test100 := &Test{ID: 100, Name: "test100"}
+
+		// Write a row (insert)
+		if affected_rows, err := db.Write(sqlite.FLAG_INSERT, &test100); err != nil {
+			t.Error(err)
+		} else if affected_rows != 1 {
+			t.Fail()
+		} else if test100.RowId != 100 {
+			t.Fail()
+		} else {
+			t.Log(affected_rows)
+		}
+
+		// Write a row (insert) - should fail
+		if _, err := db.Write(sqlite.FLAG_INSERT, &test100); err == nil {
+			t.Error("Expected second insert to fail")
+		}
+
+		// Write a row (insert or update)
+		if affected_rows, err := db.Write(sqlite.FLAG_INSERT|sqlite.FLAG_UPDATE, &test100); err != nil {
+			t.Error(err)
+		} else if affected_rows != 1 {
+			t.Fail()
+		} else if test100.RowId != 100 {
+			t.Fail()
+		} else {
+			t.Log(affected_rows)
+		}
+
+		// Write a row (update)
+		if affected_rows, err := db.Write(sqlite.FLAG_UPDATE, &test100); err != nil {
+			t.Error(err)
+		} else if affected_rows != 1 {
+			t.Fail()
+		} else if test100.RowId != 100 {
+			t.Fail()
+		} else {
+			t.Log(affected_rows)
+		}
+	}
+}
+
+func Test_Delete_012(t *testing.T) {
+	config := gopi.NewAppConfig("db/sqobj")
+	if app, err := gopi.NewAppInstance(config); err != nil {
+		t.Fatal(err)
+	} else {
+		defer app.Close()
+		db := app.ModuleInstance("db/sqobj").(sqlite.Objects)
+
+		type Test struct {
+			sqlite.Object
+			ID   int    `sql:"id,primary"`
+			Name string `sql:"name"`
+		}
+
+		// Register
+		if _, err := db.RegisterStruct(Test{}); err != nil {
+			t.Error(err)
+		}
+
+		test100 := &Test{ID: 100, Name: "test100"}
+
+		// Write a row (insert)
+		if affected_rows, err := db.Write(sqlite.FLAG_INSERT, &test100); err != nil {
+			t.Error(err)
+		} else if affected_rows != 1 {
+			t.Fail()
+		} else if test100.RowId != 100 {
+			t.Fail()
+		} else {
+			t.Log(affected_rows)
+		}
+
+		// Delete the row
+		if affected_rows, err := db.Delete(sqlite.FLAG_INSERT, &test100); err != nil {
+			t.Error(err)
+		} else if affected_rows != 1 {
+			t.Fail()
+		} else if test100.RowId != 0 {
+			t.Fail()
 		}
 	}
 }

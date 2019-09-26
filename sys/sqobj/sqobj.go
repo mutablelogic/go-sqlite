@@ -188,9 +188,9 @@ func (this *sqobj) Write(flags sq.Flag, v ...interface{}) (uint64, error) {
 		for _, v_ := range v {
 			if args := class.BoundArgs(v_); args == nil {
 				return gopi.ErrAppError
-			} else if st := class.statement(flags); st == nil {
+			} else if st, args := class.statement(flags, v_); st == nil || args == nil {
 				return sq.ErrUnsupportedType
-			} else if r, err := txn.Do(st, class.BoundArgs(v_)...); err != nil {
+			} else if r, err := txn.Do(st, args...); err != nil {
 				return err
 			} else if class.object && reflect.ValueOf(v_).Kind() == reflect.Ptr {
 				if field := this.reflectStructObjectField(v_, "RowId"); field != nil {
@@ -213,7 +213,14 @@ func (this *sqobj) Write(flags sq.Flag, v ...interface{}) (uint64, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // DELETE
 
-func (this *sqobj) Delete(...interface{}) (uint64, error) {
+func (this *sqobj) Delete(v ...interface{}) (uint64, error) {
+	this.log.Debug2("<sqobj.Delete>{ num_objects=%v }", len(v))
+
+	// Check for v
+	if len(v) == 0 {
+		return 0, gopi.ErrBadParameter
+	}
+
 	return 0, gopi.ErrNotImplemented
 }
 

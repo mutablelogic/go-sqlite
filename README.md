@@ -16,6 +16,13 @@ The gopi components provided by this repository are:
 
 ## Building and installing examples
 
+You may not have sqlite3 installed, so on Debian (and Raspian) Linux you
+can install using the following commands:
+
+```bash
+bash% sudo apt install sqlite3 sqlite3-doc
+```
+
 There is a makefile which can be used for testing and installing bindings and examples:
 
 ```

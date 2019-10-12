@@ -166,8 +166,8 @@ func (this *sqobj) Write(flags sq.Flag, v ...interface{}) (uint64, error) {
 	}
 
 	// Map objects to classes
-	classmap := make(map[interface{}]*sqclass)
-	for _, value := range v {
+	classmap := make([]*sqclass, len(v))
+	for i, value := range v {
 		if name, pkgpath := this.reflectName(value); name == "" {
 			this.log.Warn("Insert: No struct name")
 			return 0, gopi.ErrBadParameter
@@ -175,15 +175,15 @@ func (this *sqobj) Write(flags sq.Flag, v ...interface{}) (uint64, error) {
 			this.log.Warn("Insert: No registered class for %v (in path %v)", name, strconv.Quote(pkgpath))
 			return 0, gopi.ErrBadParameter
 		} else {
-			classmap[v] = class_
+			classmap[i] = class_
 		}
 	}
 
 	// Perform the action in a transaction, each object's
 	affected_rows := uint64(0)
 	if err := this.conn.Txn(func(txn sq.Transaction) error {
-		for _, v_ := range v {
-			if class, exists := classmap[v]; exists == false {
+		for i, v_ := range v {
+			if class := classmap[i]; class == nil {
 				return gopi.ErrAppError
 			} else if args := class.BoundArgs(v_); args == nil {
 				return gopi.ErrAppError

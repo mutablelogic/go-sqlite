@@ -165,8 +165,8 @@ func (this *sqobj) Write(flags sq.Flag, v ...interface{}) (uint64, error) {
 		return 0, gopi.ErrBadParameter
 	}
 
-	// Check to ensure every object is the same name and pkgpath
-	var class *sqclass
+	// Map objects to classes
+	classmap := make(map[interface{}]*sqclass)
 	for _, value := range v {
 		if name, pkgpath := this.reflectName(value); name == "" {
 			this.log.Warn("Insert: No struct name")
@@ -174,11 +174,8 @@ func (this *sqobj) Write(flags sq.Flag, v ...interface{}) (uint64, error) {
 		} else if class_ := this.registeredClass(name, pkgpath); class_ == nil {
 			this.log.Warn("Insert: No registered class for %v (in path %v)", name, strconv.Quote(pkgpath))
 			return 0, gopi.ErrBadParameter
-		} else if class != nil && class_ != class {
-			this.log.Warn("Insert: Mixed argument types for %v (in path %v)", name, strconv.Quote(pkgpath))
-			return 0, gopi.ErrBadParameter
 		} else {
-			class = class_
+			classmap[v] = class_
 		}
 	}
 
@@ -186,7 +183,9 @@ func (this *sqobj) Write(flags sq.Flag, v ...interface{}) (uint64, error) {
 	affected_rows := uint64(0)
 	if err := this.conn.Txn(func(txn sq.Transaction) error {
 		for _, v_ := range v {
-			if args := class.BoundArgs(v_); args == nil {
+			if class, exists := classmap[v]; exists == false {
+				return gopi.ErrAppError
+			} else if args := class.BoundArgs(v_); args == nil {
 				return gopi.ErrAppError
 			} else if st, args := class.statement(flags, v_); st == nil || args == nil {
 				return sq.ErrUnsupportedType

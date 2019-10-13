@@ -431,3 +431,46 @@ func Test_Delete_012(t *testing.T) {
 		}
 	}
 }
+
+func Test_Read_013(t *testing.T) {
+	config := gopi.NewAppConfig("db/sqobj")
+	if app, err := gopi.NewAppInstance(config); err != nil {
+		t.Fatal(err)
+	} else {
+		defer app.Close()
+		db := app.ModuleInstance("db/sqobj").(sqlite.Objects)
+
+		type Test struct {
+			sqlite.Object
+			Name string `sql:"name"`
+		}
+
+		// Register and count number of objects in database
+		cls, err := db.RegisterStruct(Test{})
+		if err != nil {
+			t.Error(err)
+		} else if count, err := db.Count(cls); err != nil {
+			t.Error(err)
+		} else if count != 0 {
+			t.Error("Expected count == 0")
+		}
+
+		// Add in two objects
+		test := &Test{Name: "test"}
+
+		// Write a row (insert)
+		if affected_rows, err := db.Write(sqlite.FLAG_INSERT, test, test); err != nil {
+			t.Error(err)
+		} else if affected_rows != 2 {
+			t.Fail()
+		}
+
+		// Count objects again
+		if count, err := db.Count(cls); err != nil {
+			t.Error(err)
+		} else if count != 2 {
+			t.Error("Expected count == 2")
+		}
+
+	}
+}

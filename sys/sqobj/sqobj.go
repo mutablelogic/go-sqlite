@@ -46,6 +46,7 @@ type sqclass struct {
 	object        bool
 	columns       []sq.Column
 	conn          sq.Connection
+	lang          sq.Language
 	log           gopi.Logger
 
 	// Statements
@@ -221,6 +222,23 @@ func (this *sqobj) Delete(v ...interface{}) (uint64, error) {
 	}
 
 	return 0, gopi.ErrNotImplemented
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// COUNT
+
+func (this *sqobj) Count(class sq.Class) (uint64, error) {
+	this.log.Debug2("<sqobj.Count>{ class=%v }", class)
+	if class == nil {
+		return 0, gopi.ErrBadParameter
+	} else if class_, ok := class.(*sqclass); ok == false {
+		return 0, gopi.ErrBadParameter
+	} else {
+		q := class_.query()
+		fmt.Println(q.Query())
+	}
+	// Return nil
+	return 0, nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////

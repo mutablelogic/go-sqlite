@@ -14,7 +14,6 @@ import (
 	"strconv"
 
 	// Frameworks
-
 	sq "github.com/djthorpe/sqlite"
 )
 
@@ -22,7 +21,7 @@ import (
 // PUBLIC METHODS
 
 func (this *sqobj) NewClass(name, pkgpath string, object bool, columns []sq.Column) *sqclass {
-	class := &sqclass{name, pkgpath, object, columns, this.conn, this.log, nil, nil, nil}
+	class := &sqclass{name, pkgpath, object, columns, this.conn, this.lang, this.log, nil, nil, nil}
 	if class.insert = this.lang.Insert(name, class.ColumnNames()...); class.insert == nil {
 		return nil
 	} else if class.replace = this.lang.Replace(name, class.ColumnNames()...); class.replace == nil {
@@ -76,6 +75,12 @@ func (this *sqclass) statement(flags sq.Flag, v interface{}) (sq.Statement, []in
 	default:
 		return nil, nil
 	}
+}
+
+func (this *sqclass) query() sq.Statement {
+	source := this.lang.NewSource(this.name)
+	query := this.lang.NewSelect(source)
+	return query
 }
 
 ////////////////////////////////////////////////////////////////////////////////

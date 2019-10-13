@@ -33,9 +33,12 @@ type Objects interface {
 	// and return number of affected rows
 	Write(Flag, ...interface{}) (uint64, error)
 
-	// Delete structs  or by rowid, rollback on error
+	// Delete structs by key or rowid, rollback on error
 	// and return number of affected rows
 	Delete(...interface{}) (uint64, error)
+
+	// Count number of objects of a particular class
+	Count(Class) (uint64, error)
 }
 
 type Class interface {

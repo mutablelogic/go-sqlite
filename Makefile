@@ -31,7 +31,8 @@ protogen:
 	$(GOGENERATE) ./rpc/protobuf/...
 
 test: 
-	$(GOTEST) -v ./...
+	$(GOTEST) -v .
+	$(GOTEST) -v ./sys/...
 
 clean: 
 	$(GOCLEAN)

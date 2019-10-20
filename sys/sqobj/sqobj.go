@@ -56,6 +56,7 @@ type sqclass struct {
 	replace sq.InsertOrReplace
 	update  sq.Update
 	delete  sq.Delete
+	count   sq.Select
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -268,10 +269,55 @@ func (this *sqobj) Count(class sq.Class) (uint64, error) {
 		return 0, gopi.ErrBadParameter
 	} else if class_, ok := class.(*sqclass); ok == false {
 		return 0, gopi.ErrBadParameter
+	} else if rows, err := class_.op_count(this.conn); err != nil {
+		return 0, err
+	} else if row := rows.Next(); rows == nil {
+		return 0, gopi.ErrAppError
+	} else if len(row) != 1 {
+		return 0, gopi.ErrAppError
 	} else {
-		q := class_.query()
-		fmt.Println(q.Query())
+		return uint64(row[0].Int()), nil
 	}
-	// Return nil
-	return 0, nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// READ
+
+// Read objects from the database in primary key order, with limit
+func (this *sqobj) Read(v interface{}, limit uint) (uint64, error) {
+	if name, pkgpath := reflectArrayName(v); name == "" || pkgpath == "" {
+		return 0, fmt.Errorf("%w: Invalid argument to Read", gopi.ErrBadParameter)
+	} else if class := this.registeredClass(name, pkgpath); class == nil {
+		return 0, fmt.Errorf("%w: Invalid argument to Read", gopi.ErrBadParameter)
+	} else if cap := reflectArrayCapacity(v); cap == 0 || uint(cap) < limit {
+		return 0, fmt.Errorf("%w: Capacity of slice is less than limit parameter", gopi.ErrBadParameter)
+	} else {
+		if limit == 0 {
+			// set limit to capacity
+			limit = uint(cap)
+		}
+		// set length to limit
+		if err := reflectArraySetLength(v, int(limit)); err != nil {
+			return 0, err
+		}
+		// run the query
+		if rows, err := class.op_read(this.conn, limit, 0); err != nil {
+			return 0, err
+		} else {
+			affected_rows := uint64(0)
+			for {
+				if row := rows.Next(); row == nil {
+					break
+				} else {
+					fmt.Println("TODO SCAN", row)
+					affected_rows += 1
+				}
+			}
+			if err := reflectArraySetLength(v, int(affected_rows)); err != nil {
+				return 0, err
+			} else {
+				return affected_rows, nil
+			}
+		}
+	}
 }

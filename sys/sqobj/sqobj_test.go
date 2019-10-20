@@ -570,6 +570,46 @@ func Test_Count_016(t *testing.T) {
 	}
 }
 
+func Test_Read_017(t *testing.T) {
+	config := gopi.NewAppConfig("db/sqobj")
+	if app, err := gopi.NewAppInstance(config); err != nil {
+		t.Fatal(err)
+	} else {
+		defer app.Close()
+		db := app.ModuleInstance("db/sqobj").(sqlite.Objects)
+		_, err := db.RegisterStruct(&Device{})
+		if err != nil {
+			t.Error(err)
+		}
+		// Read 10 objects in any order
+		objs := make([]Device, 0, 100)
+		if rows, err := db.Read(&objs, 10); err != nil {
+			t.Error(err)
+		} else if rows != 0 {
+			t.Error("Unexpected row value, expected 0 got", rows)
+		}
+		// Write 2 objects
+		objs = append(objs, Device{ID: 100}, Device{ID: 200})
+		if rows, err := db.Write(sq.FLAG_INSERT, objs[0], objs[1]); err != nil {
+			t.Error(err)
+		} else if rows != 2 {
+			t.Error("Unexpected row value, expected 2 got", rows)
+		}
+		// Read 2 objects (will read up to capacity of slice)
+		if rows, err := db.Read(&objs, 0); err != nil {
+			t.Error(err)
+		} else if rows != 2 {
+			t.Error("Unexpected row value, expected 2 got", rows)
+		}
+		// Read 1 object
+		if rows, err := db.Read(&objs, 1); err != nil {
+			t.Error(err)
+		} else if rows != 1 {
+			t.Error("Unexpected row value, expected 1 got", rows)
+		}
+	}
+}
+
 /*
 func Test_Reflect_005(t *testing.T) {
 	config := gopi.NewAppConfig("db/sqlite", "db/sqobj")

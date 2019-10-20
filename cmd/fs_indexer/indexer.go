@@ -21,13 +21,13 @@ type Indexer struct {
 	sqobj sqlite.Objects
 }
 
-func NewIndexer(sqobj sqlite.Objects) *Indexer {
+func NewIndexer(sqobj sqlite.Objects) (*Indexer, error) {
 	this := new(Indexer)
 	this.sqobj = sqobj
 	if _, err := sqobj.RegisterStruct(&File{}); err != nil {
-		return nil
+		return nil, err
 	}
-	return this
+	return this, nil
 }
 
 func (this *Indexer) Do(file *File) (uint64, error) {

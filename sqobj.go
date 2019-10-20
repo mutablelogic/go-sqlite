@@ -37,10 +37,10 @@ type Objects interface {
 	// Count number of objects of a particular class
 	Count(Class) (uint64, error)
 
-	/*
-		// Read objects from the database, with limit
-		Read(Class, uint64) ([]interface{}, error)
-	*/
+	// Read objects from the database in primary key order, with limit.
+	// Requires a pointer to a slice. If limit is zero them the capacity
+	// of the slice is used. Returns number of objects read or error.
+	Read(interface{}, uint) (uint64, error)
 
 	// Return the Connection and Language objects
 	Conn() Connection
@@ -60,7 +60,7 @@ type StructClass interface {
 
 	// Return list of keys used to update and delete
 	// objects, or nil if update and delete are not
-	// supported
+	// supported (no primary key)
 	Keys() []string
 }
 

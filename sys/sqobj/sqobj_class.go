@@ -40,12 +40,14 @@ func (this *sqobj) NewClass(name, pkgpath, tablename string, object bool, column
 	}
 
 	// Create class object
-	class := &sqclass{name, pkgpath, tablename, object, columns, keys, this.conn, this.lang, this.log, nil, nil, nil, nil}
+	class := &sqclass{name, pkgpath, tablename, object, columns, keys, this.conn, this.lang, this.log, nil, nil, nil, nil, nil}
 
-	// Prepare insert and replace statements
+	// Prepare insert, replace and count statements
 	if class.insert = this.lang.Insert(tablename, class.ColumnNames()...); class.insert == nil {
 		return nil
 	} else if class.replace = this.lang.Replace(tablename, class.ColumnNames()...); class.replace == nil {
+		return nil
+	} else if class.count = this.lang.NewSelect(this.lang.NewSource(tablename), this.lang.CountAll()); class.count == nil {
 		return nil
 	}
 	// Prepare update and delete if there are keys associated
@@ -197,10 +199,16 @@ func (this *sqclass) op_delete(txn sq.Transaction, v interface{}) (sq.Result, er
 	}
 }
 
-func (this *sqclass) query() sq.Statement {
+// count the number of objects
+func (this *sqclass) op_count(conn sq.Connection) (sq.Rows, error) {
+	return conn.Query(this.count)
+}
+
+// read objects
+func (this *sqclass) op_read(conn sq.Connection, limit, offset uint) (sq.Rows, error) {
 	source := this.lang.NewSource(this.tablename)
-	query := this.lang.NewSelect(source)
-	return query
+	st := this.lang.NewSelect(source, this.query_expressions()...).LimitOffset(limit, offset)
+	return conn.Query(st)
 }
 
 // key_values_of returns the key values for a struct. For object-based
@@ -256,6 +264,21 @@ func (this *sqclass) values_of(v reflect.Value, exclude_primary bool) []interfac
 		}
 	}
 	return args
+}
+
+// query_expressions returns expressions for the SELECT statement with the keys
+// first following by the remaining expressions
+func (this *sqclass) query_expressions() []sq.Expression {
+	expr := make([]sq.Expression, 0, len(this.columns))
+	// Start with the keys
+	for _, key := range this.keys {
+		expr = append(expr, this.lang.NewSource(key))
+	}
+	// Append other columns
+	for _, name := range this.names_of(this.object == false) {
+		expr = append(expr, this.lang.NewSource(name))
+	}
+	return expr
 }
 
 ////////////////////////////////////////////////////////////////////////////////

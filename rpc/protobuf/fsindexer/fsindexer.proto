@@ -1,0 +1,34 @@
+syntax = "proto3";
+package fsindexer;
+
+import "google/protobuf/empty.proto";
+//import "google/protobuf/duration.proto";
+
+// Query service for returning indexed files
+service Query {
+  // Simple ping method to show service is "up"
+  rpc Ping (google.protobuf.Empty) returns (google.protobuf.Empty);
+}
+
+// Index service for indexing the file system
+service Index {
+    // Simple ping method to show service is "up"
+    rpc Ping (google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // Index a filesystem
+    rpc Index(IndexRequest) returns (IndexedVolume);
+}
+
+// Message to index the filesystem
+message IndexRequest {
+    string path = 1;
+}
+
+// An indexed volume
+message IndexedVolume {
+    int64 id = 1;
+    string path = 2;
+    uint64 count = 3;
+}
+
+

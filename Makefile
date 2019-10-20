@@ -4,6 +4,7 @@ GOINSTALL=$(GOCMD) install
 GOCLEAN=$(GOCMD) clean
 GOTEST=$(GOCMD) test
 GOGET=$(GOCMD) get
+GOGENERATE=$(GOCMD) generate
 
 # App parameters
 GOPI=github.com/djthorpe/gopi
@@ -22,6 +23,12 @@ sq_import:
 
 fs_indexer:
 	$(GOINSTALL) $(GOFLAGS) ./cmd/fs_indexer/...
+
+fs_indexer_service: protogen
+	$(GOINSTALL) $(GOFLAGS) ./cmd/fs_indexer_service/...
+
+protogen:
+	$(GOGENERATE) ./rpc/protobuf/...
 
 test: 
 	$(GOTEST) -v ./...

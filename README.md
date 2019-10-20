@@ -287,14 +287,73 @@ TODO:
 
 ## Using `db/sqobj`
 
-This component implements a very lite object persisence later.
+This component implements a very light object persisence later, simply in order to reduce the amount of boilerplate code required to read, write and delete data. In order to use the component, you define a __class__ from a prototype object and then read and write objects between your running application and the database:
 
-TODO:
+```go
+package main
+
+type File struct {
+	Id   int64  `sql:"id,primary"`
+	Root string `sql:"root,primary"`
+	Path string `sql:"path"`
+	sqlite.Object
+}
+
+func Main(app *gopi.AppInstance, done chan<- struct{}) error {
+  sqobj := app.ModuleInstance("db/sqobj").(sqlite.Objects)
+
+  // Register the 'File' class of objects with database
+  if _,err := sqobj.RegisterStruct(&File{}); err != nil {
+    return err
+  }
+
+  // Create an empty object
+  obj := &File{}
+
+  // Insert an empty object. Will fail if object with same primary
+  // key already exists
+  if _, err := sqobj.Write(sqlite.INSERT,obj); err != nil {
+    return err
+  }
+
+  // Update the object. Will fail if object with same primary key
+  // does not exist
+  if _, err := sqobj.Write(sqlite.UPDATE,obj); err != nil {
+    return err
+  }
+
+  // Delete the object. Will fail if object with same primary key
+  // does not exist
+  if _, err := sqobj.Delete(obj); err != nil {
+    return err
+  }
+
+  // Return success
+  return nil
+}
+
+func main() {
+  // Create the configuration
+  config := gopi.NewAppConfig("db/sqobj")
+
+  // Run the command line tool
+  os.Exit(gopi.CommandLineTool2(config, Main))
+}
+```
+
+### Registering `struct` classes
+
    * Defining tables
    * Registering struct as a table, and setting the table name
-   * Inserting into the table and updating
-   * Querying the table
-   * Deleting from the table
+
+### Writing to the database & deleting
+
+   * TODO: Inserting into the table and updating
+   * TODO: Querying the table
+   * TODO: Deleting from the table
+
+### Reading from the database
+
 
 ## Example Commands
 

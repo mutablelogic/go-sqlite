@@ -26,9 +26,6 @@ type Objects interface {
 	// RegisterStruct registers a struct against a database table
 	RegisterStruct(interface{}) (StructClass, error)
 
-	// ReflectStruct returns SQL table columns from a struct
-	ReflectStruct(v interface{}) ([]Column, error)
-
 	// Insert, replace and update structs, rollback on error
 	// and return number of affected rows
 	Write(Flag, ...interface{}) (uint64, error)
@@ -39,6 +36,15 @@ type Objects interface {
 
 	// Count number of objects of a particular class
 	Count(Class) (uint64, error)
+
+	/*
+		// Read objects from the database, with limit
+		Read(Class, uint64) ([]interface{}, error)
+	*/
+
+	// Return the Connection and Language objects
+	Conn() Connection
+	Lang() Language
 }
 
 type Class interface {
@@ -48,6 +54,14 @@ type Class interface {
 
 type StructClass interface {
 	Class
+
+	// Return the table name
+	TableName() string
+
+	// Return list of keys used to update and delete
+	// objects, or nil if update and delete are not
+	// supported
+	Keys() []string
 }
 
 type Object struct {
@@ -60,7 +74,9 @@ type Object struct {
 const (
 	FLAG_INSERT Flag = (1 << iota)
 	FLAG_UPDATE
-	FLAG_NONE Flag = 0
+	FLAG_DELETE
+	FLAG_NONE    Flag = 0
+	FLAG_OP_MASK      = FLAG_INSERT | FLAG_UPDATE | FLAG_DELETE
 )
 
 ////////////////////////////////////////////////////////////////////////////////

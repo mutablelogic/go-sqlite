@@ -93,6 +93,8 @@ type query struct {
 	source        sq.Source
 	distinct      bool
 	where         sq.Expression
+	to            []sq.Expression
+	as            []string
 	offset, limit uint
 }
 
@@ -615,10 +617,10 @@ func (this *source) Query() string {
 ////////////////////////////////////////////////////////////////////////////////
 // SELECT IMPLEMENTATION
 
-func (this *sqlang) NewSelect(source sq.Source) sq.Select {
-	this.log.Debug2("<sqlang.NewSelect>{ source=%v }", source)
+func (this *sqlang) NewSelect(source sq.Source, expr ...sq.Expression) sq.Select {
+	this.log.Debug2("<sqlang.NewSelect>{ source=%v expr=%v }", source, expr)
 
-	return &query{prepared{nil}, source, false, nil, 0, 0}
+	return &query{prepared{nil}, source, false, nil, expr, nil, 0, 0}
 }
 
 func (this *query) Where(expr ...sq.Expression) sq.Select {
@@ -637,6 +639,14 @@ func (this *query) Distinct() sq.Select {
 	return this
 }
 
+func (this *query) As(as ...string) sq.Select {
+	if len(this.to) != len(as) {
+		return nil
+	}
+	this.as = as
+	return this
+}
+
 func (this *query) LimitOffset(limit, offset uint) sq.Select {
 	this.offset, this.limit = offset, limit
 	return this
@@ -651,8 +661,19 @@ func (this *query) Query() string {
 	}
 
 	// Add column expressions
-	// TODO
-	tokens = append(tokens, "*")
+	if len(this.to) > 0 {
+		expr_ := ""
+		for i, expr := range this.to {
+			if i < len(this.as) {
+				expr_ += fmt.Sprintf("%s AS %s", expr.Query(), sq.QuoteIdentifier(this.as[i])) + ","
+			} else {
+				expr_ += expr.Query() + ","
+			}
+		}
+		tokens = append(tokens, strings.TrimSuffix(expr_, ","))
+	} else {
+		tokens = append(tokens, "*")
+	}
 
 	// Add source
 	if this.source != nil {
@@ -807,4 +828,11 @@ func (this *expr_op) Query() string {
 		parts[i] = expr.Query()
 	}
 	return "(" + strings.Join(parts, this.op) + ")"
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// GROUPING EXPRESSIONS
+
+func (this *sqlang) CountAll() sq.Expression {
+	return &expr_value{"COUNT(*)"}
 }

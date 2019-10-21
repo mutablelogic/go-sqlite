@@ -8,6 +8,7 @@
 
 package main
 
+/*
 import (
 	"errors"
 	"io"
@@ -40,28 +41,6 @@ var (
 	// file_chan is the channel used for indexing files
 	file_chan = make(chan *File, 0)
 )
-
-// DetectMimeType attempts to read first 512 bytes of the
-// file
-func DetectMimeType(path string) (string, error) {
-	fh, err := os.Open(path)
-	if err != nil {
-		// File could not be opened, fail silently
-		return "", nil
-	}
-	defer fh.Close()
-
-	// Read 512 bytes
-	buf := make([]byte, 512)
-	if n, err := fh.Read(buf); err != nil && errors.Is(err, io.EOF) == false {
-		return "", err
-	} else if n > 0 {
-		return http.DetectContentType(buf), nil
-	} else {
-		// Cannot detect mimetype
-		return "", nil
-	}
-}
 
 // Index will kick-off an indexing task
 func Index(app *gopi.AppInstance, folder string) {
@@ -130,3 +109,4 @@ FOR_LOOP:
 	}
 	return nil
 }
+*/

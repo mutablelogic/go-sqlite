@@ -10,7 +10,8 @@ package fsindexer
 
 import (
 	// Frameworks
-	"github.com/djthorpe/gopi"
+	gopi "github.com/djthorpe/gopi"
+	sq "github.com/djthorpe/sqlite"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,10 +34,11 @@ func init() {
 	gopi.RegisterModule(gopi.Module{
 		Name:     "rpc/fsindexer/index:service",
 		Type:     gopi.MODULE_TYPE_SERVICE,
-		Requires: []string{"rpc/server"},
+		Requires: []string{"rpc/server", "db/fsindexer"},
 		New: func(app *gopi.AppInstance) (gopi.Driver, error) {
 			return gopi.Open(IndexService{
-				Server: app.ModuleInstance("rpc/server").(gopi.RPCServer),
+				Server:  app.ModuleInstance("rpc/server").(gopi.RPCServer),
+				Indexer: app.ModuleInstance("db/fsindexer").(sq.FSIndexer),
 			}, app.Logger)
 		},
 	})

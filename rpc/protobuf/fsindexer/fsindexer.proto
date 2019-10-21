@@ -16,7 +16,7 @@ service Index {
     rpc Ping (google.protobuf.Empty) returns (google.protobuf.Empty);
 
     // Index a filesystem
-    rpc Index(IndexRequest) returns (IndexedVolume);
+    rpc Index(IndexRequest) returns (google.protobuf.Empty);
 }
 
 // Message to index the filesystem

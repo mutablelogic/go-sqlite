@@ -1,12 +1,18 @@
 /*
-	Go Language Raspberry Pi Interface
+	SQLite client
 	(c) Copyright David Thorpe 2019
 	All Rights Reserved
-	For Licensing and Usage information, please see LICENSE.md
+
+	For Licensing and Usage information, please see LICENSE file
 */
-package main
+
+package fsindexer
 
 import (
+	"errors"
+	"io"
+	"net/http"
+	"os"
 	"syscall"
 )
 
@@ -38,4 +44,27 @@ func isWritableFileAtPath(path string) error {
 // user
 func isExecutableFileAtPath(path string) error {
 	return syscall.Access(path, X_OK)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// DetectMimeType attempts to read first 512 bytes of the
+// file
+func detectMimeType(path string) (string, error) {
+	fh, err := os.Open(path)
+	if err != nil {
+		// File could not be opened, fail silently
+		return "", nil
+	}
+	defer fh.Close()
+
+	// Read 512 bytes
+	buf := make([]byte, 512)
+	if n, err := fh.Read(buf); err != nil && errors.Is(err, io.EOF) == false {
+		return "", err
+	} else if n > 0 {
+		return http.DetectContentType(buf), nil
+	} else {
+		// Cannot detect mimetype
+		return "", nil
+	}
 }

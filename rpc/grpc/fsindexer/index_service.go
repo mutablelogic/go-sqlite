@@ -15,6 +15,7 @@ import (
 	// Frameworks
 	gopi "github.com/djthorpe/gopi"
 	grpc "github.com/djthorpe/gopi-rpc/sys/grpc"
+	sq "github.com/djthorpe/sqlite"
 
 	// Protocol buffers
 	pb "github.com/djthorpe/sqlite/rpc/protobuf/fsindexer"
@@ -25,7 +26,8 @@ import (
 // TYPES
 
 type IndexService struct {
-	Server gopi.RPCServer
+	Server  gopi.RPCServer
+	Indexer sq.FSIndexer
 }
 
 type index_service struct {
@@ -78,5 +80,13 @@ func (this *index_service) String() string {
 
 func (this *index_service) Ping(context.Context, *empty.Empty) (*empty.Empty, error) {
 	this.log.Debug("<grpc.service.fsindexer.index.Ping>{ }")
+	return &empty.Empty{}, nil
+}
+
+func (this *index_service) Index(ctx context.Context, req *pb.IndexRequest) (*empty.Empty, error) {
+	this.log.Debug("<grpc.service.fsindexer.index.Index>{ req=%v }", req)
+
+	// Perform the index of a volume
+
 	return &empty.Empty{}, nil
 }

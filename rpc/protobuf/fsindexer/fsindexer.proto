@@ -2,33 +2,61 @@ syntax = "proto3";
 package fsindexer;
 
 import "google/protobuf/empty.proto";
-//import "google/protobuf/duration.proto";
 
 // Query service for returning indexed files
 service Query {
   // Simple ping method to show service is "up"
   rpc Ping (google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // Return indexes
+  rpc List(google.protobuf.Empty) returns (ListResponse);
 }
 
-// Index service for indexing the file system
-service Index {
+// Indexer service for indexing the file system
+service Indexer {
     // Simple ping method to show service is "up"
     rpc Ping (google.protobuf.Empty) returns (google.protobuf.Empty);
 
+    // Return indexes
+    rpc List(google.protobuf.Empty) returns (ListResponse);
+
     // Index a filesystem
-    rpc Index(IndexRequest) returns (google.protobuf.Empty);
+    rpc Index(IndexRequest) returns (ListResponse);
+
+    // Reindex an existing index
+    rpc Reindex(IndexId) returns (google.protobuf.Empty);
+
+    // Delete an existing index
+    rpc Delete(IndexId) returns (google.protobuf.Empty);
 }
 
 // Message to index the filesystem
 message IndexRequest {
     string path = 1;
+    bool watch = 2;
+}
+
+// List of indexes
+message ListResponse {
+    repeated Index index = 1;
+}
+
+message IndexId {
+    int64 id = 1;
 }
 
 // An indexed volume
-message IndexedVolume {
+message Index {
+    enum IndexStatus {
+        FS_STATUS_NONE = 0;
+    	FS_STATUS_INDEXING = 1;
+	    FS_STATUS_IDLE = 2;
+    	FS_STATUS_WATCHING = 3;
+    }
     int64 id = 1;
-    string path = 2;
+    string name = 2;
     uint64 count = 3;
+    IndexStatus status = 4;
 }
 
 

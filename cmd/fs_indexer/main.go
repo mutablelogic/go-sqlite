@@ -22,7 +22,7 @@ func Main(app *gopi.AppInstance, done chan<- struct{}) error {
 		return gopi.ErrHelp
 	}
 	for _, folder := range app.AppFlags.Args() {
-		if err := fsindexer.Index(folder); err != nil {
+		if _, err := fsindexer.Index(folder, false); err != nil {
 			return err
 		}
 	}

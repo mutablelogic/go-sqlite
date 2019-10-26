@@ -15,6 +15,7 @@ import (
 	// Frameworks
 	gopi "github.com/djthorpe/gopi"
 	grpc "github.com/djthorpe/gopi-rpc/sys/grpc"
+	sq "github.com/djthorpe/sqlite"
 
 	// Protocol buffers
 	pb "github.com/djthorpe/sqlite/rpc/protobuf/fsindexer"
@@ -25,11 +26,13 @@ import (
 // TYPES
 
 type QueryService struct {
-	Server gopi.RPCServer
+	Server  gopi.RPCServer
+	Indexer sq.FSIndexer
 }
 
 type query_service struct {
-	log gopi.Logger
+	log     gopi.Logger
+	indexer sq.FSIndexer
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,10 +40,15 @@ type query_service struct {
 
 // Open the server
 func (config QueryService) Open(log gopi.Logger) (gopi.Driver, error) {
-	log.Debug("<grpc.service.fsindexer.query>Open{ server=%v }", config.Server)
+	log.Debug("<grpc.service.fsindexer.query>Open{ config=%+v }", config)
 
 	this := new(query_service)
 	this.log = log
+	if config.Indexer == nil {
+		return nil, gopi.ErrBadParameter
+	} else {
+		this.indexer = config.Indexer
+	}
 
 	// Register service with GRPC server
 	pb.RegisterQueryServer(config.Server.(grpc.GRPCServer).GRPCServer(), this)
@@ -52,7 +60,8 @@ func (config QueryService) Open(log gopi.Logger) (gopi.Driver, error) {
 func (this *query_service) Close() error {
 	this.log.Debug("<grpc.service.fsindexer.query>Close{}")
 
-	// No resources to release
+	// Release resources
+	this.indexer = nil
 
 	// Success
 	return nil
@@ -70,7 +79,7 @@ func (this *query_service) CancelRequests() error {
 // Stringify
 
 func (this *query_service) String() string {
-	return fmt.Sprintf("grpc.service.fsindexer.query{}")
+	return fmt.Sprintf("grpc.service.fsindexer.query{ %v }", this.indexer)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,4 +88,8 @@ func (this *query_service) String() string {
 func (this *query_service) Ping(context.Context, *empty.Empty) (*empty.Empty, error) {
 	this.log.Debug("<grpc.service.fsindexer.query.Ping>{ }")
 	return &empty.Empty{}, nil
+}
+
+func (this *query_service) List(context.Context, *empty.Empty) (*pb.ListResponse, error) {
+	return nil, gopi.ErrNotImplemented
 }

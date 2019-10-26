@@ -10,7 +10,7 @@ package sqlite
 
 import (
 	// Frameworks
-	"github.com/djthorpe/gopi"
+	gopi "github.com/djthorpe/gopi"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,17 +25,24 @@ type FSStatus uint
 type FSIndexer interface {
 	gopi.Driver
 
-	// Index inititates indexing a filesystem at
-	// a particular path. The 'watch' argument when
-	// true will watch for updates to the index as they
-	// occur
-	Index(string, bool) (FSIndex, error)
-
 	// Indexes returns all registered indexes and statistics
 	Indexes() []FSIndex
 
-	// Delete will cancel indexing and remove an index
-	Delete(FSIndex) error
+	// Returns an existing index
+	IndexById(int64) FSIndex
+
+	// Index inititates indexing a filesystem at a particular path. The 'watch'
+	// argument when true will watch for updates to the index as they
+	// occur
+	Index(string, bool) (int64, error)
+
+	// ReindexById initiates a reindex of an existing index
+	// by unique id
+	ReindexById(int64) error
+
+	// DeleteById will cancel indexing and remove an index
+	// by unique id
+	DeleteById(int64) error
 }
 
 // FSIndex represents an index of files or documents
@@ -44,6 +51,23 @@ type FSIndex interface {
 	Name() string     // Name of the index
 	Count() uint64    // Count of the documents or files indexed
 	Status() FSStatus // Status of the index
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// RPC SERVICE CLIENTS
+
+type FSIndexerIndexClient interface {
+	gopi.RPCClient
+
+	Ping() error                         // Ping remote serviice
+	List() ([]FSIndex, error)            // List returns a list of indexes
+	Index(string, bool) (FSIndex, error) // Index folder and optionally start watching
+}
+
+type FSIndexerQueryClient interface {
+	gopi.RPCClient
+
+	Ping() error // Ping remote serviice
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,3 +80,21 @@ const (
 	FS_STATUS_IDLE
 	FS_STATUS_WATCHING
 )
+
+////////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (s FSStatus) String() string {
+	switch s {
+	case FS_STATUS_NONE:
+		return "FS_STATUS_NONE"
+	case FS_STATUS_INDEXING:
+		return "FS_STATUS_INDEXING"
+	case FS_STATUS_IDLE:
+		return "FS_STATUS_IDLE"
+	case FS_STATUS_WATCHING:
+		return "FS_STATUS_WATCHING"
+	default:
+		return "[?? Invalid FSStatus value]"
+	}
+}

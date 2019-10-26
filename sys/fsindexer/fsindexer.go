@@ -143,35 +143,80 @@ func (this *indexer) Close() error {
 ////////////////////////////////////////////////////////////////////////////////
 // INDEX IMPLEMENTATION
 
-func (this *indexer) Index(path string) error {
-	this.log.Debug2("<fsindexer.Index>{ path=%v }", strconv.Quote(path))
+func (this *indexer) Index(path string, watch bool) (int64, error) {
+	this.log.Debug2("<fsindexer.Index>{ path=%v watch=%v }", strconv.Quote(path), watch)
+
+	// Watch is not yet implemented
+	if watch == true {
+		return 0, fmt.Errorf("%w: watch argument is not yet implemented", gopi.ErrNotImplemented)
+	}
 
 	// Path is relative to the base, ensure under the root path and is a directory
 	if path_ := filepath.Clean(filepath.Join(this.root, path)); strings.HasPrefix(path_, this.root) == false {
-		return fmt.Errorf("%w: Path is not under the root, %v", gopi.ErrBadParameter, strconv.Quote(path))
+		return 0, fmt.Errorf("%w: Path is not under the root, %v", gopi.ErrBadParameter, strconv.Quote(path))
 	} else if stat, err := os.Stat(path_); os.IsNotExist(err) {
-		return fmt.Errorf("%w: Path does not exist, %v", gopi.ErrBadParameter, strconv.Quote(path))
+		return 0, fmt.Errorf("%w: Path does not exist, %v", gopi.ErrBadParameter, strconv.Quote(path))
 	} else if err != nil {
-		return err
+		return 0, err
 	} else if stat.IsDir() == false {
-		return fmt.Errorf("%w: Path is not a folder, %v", gopi.ErrBadParameter, strconv.Quote(path))
+		return 0, fmt.Errorf("%w: Path is not a folder, %v", gopi.ErrBadParameter, strconv.Quote(path))
 	} else if inode := inodeForInfo(stat); inode == 0 {
-		return gopi.ErrAppError
+		return 0, gopi.ErrAppError
 	} else if relpath := strings.TrimPrefix(path_, this.root); relpath == path_ {
-		return gopi.ErrAppError
+		return 0, gopi.ErrAppError
 	} else if err := this.addJob(inode, strings.Trim(relpath, string(filepath.Separator))); err != nil {
-		return err
+		return 0, err
+	} else {
+		// TODO: We assume this is on a single volume so we need to add the volume to the ID
+		return inode, nil
+	}
+}
+
+func (this *indexer) DeleteById(index int64) error {
+	this.log.Debug2("<fsindexer.DeleteById>{ index=%v }", index)
+
+	if job, exists := this.jobs[index]; exists == false {
+		return fmt.Errorf("%w: Index not found", gopi.ErrNotFound)
+	} else {
+		this.log.Debug2("<fsindexer.DeleteById>{ index=%v } TODO", job)
+		return gopi.ErrNotImplemented
 	}
 
-	// return success
-	return nil
+}
+
+func (this *indexer) ReindexById(index int64) error {
+	this.log.Debug2("<fsindexer.ReindexById>{ index=%v }", index)
+
+	if job, exists := this.jobs[index]; exists == false {
+		return fmt.Errorf("%w: Index not found", gopi.ErrNotFound)
+	} else {
+		this.log.Debug2("<fsindexer.ReindexById>{ index=%v } TODO", job)
+		return gopi.ErrNotImplemented
+	}
+
+}
+
+func (this *indexer) Indexes() []sq.FSIndex {
+	indexes := make([]sq.FSIndex, 0, len(this.jobs))
+	for _, job := range this.jobs {
+		indexes = append(indexes, job)
+	}
+	return indexes
+}
+
+func (this *indexer) IndexById(id int64) sq.FSIndex {
+	if job, exists := this.jobs[id]; exists {
+		return job
+	} else {
+		return nil
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
 func (this *indexer) String() string {
-	return fmt.Sprintf("<fsindexer>{ root=%v jobs=%v }", strconv.Quote(this.root), this.jobs)
+	return fmt.Sprintf("<fsindexer>{ root=%v indexes=%v }", strconv.Quote(this.root), this.jobs)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -391,11 +436,7 @@ func (this *indexer) reportJobStatus(state *report_state) *report_state {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// STRINGIFY JOBS AND STATE
-
-func (this *job) String() string {
-	return fmt.Sprintf("<job %v>{ count=%v done=%v }", strconv.Quote(this.relpath), this.count, this.done)
-}
+// STRINGIFY
 
 func (this *report_state) String() string {
 	if this.done == this.jobs {

@@ -21,13 +21,13 @@ service Indexer {
     rpc List(google.protobuf.Empty) returns (ListResponse);
 
     // Index a filesystem
-    rpc Index(IndexRequest) returns (ListResponse);
+    rpc AddIndex(IndexRequest) returns (Index);
 
     // Reindex an existing index
-    rpc Reindex(IndexId) returns (google.protobuf.Empty);
+    rpc ReIndex(IndexId) returns (google.protobuf.Empty);
 
     // Delete an existing index
-    rpc Delete(IndexId) returns (google.protobuf.Empty);
+    rpc DeleteIndex(IndexId) returns (google.protobuf.Empty);
 }
 
 // Message to index the filesystem

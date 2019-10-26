@@ -34,15 +34,15 @@ type FSIndexer interface {
 	// Index inititates indexing a filesystem at a particular path. The 'watch'
 	// argument when true will watch for updates to the index as they
 	// occur
-	Index(string, bool) (int64, error)
+	AddIndex(string, bool) (int64, error)
+
+	// DeleteById will cancel indexing and remove an index
+	// by unique id
+	DeleteIndexById(int64) error
 
 	// ReindexById initiates a reindex of an existing index
 	// by unique id
 	ReindexById(int64) error
-
-	// DeleteById will cancel indexing and remove an index
-	// by unique id
-	DeleteById(int64) error
 }
 
 // FSIndex represents an index of files or documents
@@ -59,9 +59,10 @@ type FSIndex interface {
 type FSIndexerIndexClient interface {
 	gopi.RPCClient
 
-	Ping() error                         // Ping remote serviice
-	List() ([]FSIndex, error)            // List returns a list of indexes
-	Index(string, bool) (FSIndex, error) // Index folder and optionally start watching
+	Ping() error                            // Ping remote serviice
+	List() ([]FSIndex, error)               // List returns a list of indexes
+	AddIndex(string, bool) (FSIndex, error) // AddIndex folder and optionally start watching
+	DeleteIndex(int64) error                // DeleteIndex removes an index by identifier
 }
 
 type FSIndexerQueryClient interface {

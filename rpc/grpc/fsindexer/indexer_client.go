@@ -79,20 +79,32 @@ func (this *Client) Ping() error {
 	}
 }
 
-func (this *Client) Index(path string, watch bool) (sq.FSIndex, error) {
+func (this *Client) AddIndex(path string, watch bool) (sq.FSIndex, error) {
 	this.conn.Lock()
 	defer this.conn.Unlock()
 
 	// Perform index command
-	if reply, err := this.IndexerClient.Index(this.NewContext(0), &pb.IndexRequest{
+	if reply, err := this.IndexerClient.AddIndex(this.NewContext(0), &pb.IndexRequest{
 		Path:  path,
 		Watch: watch,
 	}); err != nil {
 		return nil, err
-	} else if len(reply.Index) == 0 {
-		return nil, fmt.Errorf("%w: Unexpected response from Index", gopi.ErrUnexpectedResponse)
 	} else {
-		return &fsindex_proto{reply.Index[0]}, nil
+		return &fsindex_proto{reply}, nil
+	}
+}
+
+func (this *Client) DeleteIndex(index int64) error {
+	this.conn.Lock()
+	defer this.conn.Unlock()
+
+	// Perform index command
+	if _, err := this.IndexerClient.DeleteIndex(this.NewContext(0), &pb.IndexId{
+		Id: index,
+	}); err != nil {
+		return err
+	} else {
+		return nil
 	}
 }
 
@@ -104,8 +116,11 @@ func (this *Client) List() ([]sq.FSIndex, error) {
 	if reply, err := this.IndexerClient.List(this.NewContext(0), &empty.Empty{}); err != nil {
 		return nil, err
 	} else {
-		fmt.Println("TODO", reply)
-		return nil, nil
+		indexes := make([]sq.FSIndex, len(reply.Index))
+		for i := range reply.Index {
+			indexes[i] = &fsindex_proto{reply.Index[i]}
+		}
+		return indexes, nil
 	}
 
 }

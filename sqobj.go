@@ -26,6 +26,9 @@ type Objects interface {
 	// RegisterStruct registers a struct against a database table
 	RegisterStruct(interface{}) (StructClass, error)
 
+	// ClassFor returns registered class
+	ClassFor(interface{}) Class
+
 	// Insert, replace and update structs, rollback on error
 	// and return number of affected rows
 	Write(Flag, ...interface{}) (uint64, error)

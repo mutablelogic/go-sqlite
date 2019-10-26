@@ -37,6 +37,7 @@ type indexer struct {
 	root    string
 	sqobj   sq.Objects
 	indexer chan task
+	deleter chan int64
 	stop    bool
 	jobs    map[int64]*job
 	tasks.Tasks
@@ -64,6 +65,7 @@ type task struct {
 type File struct {
 	Id       int64  `sql:"inode,primary"`
 	RootPath string `sql:"root,primary"`
+	Job      int64  `sql:"idx"`
 	RelPath  string `sql:"relpath"`
 	Name     string `sql:"name"`
 	Ext      string `sql:"ext,nullable"`
@@ -80,6 +82,7 @@ func (config Indexer) Open(logger gopi.Logger) (gopi.Driver, error) {
 	this := new(indexer)
 	this.log = logger
 	this.indexer = make(chan task)
+	this.deleter = make(chan int64)
 	this.jobs = make(map[int64]*job)
 
 	if config.Objects == nil {
@@ -130,10 +133,12 @@ func (this *indexer) Close() error {
 
 	// Close channels
 	close(this.indexer)
+	close(this.deleter)
 
 	// Release resources
 	this.jobs = nil
 	this.indexer = nil
+	this.deleter = nil
 	this.sqobj = nil
 
 	// Return success
@@ -143,7 +148,7 @@ func (this *indexer) Close() error {
 ////////////////////////////////////////////////////////////////////////////////
 // INDEX IMPLEMENTATION
 
-func (this *indexer) Index(path string, watch bool) (int64, error) {
+func (this *indexer) AddIndex(path string, watch bool) (int64, error) {
 	this.log.Debug2("<fsindexer.Index>{ path=%v watch=%v }", strconv.Quote(path), watch)
 
 	// Watch is not yet implemented
@@ -172,17 +177,31 @@ func (this *indexer) Index(path string, watch bool) (int64, error) {
 	}
 }
 
-func (this *indexer) DeleteById(index int64) error {
-	this.log.Debug2("<fsindexer.DeleteById>{ index=%v }", index)
+func (this *indexer) DeleteIndexById(index int64) error {
+	this.log.Debug2("<fsindexer.DeleteIndexById>{ index=%v }", index)
 
-	if job, exists := this.jobs[index]; exists == false {
+	if _, exists := this.jobs[index]; exists == false {
 		return fmt.Errorf("%w: Index not found", gopi.ErrNotFound)
 	} else {
-		this.log.Debug2("<fsindexer.DeleteById>{ index=%v } TODO", job)
+		this.deleter <- index
+	}
+	// Success
+	return nil
+}
+
+/*
+		if class := this.sqobj.ClassFor(&File{}); class == nil {
+		return gopi.ErrAppError
+	} else {
+		// Perform delete
+		lang := this.sqobj.Lang()
+		st := lang.NewDelete(class.(sq.StructClass).TableName()).Where(lang.Equals("idx", lang.Value(job.Id())))
+		this.log.Info("<fsindexer.DeleteById>{ index=%v } %v", job, st.Query())
 		return gopi.ErrNotImplemented
 	}
 
 }
+*/
 
 func (this *indexer) ReindexById(index int64) error {
 	this.log.Debug2("<fsindexer.ReindexById>{ index=%v }", index)
@@ -349,6 +368,12 @@ func (this *indexer) IndexTask(start chan<- struct{}, stop <-chan struct{}) erro
 FOR_LOOP:
 	for {
 		select {
+		case node := <-this.deleter:
+			if job, exists := this.jobs[node]; exists == false {
+				this.log.Warn("No such index: %v", node)
+			} else if err := this.deleteIndex(job); err != nil {
+				this.log.Warn("%v", err)
+			}
 		case task := <-this.indexer:
 			if err := this.indexFile(task); err != nil {
 				this.log.Warn("%v", err)
@@ -359,6 +384,11 @@ FOR_LOOP:
 	}
 	this.log.Debug2("<fsindexer.Index> IndexTask stopped")
 	return nil
+}
+
+func (this *indexer) deleteIndex(index *job) error {
+	this.log.Debug2("<fsindexer.deleteIndex>{ index=%v }", index)
+	return gopi.ErrNotImplemented
 }
 
 func (this *indexer) indexFile(t task) error {
@@ -375,6 +405,7 @@ func (this *indexer) indexFile(t task) error {
 		} else if _, err := this.sqobj.Write(sq.FLAG_INSERT|sq.FLAG_UPDATE, &File{
 			Id:       t.inode,
 			RootPath: job.relpath,
+			Job:      job.jobnode,
 			RelPath:  t.relpath,
 			Name:     filepath.Base(t.relpath),
 			Ext:      filepath.Ext(t.relpath),

@@ -185,6 +185,16 @@ func (this *sqobj) RegisterStruct(v interface{}) (sq.StructClass, error) {
 	return class, nil
 }
 
+func (this *sqobj) ClassFor(v interface{}) sq.Class {
+	if name, pkgpath := this.reflectName(v); name == "" {
+		return nil
+	} else if class := this.registeredClass(name, pkgpath); class == nil {
+		return nil
+	} else {
+		return class
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // WRITE FUNCTION
 

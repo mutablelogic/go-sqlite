@@ -99,35 +99,35 @@ func (this *index_service) List(context.Context, *empty.Empty) (*pb.ListResponse
 	}, nil
 }
 
-func (this *index_service) Index(ctx context.Context, req *pb.IndexRequest) (*pb.ListResponse, error) {
-	this.log.Debug("<grpc.service.fsindexer.indexer.Index>{ req=%v }", req)
+func (this *index_service) AddIndex(ctx context.Context, req *pb.IndexRequest) (*pb.Index, error) {
+	this.log.Debug("<grpc.service.fsindexer.indexer.AddIndex>{ req=%v }", req)
 
 	// Perform the index of a volume
-	if job, err := this.indexer.Index(req.Path, req.Watch); err != nil {
+	if job, err := this.indexer.AddIndex(req.Path, req.Watch); err != nil {
 		return nil, err
 	} else if job_ := this.indexer.IndexById(job); job_ == nil {
 		return nil, gopi.ErrAppError
 	} else {
 		// Return a single response with the job id and name
-		return &pb.ListResponse{
-			Index: []*pb.Index{
-				&pb.Index{
-					Id:   job_.Id(),
-					Name: job_.Name(),
-				},
-			},
+		return &pb.Index{
+			Id:   job_.Id(),
+			Name: job_.Name(),
 		}, nil
 	}
 }
 
-func (this *index_service) Delete(ctx context.Context, req *pb.IndexId) (*empty.Empty, error) {
-	this.log.Debug("<grpc.service.fsindexer.index.Delete>{ req=%v }", req)
-	// TODO: Delete an existing index
-	return &empty.Empty{}, nil
+func (this *index_service) DeleteIndex(ctx context.Context, req *pb.IndexId) (*empty.Empty, error) {
+	this.log.Debug("<grpc.service.fsindexer.index.DeleteIndex>{ req=%v }", req)
+
+	if err := this.indexer.DeleteIndexById(req.Id); err != nil {
+		return nil, err
+	} else {
+		return &empty.Empty{}, nil
+	}
 }
 
-func (this *index_service) Reindex(ctx context.Context, req *pb.IndexId) (*empty.Empty, error) {
-	this.log.Debug("<grpc.service.fsindexer.index.Reindex>{ req=%v }", req)
+func (this *index_service) ReIndex(ctx context.Context, req *pb.IndexId) (*empty.Empty, error) {
+	this.log.Debug("<grpc.service.fsindexer.index.ReIndex>{ req=%v }", req)
 	// TODO: Reindex an existing index
 	return &empty.Empty{}, nil
 }

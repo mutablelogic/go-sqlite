@@ -16,6 +16,7 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+// FSStatus is the current state of an index
 type FSStatus uint
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,6 +44,12 @@ type FSIndexer interface {
 	// ReindexById initiates a reindex of an existing index
 	// by unique id
 	ReindexById(int64) error
+
+	// Count files for a query
+	Count() (uint64, error)
+
+	// Query indexes for files
+	Query(limit uint64) ([]FSFile, error)
 }
 
 // FSIndex represents an index of files or documents
@@ -51,6 +58,24 @@ type FSIndex interface {
 	Name() string     // Name of the index
 	Count() uint64    // Count of the documents or files indexed
 	Status() FSStatus // Status of the index
+}
+
+// FSFile represents an indexed file
+type FSFile interface {
+	Id() int64        // Id of the file
+	Index() FSIndex   // Index that contains the file
+	Path() string     // Path for the file, relative to the index
+	Name() string     // Name of the file
+	Ext() string      // Extension for the file
+	MimeType() string // Mimetype for the file
+	Size() int64      // Size of the file in bytes
+}
+
+// FSQueryResponse represents the response from a query
+type FSQueryResponse interface {
+	Limit() uint64   // Limit is the query result limit
+	Count() uint64   // Count returns the total count of files
+	Files() []FSFile // Files returned from query
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,15 +93,15 @@ type FSIndexerIndexClient interface {
 type FSIndexerQueryClient interface {
 	gopi.RPCClient
 
-	Ping() error // Ping remote serviice
+	Ping() error                                 // Ping remote service
+	Query(limit uint64) (FSQueryResponse, error) // Query for files
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // CONSTANTS
 
 const (
-	// FS_STATUS represents the status of an FSIndex objects
-	FS_STATUS_NONE FSStatus = iota
+	FS_STATUS_NONE FSStatus = iota // FS_STATUS represents the status of an FSIndex objects
 	FS_STATUS_INDEXING
 	FS_STATUS_IDLE
 	FS_STATUS_WATCHING

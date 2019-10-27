@@ -10,6 +10,9 @@ service Query {
 
   // Return indexes
   rpc List(google.protobuf.Empty) returns (ListResponse);
+
+  // Query files
+  rpc Query(QueryRequest) returns (QueryResponse);
 }
 
 // Indexer service for indexing the file system
@@ -59,4 +62,26 @@ message Index {
     IndexStatus status = 4;
 }
 
+// An indexed file
+message File {
+    int64 id =1;
+    Index index = 2;
+    string path = 3;
+    string name = 4;
+    string ext = 5;
+    string mimetype = 6;
+    int64 size = 7;
+}
+
+// Query Request
+message QueryRequest {
+    uint64 limit = 1;
+}
+
+// Query Response
+message QueryResponse {
+    uint64 count = 1;
+    uint64 limit = 2;
+    repeated File file = 3;
+}
 

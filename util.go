@@ -47,6 +47,7 @@ const (
 // GLOBAL VARIABLES
 
 var (
+	reservedMutex            sync.Mutex
 	reservedWords            = make(map[string]bool, 0)
 	reservedTypes            = make(map[string]bool, 0)
 	regexpBareIdentifier     = regexp.MustCompile("^[A-Za-z_][A-Za-z0-9_]*$")
@@ -273,6 +274,8 @@ func isBareIdentifier(value string) bool {
 func isReservedWord(value string) bool {
 	var once sync.Once
 	once.Do(func() {
+		reservedMutex.Lock()
+		defer reservedMutex.Unlock()
 		for _, word := range strings.Fields(reserved_words) {
 			reservedWords[strings.ToUpper(word)] = true
 		}

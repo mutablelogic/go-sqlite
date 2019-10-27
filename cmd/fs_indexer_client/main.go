@@ -23,7 +23,9 @@ import (
 func Main(app *gopi.AppInstance, services []gopi.RPCServiceRecord, done chan<- struct{}) error {
 	if indexer, err := app.ClientPool.NewClientEx("fsindexer.Indexer", services, gopi.RPC_FLAG_NONE); err != nil {
 		return err
-	} else if err := RunCommand(app, indexer.(sq.FSIndexerIndexClient)); err != nil {
+	} else if query, err := app.ClientPool.NewClientEx("fsindexer.Query", services, gopi.RPC_FLAG_NONE); err != nil {
+		return err
+	} else if err := RunCommand(app, indexer.(sq.FSIndexerIndexClient), query.(sq.FSIndexerQueryClient)); err != nil {
 		return err
 	}
 
@@ -33,7 +35,10 @@ func Main(app *gopi.AppInstance, services []gopi.RPCServiceRecord, done chan<- s
 
 func main() {
 	// Create the configuration
-	config := gopi.NewAppConfig("rpc/fsindexer/indexer:client")
+	config := gopi.NewAppConfig("rpc/fsindexer/client")
+
+	// Add flags
+	config.AppFlags.FlagUint("limit", 0, "Limit for query results")
 
 	// Run the server and register all the services
 	os.Exit(rpc.Client(config, time.Second*2, Main))

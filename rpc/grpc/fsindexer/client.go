@@ -26,19 +26,32 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type Client struct {
-	pb.IndexerClient
+type client struct {
 	conn gopi.RPCClientConn
+}
+
+type IndexerClient struct {
+	pb.IndexerClient
+	client
+}
+
+type QueryClient struct {
+	pb.QueryClient
+	client
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // NEW
 
 func NewIndexerClient(conn gopi.RPCClientConn) gopi.RPCClient {
-	return &Client{pb.NewIndexerClient(conn.(grpc.GRPCClientConn).GRPCConn()), conn}
+	return &IndexerClient{pb.NewIndexerClient(conn.(grpc.GRPCClientConn).GRPCConn()), client{conn}}
 }
 
-func (this *Client) NewContext(timeout time.Duration) context.Context {
+func NewQueryClient(conn gopi.RPCClientConn) gopi.RPCClient {
+	return &QueryClient{pb.NewQueryClient(conn.(grpc.GRPCClientConn).GRPCConn()), client{conn}}
+}
+
+func (this *client) NewContext(timeout time.Duration) context.Context {
 	if timeout == 0 {
 		timeout = this.conn.Timeout()
 	}
@@ -53,25 +66,27 @@ func (this *Client) NewContext(timeout time.Duration) context.Context {
 ////////////////////////////////////////////////////////////////////////////////
 // PROPERTIES
 
-func (this *Client) Conn() gopi.RPCClientConn {
+func (this *client) Conn() gopi.RPCClientConn {
 	return this.conn
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (this *Client) String() string {
+func (this *IndexerClient) String() string {
 	return fmt.Sprintf("<fsindexer.client.indexer>{ %v }", this.Conn())
+}
+
+func (this *QueryClient) String() string {
+	return fmt.Sprintf("<fsindexer.client.query>{ %v }", this.Conn())
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // CALLS
 
-func (this *Client) Ping() error {
+func (this *IndexerClient) Ping() error {
 	this.conn.Lock()
 	defer this.conn.Unlock()
-
-	// Perform ping
 	if _, err := this.IndexerClient.Ping(this.NewContext(0), &empty.Empty{}); err != nil {
 		return err
 	} else {
@@ -79,7 +94,17 @@ func (this *Client) Ping() error {
 	}
 }
 
-func (this *Client) AddIndex(path string, watch bool) (sq.FSIndex, error) {
+func (this *QueryClient) Ping() error {
+	this.conn.Lock()
+	defer this.conn.Unlock()
+	if _, err := this.QueryClient.Ping(this.NewContext(0), &empty.Empty{}); err != nil {
+		return err
+	} else {
+		return nil
+	}
+}
+
+func (this *IndexerClient) AddIndex(path string, watch bool) (sq.FSIndex, error) {
 	this.conn.Lock()
 	defer this.conn.Unlock()
 
@@ -94,7 +119,7 @@ func (this *Client) AddIndex(path string, watch bool) (sq.FSIndex, error) {
 	}
 }
 
-func (this *Client) DeleteIndex(index int64) error {
+func (this *IndexerClient) DeleteIndex(index int64) error {
 	this.conn.Lock()
 	defer this.conn.Unlock()
 
@@ -108,7 +133,7 @@ func (this *Client) DeleteIndex(index int64) error {
 	}
 }
 
-func (this *Client) List() ([]sq.FSIndex, error) {
+func (this *IndexerClient) List() ([]sq.FSIndex, error) {
 	this.conn.Lock()
 	defer this.conn.Unlock()
 
@@ -123,4 +148,34 @@ func (this *Client) List() ([]sq.FSIndex, error) {
 		return indexes, nil
 	}
 
+}
+
+func (this *QueryClient) List() ([]sq.FSIndex, error) {
+	this.conn.Lock()
+	defer this.conn.Unlock()
+
+	// Obtain list of indexes
+	if reply, err := this.QueryClient.List(this.NewContext(0), &empty.Empty{}); err != nil {
+		return nil, err
+	} else {
+		indexes := make([]sq.FSIndex, len(reply.Index))
+		for i := range reply.Index {
+			indexes[i] = &fsindex_proto{reply.Index[i]}
+		}
+		return indexes, nil
+	}
+}
+
+func (this *QueryClient) Query(limit uint64) (sq.FSQueryResponse, error) {
+	this.conn.Lock()
+	defer this.conn.Unlock()
+
+	// Obtain list of indexes
+	if reply, err := this.QueryClient.Query(this.NewContext(0), &pb.QueryRequest{
+		Limit: limit,
+	}); err != nil {
+		return nil, err
+	} else {
+		return NewQueryResponse(reply), nil
+	}
 }

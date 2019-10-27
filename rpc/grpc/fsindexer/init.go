@@ -46,7 +46,7 @@ func init() {
 
 	// Indexer Client
 	gopi.RegisterModule(gopi.Module{
-		Name:     "rpc/fsindexer/indexer:client",
+		Name:     "rpc/fsindexer/client",
 		Type:     gopi.MODULE_TYPE_CLIENT,
 		Requires: []string{"rpc/clientpool"},
 		Run: func(app *gopi.AppInstance, _ gopi.Driver) error {
@@ -54,6 +54,7 @@ func init() {
 				return gopi.ErrAppError
 			} else {
 				clientpool.RegisterClient("fsindexer.Indexer", NewIndexerClient)
+				clientpool.RegisterClient("fsindexer.Query", NewQueryClient)
 				return nil
 			}
 		},

@@ -22,7 +22,7 @@ import (
 
 type Command struct {
 	name string
-	call func([]string, sq.FSIndexerIndexClient) error
+	call func(*gopi.Flags, []string, sq.FSIndexerIndexClient, sq.FSIndexerQueryClient) error
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,6 +32,7 @@ var (
 		Command{"list", ListCommand},
 		Command{"add", AddCommand},
 		Command{"delete", DeleteCommand},
+		Command{"query", QueryCommand},
 	}
 )
 
@@ -54,19 +55,19 @@ func GetCommand(app *gopi.AppInstance) (*Command, []string) {
 	}
 }
 
-func RunCommand(app *gopi.AppInstance, indexer sq.FSIndexerIndexClient) error {
+func RunCommand(app *gopi.AppInstance, indexer sq.FSIndexerIndexClient, query sq.FSIndexerQueryClient) error {
 	if command, args := GetCommand(app); command == nil {
 		return gopi.ErrHelp
 	} else if err := indexer.Ping(); err != nil {
 		return err
 	} else {
-		return command.call(args, indexer)
+		return command.call(app.AppFlags, args, indexer, query)
 	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-func ListCommand(args []string, indexer sq.FSIndexerIndexClient) error {
+func ListCommand(_ *gopi.Flags, args []string, indexer sq.FSIndexerIndexClient, _ sq.FSIndexerQueryClient) error {
 	if len(args) != 0 {
 		return fmt.Errorf("%w: Too many arguments", gopi.ErrBadParameter)
 	}
@@ -79,7 +80,7 @@ func ListCommand(args []string, indexer sq.FSIndexerIndexClient) error {
 	return nil
 }
 
-func AddCommand(args []string, indexer sq.FSIndexerIndexClient) error {
+func AddCommand(_ *gopi.Flags, args []string, indexer sq.FSIndexerIndexClient, _ sq.FSIndexerQueryClient) error {
 	if len(args) == 0 {
 		return fmt.Errorf("%w: Missing index path", gopi.ErrBadParameter)
 	}
@@ -101,7 +102,7 @@ func AddCommand(args []string, indexer sq.FSIndexerIndexClient) error {
 	return nil
 }
 
-func DeleteCommand(args []string, indexer sq.FSIndexerIndexClient) error {
+func DeleteCommand(_ *gopi.Flags, args []string, indexer sq.FSIndexerIndexClient, _ sq.FSIndexerQueryClient) error {
 	if len(args) == 0 {
 		return fmt.Errorf("%w: Missing index path", gopi.ErrBadParameter)
 	}
@@ -113,6 +114,22 @@ func DeleteCommand(args []string, indexer sq.FSIndexerIndexClient) error {
 		} else if err := indexer.DeleteIndex(id); err != nil {
 			return fmt.Errorf("%w: DeleteIndex failed for %v", err, strconv.Quote(arg))
 		}
+	}
+
+	// Return success
+	return nil
+}
+
+func QueryCommand(flags *gopi.Flags, args []string, _ sq.FSIndexerIndexClient, query sq.FSIndexerQueryClient) error {
+	if len(args) != 0 {
+		return fmt.Errorf("%w: Too many arguments", gopi.ErrBadParameter)
+	}
+	limit, _ := flags.GetUint("limit")
+	if response, err := query.Query(uint64(limit)); err != nil {
+		return err
+	} else {
+		PrintFiles(os.Stdout, response.Files())
+		fmt.Printf("%v of %v files\n", len(response.Files()), response.Count())
 	}
 
 	// Return success

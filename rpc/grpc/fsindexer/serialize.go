@@ -9,10 +9,10 @@
 package fsindexer
 
 import (
-	// Frameworks
 	"fmt"
 	"strconv"
 
+	// Frameworks
 	sq "github.com/djthorpe/sqlite"
 
 	// Protocol buffers
@@ -26,8 +26,62 @@ type fsindex_proto struct {
 	*pb.Index
 }
 
+type fsquery_proto struct {
+	*pb.QueryResponse
+}
+
+type fsfile_proto struct {
+	*pb.File
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// FSFILE IMPLEMENTATION
+
+func NewFile(pb *pb.File) sq.FSFile {
+	if pb == nil {
+		return nil
+	} else {
+		return &fsfile_proto{pb}
+	}
+}
+
+func (this *fsfile_proto) Id() int64 {
+	return this.File.Id
+}
+func (this *fsfile_proto) Index() sq.FSIndex {
+	return NewIndex(this.File.Index)
+}
+
+func (this *fsfile_proto) Path() string {
+	return this.File.Path
+}
+
+func (this *fsfile_proto) Name() string {
+	return this.File.Name
+}
+
+func (this *fsfile_proto) Ext() string {
+	return this.File.Ext
+}
+
+func (this *fsfile_proto) MimeType() string {
+	return this.File.Mimetype
+}
+
+func (this *fsfile_proto) Size() int64 {
+	return this.File.Size
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // FSINDEX IMPLEMENTATION
+
+func NewIndex(pb *pb.Index) sq.FSIndex {
+	if pb == nil {
+		return nil
+	} else {
+		return &fsindex_proto{pb}
+	}
+}
 
 func (this *fsindex_proto) Id() int64 {
 	if this.Index == nil {
@@ -66,6 +120,41 @@ func (this *fsindex_proto) String() string {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// FSQUERY IMPLEMENTATION
+
+func NewQueryResponse(pb *pb.QueryResponse) sq.FSQueryResponse {
+	return &fsquery_proto{pb}
+}
+
+func (this *fsquery_proto) Count() uint64 {
+	if this.QueryResponse == nil {
+		return 0
+	} else {
+		return this.QueryResponse.Count
+	}
+}
+
+func (this *fsquery_proto) Limit() uint64 {
+	if this.QueryResponse == nil {
+		return 0
+	} else {
+		return this.QueryResponse.Limit
+	}
+}
+
+func (this *fsquery_proto) Files() []sq.FSFile {
+	if this.QueryResponse == nil {
+		return nil
+	} else {
+		files := make([]sq.FSFile, len(this.QueryResponse.File))
+		for i, file := range this.QueryResponse.File {
+			files[i] = NewFile(file)
+		}
+		return files
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // LIST OF FSINDEX
 
 func to_fsindex_proto(indexes []sq.FSIndex) []*pb.Index {
@@ -79,6 +168,23 @@ func to_fsindex_proto(indexes []sq.FSIndex) []*pb.Index {
 			Name:   index.Name(),
 			Count:  index.Count(),
 			Status: pb.Index_IndexStatus(index.Status()),
+		}
+	}
+	return proto
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// LIST OF FSFILE
+
+func to_fsfile_proto(files []sq.FSFile) []*pb.File {
+	if files == nil {
+		return nil
+	}
+	proto := make([]*pb.File, len(files))
+	for i, file := range files {
+		proto[i] = &pb.File{
+			Id:   file.Id(),
+			Name: file.Name(),
 		}
 	}
 	return proto

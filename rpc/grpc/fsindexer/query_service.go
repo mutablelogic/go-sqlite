@@ -36,6 +36,14 @@ type query_service struct {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// CONSTANTS
+
+const (
+	QUERY_LIMIT_DEFAULT = 50
+	QUERY_LIMIT_MAX     = 1000
+)
+
+////////////////////////////////////////////////////////////////////////////////
 // OPEN AND CLOSE
 
 // Open the server
@@ -91,5 +99,32 @@ func (this *query_service) Ping(context.Context, *empty.Empty) (*empty.Empty, er
 }
 
 func (this *query_service) List(context.Context, *empty.Empty) (*pb.ListResponse, error) {
-	return nil, gopi.ErrNotImplemented
+	this.log.Debug("<grpc.service.fsindexer.query.List>{ }")
+	return &pb.ListResponse{
+		Index: to_fsindex_proto(this.indexer.Indexes()),
+	}, nil
+}
+
+func (this *query_service) Query(_ context.Context, req *pb.QueryRequest) (*pb.QueryResponse, error) {
+	this.log.Debug("<grpc.service.fsindexer.query.Query>{ req=%v }", req)
+
+	// Check incoming parameters
+	if req.Limit == 0 {
+		req.Limit = QUERY_LIMIT_DEFAULT
+	} else if req.Limit > QUERY_LIMIT_MAX {
+		return nil, fmt.Errorf("%w: Maximum limit is %v", gopi.ErrBadParameter, QUERY_LIMIT_MAX)
+	}
+
+	// Perform count
+	if count, err := this.indexer.Count(); err != nil {
+		return nil, err
+	} else if files, err := this.indexer.Query(req.Limit); err != nil {
+		return nil, err
+	} else {
+		return &pb.QueryResponse{
+			Count: count,
+			Limit: req.Limit,
+			File:  to_fsfile_proto(files),
+		}, nil
+	}
 }

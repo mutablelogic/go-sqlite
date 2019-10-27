@@ -32,3 +32,18 @@ func PrintIndexes(fh io.Writer, list []sq.FSIndex) {
 	}
 	table.Render()
 }
+
+func PrintFiles(fh io.Writer, list []sq.FSFile) {
+	table := tablewriter.NewWriter(fh)
+	table.SetHeader([]string{"id", "index", "path", "mimetype", "size"})
+	for _, file := range list {
+		table.Append([]string{
+			fmt.Sprint(file.Id()),
+			"TODO",
+			file.Path(),
+			file.MimeType(),
+			fmt.Sprint(file.Size()),
+		})
+	}
+	table.Render()
+}

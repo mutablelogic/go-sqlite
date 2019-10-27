@@ -92,8 +92,6 @@ func (this *index_service) Ping(context.Context, *empty.Empty) (*empty.Empty, er
 
 func (this *index_service) List(context.Context, *empty.Empty) (*pb.ListResponse, error) {
 	this.log.Debug("<grpc.service.fsindexer.indexer.List>{ }")
-
-	// Return jobs
 	return &pb.ListResponse{
 		Index: to_fsindex_proto(this.indexer.Indexes()),
 	}, nil

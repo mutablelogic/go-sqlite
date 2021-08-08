@@ -1,14 +1,13 @@
-module github.com/djthorpe/sqlite
+module github.com/djthorpe/go-sqlite
 
-go 1.13
+go 1.16
 
 require (
-	github.com/araddon/dateparse v0.0.0-20190622164848-0fb0a474d195
-	github.com/djthorpe/gopi v1.0.85
-	github.com/djthorpe/gopi-rpc v1.0.15
-	github.com/golang/protobuf v1.3.2
-	github.com/mattn/go-sqlite3 v1.11.0
-	github.com/olekukonko/tablewriter v0.0.1
-	golang.org/x/net v0.0.0-20191014212845-da9a3fd4c582
-	google.golang.org/grpc v1.24.0
+	github.com/djthorpe/go-marshaler v0.0.0-20210808103817-272fb8d1fcd6 // indirect
+	github.com/djthorpe/gopi v1.0.86
+	github.com/djthorpe/sqlite v1.0.8
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
+	github.com/mattn/go-sqlite3 v1.14.8
+	github.com/olekukonko/tablewriter v0.0.5
+	github.com/stretchr/testify v1.7.0 // indirect
 )

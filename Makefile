@@ -1,41 +1,23 @@
+
 # Go parameters
-GOCMD=go
-GOINSTALL=$(GOCMD) install
-GOBUILD=$(GOCMD) build
-GOCLEAN=$(GOCMD) clean
-GOTEST=$(GOCMD) test
-GOGET=$(GOCMD) get
-GOGENERATE=$(GOCMD) generate
-
-# App parameters
-GOPI=github.com/djthorpe/gopi
-GOLDFLAGS += -X $(GOPI).GitTag=$(shell git describe --tags)
-GOLDFLAGS += -X $(GOPI).GitBranch=$(shell git name-rev HEAD --name-only --always)
-GOLDFLAGS += -X $(GOPI).GitHash=$(shell git rev-parse HEAD)
-GOLDFLAGS += -X $(GOPI).GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
+GO=go
 GOFLAGS = -ldflags "-s -w $(GOLDFLAGS)" 
+BUILDDIR = build
 
-all: test install
+# All targets
+all: test
 
-install: sq_import fs_indexer
+# Rules for building
+.PHONY: test
+test:
+	@PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" $(GO) test -tags "$(TAGS)" ./pkg/...
 
-sq_import:
-	$(GOINSTALL) $(GOFLAGS) ./cmd/sq_import/...
+.PHONY: mkdir
+mkdir:
+	install -d $(BUILDDIR)
 
-fs_indexer: fs_indexer_service fs_indexer_client
-
-fs_indexer_service: protogen
-	$(GOBUILD) $(GOFLAGS) -o ${GOPATH}/bin/fsindexer-service ./cmd/fs_indexer_service/...
-
-fs_indexer_client: protogen
-	$(GOBUILD) $(GOFLAGS) -o ${GOPATH}/bin/fsindexer ./cmd/fs_indexer_client/...
-
-protogen:
-	$(GOGENERATE) ./rpc/protobuf/...
-
-test: 
-	$(GOTEST) -v .
-	$(GOTEST) -v ./sys/...
-
+.PHONY: clean
 clean: 
-	$(GOCLEAN)
+	rm -fr $(BUILDDIR)
+	$(GO) mod tidy
+	$(GO) clean

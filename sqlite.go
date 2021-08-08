@@ -1,119 +1,156 @@
-/*
-	SQLite client
-	(c) Copyright David Thorpe 2019
-	All Rights Reserved
-
-	For Licensing and Usage information, please see LICENSE file
-*/
-
 package sqlite
 
-import (
-	"errors"
-	"fmt"
-	"time"
+///////////////////////////////////////////////////////////////////////////////
+// INTERFACES - CONNECTION
 
-	// Frameworks
-	"github.com/djthorpe/gopi"
-)
+// SQConnection is an sqlite connection to one or more databases
+type SQConnection interface {
+	SQTransaction
+	SQLanguage
 
-////////////////////////////////////////////////////////////////////////////////
-// ERRORS
-
-var (
-	ErrUnsupportedType = errors.New("Unsupported type")
-	ErrInvalidDate     = errors.New("Invalid date")
-	ErrNotFound        = errors.New("Not Found")
-)
-
-////////////////////////////////////////////////////////////////////////////////
-// INTERFACES
-
-// Connection to a database
-type Connection interface {
-	gopi.Driver
-	Transaction
-
-	// Perform operations within a transaction, rollback on error
-	Txn(func(Transaction) error) error
-
-	// Return sqlite information
-	Version() string
+	// Schemas returns a list of all the schemas in the database
 	Schemas() []string
+
+	// Table returns a list of non-temporary tables in the default schema
 	Tables() []string
-	TablesEx(schema string, include_temporary bool) []string
-	ColumnsForTable(name, schema string) ([]Column, error)
 
-	// Attach and detach other databases, schema cannot be 'main' or 'temp'
-	Attach(schema, dsn string) error
-	Detach(schema string) error
+	// TablesEx returns a list of tables in the specified schema. Pass true
+	// as second argument to include temporary tables.
+	TablesEx(string, bool) []string
+
+	// ColumnsEx returns an ordered list of columns in the specified table
+	Columns(string) []SQColumn
+
+	// ColumnsEx returns an ordered list of columns in the specified table and schema
+	ColumnsEx(string, string) []SQColumn
+
+	// Attach with schema name to a database at path in second argument
+	Attach(string, string) error
+
+	// Detach database by schema name
+	Detach(string) error
+
+	// Create transaction block
+	Do(func(SQTransaction) error) error
+
+	// Close
+	Close() error
 }
 
-// Transaction that can be committed/rolled back
-type Transaction interface {
-	// Return statement anc column
-	NewStatement(string) Statement
-	NewColumn(name, decltype string, nullable, primary bool) Column
-	NewColumnWithIndex(name, decltype string, nullable, primary bool, index int) Column
+// SQLanguage defines the interface for SQLite language
+type SQLanguage interface {
+	// Q creates a statement from a string
+	Q(string) SQStatement
 
-	// Execute statement (without returning the rows)
-	Do(Statement, ...interface{}) (Result, error)
-	DoOnce(string, ...interface{}) (Result, error)
+	// CreateTable creates a table with name and specified columns
+	CreateTable(string, ...SQColumn) SQTable
 
-	// Query to return the rows
-	Query(Statement, ...interface{}) (Rows, error)
-	QueryOnce(string, ...interface{}) (Rows, error)
+	// CreateIndex with a source table name and defined column names
+	CreateIndex(string, ...string) SQIndex
+
+	// Column with name and declared type
+	Column(string, string) SQColumn
+
+	// DropTable with name
+	DropTable(string) SQDrop
+
+	// DropIndex with name
+	DropIndex(string) SQDrop
+
+	// DropTrigger with name
+	DropTrigger(string) SQDrop
+
+	// DropView with name
+	DropView(string) SQDrop
+
+	// Insert values into a table with a name and defined column names
+	Insert(string, ...string) SQInsert
+
+	// Replace values into a table with a name and defined column names
+	Replace(string, ...string) SQInsert
 }
 
-// Statement that can be executed
-type Statement interface {
-	Query() string
+// SQTransaction is an sqlite transaction
+type SQTransaction interface {
+	// Query and return a set of results
+	Query(SQStatement, ...interface{}) (SQRows, error)
+
+	// Execute a statement and return affected rows
+	Exec(SQStatement, ...interface{}) (SQResult, error)
 }
 
-// Rows increments over returned rows from a query
-type Rows interface {
-	// Return column names
-	Columns() []Column
+// SQRows increments over returned rows from a query
+type SQRows interface {
+	// Return next row, returns io.EOF when all rows consumed
+	Next(v interface{}) error
 
-	// Return next row of values, or nil if no more rows
-	Next() []Value
+	// Return next map of values, or nil if no more rows
+	NextMap() map[string]interface{}
+
+	// Return next array of values, or nil if no more rows
+	NextArray() []interface{}
+
+	// Close the rows, and free up any resources
+	Close() error
 }
 
-// Column represents the specification for a table column
-type Column interface {
-	Name() string
-	DeclType() string
-	Nullable() bool
-	PrimaryKey() bool
-	Index() int
-	Query() string
-}
-
-// Value represents a typed value in a table
-type Value interface {
-	String() string       // Return value as string
-	Int() int64           // Return value as int
-	Bool() bool           // Return value as bool
-	Float() float64       // Return value as float
-	Timestamp() time.Time // Return value as timestamp
-	Bytes() []byte        // Return value as blob
-
-	// Return the column associated with the value
-	Column() Column
-
-	// Return true if value is NULL
-	IsNull() bool
-}
-
-// Result of an insert
-type Result struct {
+// SQResult is returned after SQTransaction.Exec
+type SQResult struct {
 	LastInsertId int64
 	RowsAffected uint64
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// STRINGIFY
+// SQStatement is any statement which can be executed
+type SQStatement interface {
+	Query() string
+}
 
-func (r Result) String() string {
-	return fmt.Sprintf("<sqlite.Result>{ LastInsertId=%v RowsAffected=%v }", r.LastInsertId, r.RowsAffected)
+// SQTable defines a table of columns and indexes
+type SQTable interface {
+	SQStatement
+
+	IfNotExists() SQTable
+	WithSchema(string) SQTable
+	WithTemporary() SQTable
+	WithoutRowID() SQTable
+	WithIndex(...string) SQTable
+	WithUnique(...string) SQTable
+}
+
+type SQInsert interface {
+	SQStatement
+
+	WithSchema(string) SQInsert
+	DefaultValues() SQInsert
+}
+
+type SQSelect interface {
+	SQStatement
+
+	WithDistinct() SQSelect
+}
+
+type SQIndex interface {
+	SQStatement
+
+	IfNotExists() SQIndex
+	WithName(string) SQIndex
+	WithSchema(string) SQIndex
+	WithUnique() SQIndex
+}
+
+type SQDrop interface {
+	SQStatement
+
+	IfExists() SQDrop
+	WithSchema(string) SQDrop
+}
+
+type SQColumn interface {
+	Primary() SQColumn
+	NotNull() SQColumn
+}
+
+type SQSource interface {
+	WithAlias(string) SQSource
 }

@@ -51,7 +51,7 @@ type Table struct {
 ////////////////////////////////////////////////////////////////////////////////
 
 // NewTable creates a new empty table to be imported
-func NewTable(fh io.ReadSeeker, db sqlite.Connection, name string) *Table {
+func NewTableXX(fh io.ReadSeeker, db sqlite.Connection, name string) *Table {
 	this := new(Table)
 	this.Name = strings.ToLower(name)
 	this.NoHeader = false

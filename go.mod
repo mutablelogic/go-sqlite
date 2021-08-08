@@ -10,4 +10,5 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.8
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/stretchr/testify v1.7.0 // indirect
+	golang.org/x/text v0.3.6 // indirect
 )

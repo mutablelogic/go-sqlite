@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/djthorpe/go-sqlite"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,6 +22,7 @@ type table struct {
 	sync.Mutex
 	url      *url.URL
 	r        io.ReadCloser
+	w        *writer
 	dec      *decoder
 	mimetype string
 	charset  string
@@ -28,14 +31,23 @@ type table struct {
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewTable(arg string) (*table, error) {
+func NewTable(arg string, writer *writer) (*table, error) {
 	this := new(table)
 
+	// Set the URL source
 	if url, err := url.Parse(arg); err != nil {
 		return nil, err
 	} else {
 		this.url = url
 	}
+
+	// Set the table name if not set
+	if writer.Name == "" {
+		writer.Name = this.Name()
+	}
+
+	// Set the writer
+	this.w = writer
 
 	return this, nil
 }
@@ -95,46 +107,45 @@ func (this *table) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// Read a row from the source data, returning nil if the row is to be skipped,
-// or an error if the row could not be read, or returns io.EOF on end of file.
-func (this *table) Read() (map[string]interface{}, error) {
+// Read a row from the source data and potentially insert into the table. On end
+// of data, returns io.EOF.
+func (this *table) Read(db sqlite.SQConnection) error {
 	this.Mutex.Lock()
 	defer this.Mutex.Unlock()
 
 	// Open the data source
 	if this.r == nil {
 		if r, mimetype, err := open(this.url); err != nil {
-			return nil, err
+			return err
 		} else {
 			this.r = r
 			this.mimetype = mimetype
 		}
 		// Skip row
-		return nil, nil
+		return nil
 	}
 
 	// Set the decoder
 	if this.dec == nil {
-		if dec, err := NewDecoder(this.r, this.mimetype); err != nil {
-			return nil, err
+		if dec, err := NewDecoder(this.r, this.w, this.mimetype); err != nil {
+			return err
 		} else {
 			this.dec = dec
 		}
 		// Skip row
-		return nil, nil
+		return nil
 	}
 
 	// Read the row
-	row, err := this.dec.Read()
-	if err != nil {
+	if err := this.dec.Read(); err != nil {
 		defer this.r.Close()
 		this.dec = nil
 		this.r = nil
-		return nil, err
+		return err
 	}
 
-	// Return the row
-	return row, nil
+	// Return sucess
+	return nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////

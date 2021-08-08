@@ -7,7 +7,9 @@ import (
 	"mime"
 	"strings"
 
-	"golang.org/x/text/encoding/charmap"
+	// Modules
+	sqlite "github.com/djthorpe/go-sqlite"
+	charmap "golang.org/x/text/encoding/charmap"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,13 +18,14 @@ import (
 type decoder struct {
 	cols   []string
 	csvd   *csv.Reader
-	reader func() (map[string]interface{}, error)
+	reader func() ([]sqlite.SQStatement, error)
+	writer *writer
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewDecoder(r io.Reader, mimetype string) (*decoder, error) {
+func NewDecoder(r io.Reader, w *writer, mimetype string) (*decoder, error) {
 	this := new(decoder)
 
 	// Parse mediatype
@@ -46,6 +49,9 @@ func NewDecoder(r io.Reader, mimetype string) (*decoder, error) {
 		return nil, fmt.Errorf("unsupported media type: %q", mediatype)
 	}
 
+	// Set writer
+	this.writer = w
+
 	// Return success
 	return this, nil
 }
@@ -53,25 +59,26 @@ func NewDecoder(r io.Reader, mimetype string) (*decoder, error) {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (this *decoder) Read() (map[string]interface{}, error) {
-	return this.reader()
+func (this *decoder) Read() error {
+	statements, err := this.reader()
+	if err != nil {
+		return err
+	}
+	return this.writer.Do(statements)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func (this *decoder) csv() (map[string]interface{}, error) {
+func (this *decoder) csv() ([]sqlite.SQStatement, error) {
 	if row, err := this.csvd.Read(); err != nil {
 		return nil, err
 	} else if this.cols == nil {
-		// TODO: Add columns to table
 		this.cols = row
-		return nil, nil
+		return this.writer.CreateTable(row), nil
 	} else {
-		// TODO: Zip row and columns
-		fmt.Println(row)
+		return this.writer.Insert(this.cols, row), nil
 	}
-	return nil, nil
 }
 
 func charsetReader(r io.Reader, charset string) (io.Reader, error) {

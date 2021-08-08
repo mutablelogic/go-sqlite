@@ -49,7 +49,14 @@ func main() {
 	// Read files
 	var result error
 	for _, arg := range flag.Args()[1:] {
-		table, err := NewTable(arg)
+		// Create a table writer
+		writer := NewWriter(db)
+		if *flagOverwrite {
+			writer.Overwrite = true
+		}
+
+		// Create a table reader
+		table, err := NewTable(arg, writer)
 		if err != nil {
 			result = multierror.Append(result, err)
 		}
@@ -66,15 +73,12 @@ func main() {
 
 func read(db sq.SQConnection, table *table) error {
 	for {
-		row, err := table.Read()
+		err := table.Read(db)
 		if err == io.EOF {
 			return nil
 		}
 		if err != nil {
 			return err
-		}
-		if row != nil {
-			fmt.Println("INSERT ROW=", row)
 		}
 	}
 }

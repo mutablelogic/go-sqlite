@@ -18,6 +18,7 @@ var (
 	flagOverwrite = flag.Bool("overwrite", false, "Overwrite existing tables")
 	flagSeparator = flag.String("separator", "", "Field separator")
 	flagComment   = flag.String("comment", "#", "Comment character")
+	flagScan      = flag.Bool("scan", true, "Adjust data types for columns")
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,7 +61,11 @@ func main() {
 		if err != nil {
 			result = multierror.Append(result, err)
 		}
+		// Read in data
 		if err := read(db, table); err != nil {
+			result = multierror.Append(result, err)
+		}
+		if err := scan(db, table); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
@@ -81,4 +86,9 @@ func read(db sq.SQConnection, table *table) error {
 			return err
 		}
 	}
+}
+
+func scan(db sq.SQConnection, table *table) error {
+	// TODO
+	return nil
 }

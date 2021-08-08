@@ -9,3 +9,4 @@
 go.sum
 .vscode
 .DS_Store
+build

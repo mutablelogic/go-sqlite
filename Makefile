@@ -3,21 +3,30 @@
 GO=go
 GOFLAGS = -ldflags "-s -w $(GOLDFLAGS)" 
 BUILDDIR = build
+TAGS = 
+COMMAND = $(wildcard cmd/*)
 
 # All targets
-all: test
+all: test commands
 
 # Rules for building
+.PHONY: commands $(COMMAND)
+commands: mkdir $(COMMAND)
+
+$(COMMAND): 
+	@echo "Building $(BUILDDIR)/$(COMMAND)"
+	@$(GO) build -o ${BUILDDIR}/$@ -tags "$(TAGS)" ${GOFLAGS} ./$@
+
 .PHONY: test
 test:
-	@PKG_CONFIG_PATH="$(PKG_CONFIG_PATH)" $(GO) test -tags "$(TAGS)" ./pkg/...
+	@$(GO) test -tags "$(TAGS)" ./pkg/...
 
 .PHONY: mkdir
 mkdir:
-	install -d $(BUILDDIR)
+	@install -d $(BUILDDIR)
 
 .PHONY: clean
 clean: 
-	rm -fr $(BUILDDIR)
+	@rm -fr $(BUILDDIR)
 	$(GO) mod tidy
 	$(GO) clean

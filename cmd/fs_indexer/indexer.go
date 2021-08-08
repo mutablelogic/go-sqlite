@@ -8,6 +8,7 @@
 
 package main
 
+/*
 import (
 	"path/filepath"
 
@@ -21,13 +22,13 @@ type Indexer struct {
 	sqobj sqlite.Objects
 }
 
-func NewIndexer(sqobj sqlite.Objects) *Indexer {
+func NewIndexer(sqobj sqlite.Objects) (*Indexer, error) {
 	this := new(Indexer)
 	this.sqobj = sqobj
 	if _, err := sqobj.RegisterStruct(&File{}); err != nil {
-		return nil
+		return nil, err
 	}
-	return this
+	return this, nil
 }
 
 func (this *Indexer) Do(file *File) (uint64, error) {
@@ -44,3 +45,27 @@ func (this *Indexer) Do(file *File) (uint64, error) {
 		}
 	}
 }
+
+// DetectMimeType attempts to read first 512 bytes of the
+// file
+func DetectMimeType(path string) (string, error) {
+	fh, err := os.Open(path)
+	if err != nil {
+		// File could not be opened, fail silently
+		return "", nil
+	}
+	defer fh.Close()
+
+	// Read 512 bytes
+	buf := make([]byte, 512)
+	if n, err := fh.Read(buf); err != nil && errors.Is(err, io.EOF) == false {
+		return "", err
+	} else if n > 0 {
+		return http.DetectContentType(buf), nil
+	} else {
+		// Cannot detect mimetype
+		return "", nil
+	}
+}
+
+*/

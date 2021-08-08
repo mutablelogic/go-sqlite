@@ -36,7 +36,7 @@ type Language interface {
 	NewUpdate(string, ...string) Update
 
 	// Select
-	NewSelect(Source) Select
+	NewSelect(Source, ...Expression) Select
 
 	// Return named data source
 	NewSource(name string) Source
@@ -49,6 +49,9 @@ type Language interface {
 	NotEquals(string, Expression) Expression
 	And(...Expression) Expression
 	Or(...Expression) Expression
+
+	// Grouping expressions
+	CountAll() Expression
 }
 
 // Source represents a simple table source (schema, name and table alias)
@@ -120,6 +123,7 @@ type Update interface {
 type Select interface {
 	Statement
 
+	As(...string) Select
 	Distinct() Select
 	Where(...Expression) Select
 	LimitOffset(uint, uint) Select

@@ -9,12 +9,12 @@
 package sqobj
 
 import (
-	"reflect"
-	// Frameworks
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
+	// Frameworks
 	gopi "github.com/djthorpe/gopi"
 	sq "github.com/djthorpe/sqlite"
 )
@@ -43,15 +43,20 @@ type sqobj struct {
 
 type sqclass struct {
 	name, pkgpath string
+	tablename     string
 	object        bool
 	columns       []sq.Column
+	keys          []string
 	conn          sq.Connection
+	lang          sq.Language
 	log           gopi.Logger
 
 	// Statements
 	insert  sq.InsertOrReplace
 	replace sq.InsertOrReplace
-	update  sq.Statement
+	update  sq.Update
+	delete  sq.Delete
+	count   sq.Select
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -111,7 +116,18 @@ func (this *sqobj) String() string {
 			classes = append(classes, strconv.Quote(sqclass.Name()))
 		}
 	}
-	return fmt.Sprintf("<sqobj>{ classes=[ %v ] }", strings.Join(classes, ","))
+	return fmt.Sprintf("<sqobj>{ classes=[ %v ] conn=%v }", strings.Join(classes, ","), this.conn)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PROPERTIES
+
+func (this *sqobj) Conn() sq.Connection {
+	return this.conn
+}
+
+func (this *sqobj) Lang() sq.Language {
+	return this.lang
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -121,26 +137,41 @@ func (this *sqobj) RegisterStruct(v interface{}) (sq.StructClass, error) {
 	this.log.Debug2("<sqobj.RegisterStruct>{ %T }", v)
 
 	var class *sqclass
-	if columns, err := this.ReflectStruct(v); err != nil {
+	if columns, err := this.reflectStruct(v); err != nil {
 		return nil, err
 	} else if len(columns) == 0 {
-		this.log.Warn("Struct without columns is unsupported")
-		return nil, sq.ErrUnsupportedType
+		return nil, fmt.Errorf("%w: Struct without columns is unsupported", sq.ErrUnsupportedType)
 	} else if name, pkgpath := this.reflectName(v); name == "" {
-		this.log.Warn("Struct without name is unsupported")
-		return nil, sq.ErrUnsupportedType
+		return nil, fmt.Errorf("%w: Anonymous Structs are unsupported", sq.ErrUnsupportedType)
 	} else if class = this.registeredClass(name, pkgpath); class != nil {
-		this.log.Warn("Duplicate registration for %v/%v", pkgpath, name)
-		return nil, gopi.ErrBadParameter
-	} else if class = this.NewClass(name, pkgpath, this.reflectStructObjectField(v, "RowId") != nil, columns); class == nil {
-		return nil, gopi.ErrBadParameter
-	} else if this.isExistingTable(class.Name()) == false {
+		return nil, fmt.Errorf("%w: Duplicate registration for %v/%v", gopi.ErrBadParameter, pkgpath, name)
+	} else if tablename, err := this.reflectTableName(v); err != nil {
+		return nil, fmt.Errorf("%w: Error for TableName method", err)
+	} else if class = this.NewClass(name, pkgpath, tablename, reflectStructObjectField(reflect.ValueOf(v)) != nil, columns); class == nil {
+		return nil, fmt.Errorf("%w: NewClass failed", gopi.ErrBadParameter)
+	} else if this.isExistingTable(class.TableName()) == false {
 		if this.create == false {
-			return nil, sq.ErrNotFound
-		} else if st := this.lang.NewCreateTable(class.Name(), columns...); st == nil {
+			return nil, fmt.Errorf("%w: Table %v does not exist", sq.ErrNotFound, strconv.Quote(class.TableName()))
+		} else if st := this.lang.NewCreateTable(class.TableName(), columns...); st == nil {
 			return nil, gopi.ErrBadParameter
 		} else if _, err := this.conn.Do(st.IfNotExists()); err != nil {
-			return nil, fmt.Errorf("%v (table %v)", err, strconv.Quote(class.Name()))
+			return nil, fmt.Errorf("%w: Table %v execution error", err, strconv.Quote(class.TableName()))
+		}
+	} else if table_cols, err := this.conn.ColumnsForTable(class.TableName(), ""); err != nil {
+		return nil, fmt.Errorf("%w: ColumnsForTable failed", err)
+	} else {
+		// Make a map of table columns for quick referencing
+		table_col_map := make(map[string]sq.Column, len(table_cols))
+		for _, table_col := range table_cols {
+			table_col_map[table_col.Name()] = table_col
+		}
+		// Ensure the table includes columns
+		for _, col := range class.ColumnNames() {
+			if table_col, exists := table_col_map[col]; exists == false {
+				return nil, fmt.Errorf("%w: Unsupported table %v, column %v does not exist", sq.ErrUnsupportedType, strconv.Quote(class.TableName()), strconv.Quote(col))
+			} else if class.DeclTypeForColumn(col) != table_col.DeclType() {
+				return nil, fmt.Errorf("%w: Type mismatch for column %v on table %v", sq.ErrUnsupportedType, strconv.Quote(col), strconv.Quote(class.TableName()))
+			}
 		}
 	}
 
@@ -154,87 +185,149 @@ func (this *sqobj) RegisterStruct(v interface{}) (sq.StructClass, error) {
 	return class, nil
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// INSERT, REPLACE, UPDATE
+func (this *sqobj) ClassFor(v interface{}) sq.Class {
+	if name, pkgpath := this.reflectName(v); name == "" {
+		return nil
+	} else if class := this.registeredClass(name, pkgpath); class == nil {
+		return nil
+	} else {
+		return class
+	}
+}
 
-// Insert or replace structs, rollback on error
+////////////////////////////////////////////////////////////////////////////////
+// WRITE FUNCTION
+
 func (this *sqobj) Write(flags sq.Flag, v ...interface{}) (uint64, error) {
 	this.log.Debug2("<sqobj.Write>{ flags=%v num_objects=%v }", flags, len(v))
+
 	// Check for v
 	if len(v) == 0 {
-		return 0, gopi.ErrBadParameter
+		return 0, fmt.Errorf("%w: No objects to write", gopi.ErrBadParameter)
 	}
-
-	// Check to ensure every object is the same name and pkgpath
-	var class *sqclass
-	for _, value := range v {
-		if name, pkgpath := this.reflectName(value); name == "" {
-			this.log.Warn("Insert: No struct name")
-			return 0, gopi.ErrBadParameter
-		} else if class_ := this.registeredClass(name, pkgpath); class_ == nil {
-			this.log.Warn("Insert: No registered class for %v (in path %v)", name, strconv.Quote(pkgpath))
-			return 0, gopi.ErrBadParameter
-		} else if class != nil && class_ != class {
-			this.log.Warn("Insert: Mixed argument types for %v (in path %v)", name, strconv.Quote(pkgpath))
-			return 0, gopi.ErrBadParameter
-		} else {
-			class = class_
-		}
+	// Check operation
+	if flags&sq.FLAG_OP_MASK == sq.FLAG_NONE {
+		return 0, fmt.Errorf("%w: Invalid flag parameter", gopi.ErrBadParameter)
 	}
-
-	// Perform the action in a transaction, each object's
-	affected_rows := uint64(0)
-	if err := this.conn.Txn(func(txn sq.Transaction) error {
-		for _, v_ := range v {
-			if args := class.BoundArgs(v_); args == nil {
-				return gopi.ErrAppError
-			} else if st := class.statement(flags); st == nil {
-				return sq.ErrUnsupportedType
-			} else if r, err := txn.Do(st, class.BoundArgs(v_)...); err != nil {
-				return err
-			} else if class.object && reflect.ValueOf(v_).Kind() == reflect.Ptr {
-				if field := this.reflectStructObjectField(v_, "RowId"); field != nil {
-					field.SetInt(r.LastInsertId)
-				}
-				affected_rows += r.RowsAffected
-			} else {
-				affected_rows += r.RowsAffected
-			}
-		}
-		// Success
-		return nil
-	}); err != nil {
-		return affected_rows, err
+	// Make an array of classes for the objects
+	if classes, err := this.classesFor(v); err != nil {
+		return 0, err
 	} else {
-		return affected_rows, nil
+		// Perform the operation within a transaction
+		total_affected_rows := uint64(0)
+		if err := this.conn.Txn(func(txn sq.Transaction) error {
+			for i, v_ := range v {
+				if class := classes[i]; class == nil {
+					return gopi.ErrAppError
+				} else if r, err := class.op_write(txn, flags, v_); err != nil {
+					return err
+				} else {
+					total_affected_rows += r.RowsAffected
+				}
+			}
+			// Success
+			return nil
+		}); err != nil {
+			return 0, err
+		}
+		// Return success
+		return total_affected_rows, nil
 	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // DELETE
 
-func (this *sqobj) Delete(...interface{}) (uint64, error) {
-	return 0, gopi.ErrNotImplemented
+func (this *sqobj) Delete(v ...interface{}) (uint64, error) {
+	this.log.Debug2("<sqobj.Delete>{ num_objects=%v }", len(v))
+	// Check for v
+	if len(v) == 0 {
+		return 0, fmt.Errorf("%w: No objects to delete", gopi.ErrBadParameter)
+	}
+	// Make an array of classes for the objects
+	if classes, err := this.classesFor(v); err != nil {
+		return 0, err
+	} else {
+		// Perform the operation within a transaction
+		total_affected_rows := uint64(0)
+		if err := this.conn.Txn(func(txn sq.Transaction) error {
+			for i, v_ := range v {
+				if class := classes[i]; class == nil {
+					return gopi.ErrAppError
+				} else if r, err := class.op_delete(txn, v_); err != nil {
+					return err
+				} else {
+					total_affected_rows += r.RowsAffected
+				}
+			}
+			// Success
+			return nil
+		}); err != nil {
+			return 0, err
+		}
+		// Return success
+		return total_affected_rows, nil
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
+// COUNT
 
-func (this *sqobj) isExistingTable(name string) bool {
-	for _, table := range this.conn.Tables() {
-		if table == name {
-			return true
-		}
+func (this *sqobj) Count(class sq.Class) (uint64, error) {
+	this.log.Debug2("<sqobj.Count>{ class=%v }", class)
+	if class == nil {
+		return 0, gopi.ErrBadParameter
+	} else if class_, ok := class.(*sqclass); ok == false {
+		return 0, gopi.ErrBadParameter
+	} else if rows, err := class_.op_count(this.conn); err != nil {
+		return 0, err
+	} else if row := rows.Next(); rows == nil {
+		return 0, gopi.ErrAppError
+	} else if len(row) != 1 {
+		return 0, gopi.ErrAppError
+	} else {
+		return uint64(row[0].Int()), nil
 	}
-	return false
 }
 
-func (this *sqobj) registeredClass(name, pkgpath string) *sqclass {
-	if classes, exists := this.class[pkgpath]; exists == false {
-		return nil
-	} else if class, exists := classes[name]; exists == false {
-		return nil
+////////////////////////////////////////////////////////////////////////////////
+// READ
+
+// Read objects from the database in primary key order, with limit
+func (this *sqobj) Read(v interface{}, limit uint) (uint64, error) {
+	if name, pkgpath := reflectArrayName(v); name == "" || pkgpath == "" {
+		return 0, fmt.Errorf("%w: Invalid argument to Read", gopi.ErrBadParameter)
+	} else if class := this.registeredClass(name, pkgpath); class == nil {
+		return 0, fmt.Errorf("%w: Invalid argument to Read", gopi.ErrBadParameter)
+	} else if cap := reflectArrayCapacity(v); cap == 0 || uint(cap) < limit {
+		return 0, fmt.Errorf("%w: Capacity of slice is less than limit parameter", gopi.ErrBadParameter)
 	} else {
-		return class
+		if limit == 0 {
+			// set limit to capacity
+			limit = uint(cap)
+		}
+		// set length to limit
+		if err := reflectArraySetLength(v, int(limit)); err != nil {
+			return 0, err
+		}
+		// run the query
+		if rows, err := class.op_read(this.conn, limit, 0); err != nil {
+			return 0, err
+		} else {
+			affected_rows := uint64(0)
+			for {
+				if row := rows.Next(); row == nil {
+					break
+				} else {
+					fmt.Println("TODO SCAN", row)
+					affected_rows += 1
+				}
+			}
+			if err := reflectArraySetLength(v, int(affected_rows)); err != nil {
+				return 0, err
+			} else {
+				return affected_rows, nil
+			}
+		}
 	}
 }

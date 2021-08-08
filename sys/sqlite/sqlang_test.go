@@ -636,3 +636,42 @@ func Test_Update_015(t *testing.T) {
 
 	}
 }
+
+func Test_Select_016(t *testing.T) {
+	obj, err := gopi.Open(sqlite.Language{}, nil)
+	if err != nil {
+		t.Error(err)
+	}
+	lang := obj.(sq.Language)
+
+	// Basic query
+	s := lang.NewSelect(lang.NewSource("test"))
+	if s.Query() != "SELECT * FROM test" {
+		t.Error("Unexpected query returned:", s.Query())
+	}
+
+	// Get 1
+	s = lang.NewSelect(lang.NewSource("test"), lang.Value(1))
+	if s.Query() != "SELECT 1 FROM test" {
+		t.Error("Unexpected query returned:", s.Query())
+	}
+
+	// Get 1,2
+	s = lang.NewSelect(lang.NewSource("test"), lang.Value(1), lang.Value("a"))
+	if s.Query() != "SELECT 1,\"a\" FROM test" {
+		t.Error("Unexpected query returned:", s.Query())
+	}
+
+	// Get 1 AS a
+	s = lang.NewSelect(lang.NewSource("test"), lang.Value(1)).As("a")
+	if s.Query() != "SELECT 1 AS a FROM test" {
+		t.Error("Unexpected query returned:", s.Query())
+	}
+
+	// COUNT(*) AS count
+	s = lang.NewSelect(lang.NewSource("test"), lang.CountAll()).As("count")
+	if s.Query() != "SELECT COUNT(*) AS count FROM test" {
+		t.Error("Unexpected query returned:", s.Query())
+	}
+
+}

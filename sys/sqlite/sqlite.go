@@ -222,7 +222,7 @@ func (this *sqlite) ColumnsForTable(name, schema string) ([]sq.Column, error) {
 	if schema != "" {
 		query = "PRAGMA " + sq.QuoteIdentifier(schema) + "." + query
 	} else {
-		query = "PRAGMA" + query
+		query = "PRAGMA " + query
 	}
 	if rows, err := this.QueryOnce(query); err != nil {
 		return nil, err

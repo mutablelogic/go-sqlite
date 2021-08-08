@@ -38,13 +38,13 @@ const (
 ////////////////////////////////////////////////////////////////////////////////
 // REFLECT IMPLEMENTATION
 
-func (this *sqobj) ReflectStruct(v interface{}) ([]sq.Column, error) {
+func (this *sqobj) reflectStruct(v interface{}) ([]sq.Column, error) {
 	// Dereference the pointer
 	v_ := reflect.ValueOf(v)
 	for v_.Kind() == reflect.Ptr {
 		v_ = v_.Elem()
 	}
-	// If not a stuct then return
+	// If not a struct then return
 	if v_.Kind() != reflect.Struct {
 		return nil, gopi.ErrBadParameter
 	}
@@ -62,21 +62,117 @@ func (this *sqobj) ReflectStruct(v interface{}) ([]sq.Column, error) {
 	return columns, nil
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-func (this *sqobj) reflectStructObjectField(v interface{}, field string) *reflect.Value {
+// reflectTableName returns the table name of the struct, either by
+// calling the static TableName function or using the struct name
+func (this *sqobj) reflectTableName(v interface{}) (string, error) {
 	// Dereference the pointer
 	v_ := reflect.ValueOf(v)
 	for v_.Kind() == reflect.Ptr {
 		v_ = v_.Elem()
 	}
-	// If not a stuct then return
+	// If not a struct then return
 	if v_.Kind() != reflect.Struct {
+		return "", gopi.ErrBadParameter
+	}
+	// Attempt to call TableName static method
+	if f := v_.MethodByName("TableName"); f.IsValid() {
+		if args := f.Call([]reflect.Value{}); len(args) == 1 && args[0].Kind() == reflect.String {
+			return args[0].String(), nil
+		} else {
+			return "", gopi.ErrBadParameter
+		}
+	}
+
+	// TableName method not defined, so return the struct name
+	return v_.Type().Name(), nil
+}
+
+// reflectName returns the name of the struct and the pkgname
+func (this *sqobj) reflectName(v interface{}) (string, string) {
+	// Dereference the pointer
+	v_ := reflect.ValueOf(v)
+	for v_.Kind() == reflect.Ptr {
+		v_ = v_.Elem()
+	}
+	// If not a struct then return
+	if v_.Kind() != reflect.Struct {
+		return "", ""
+	}
+	// Get type name and package path
+	if v_.Type() == nil {
+		return "", ""
+	} else {
+		return v_.Type().Name(), v_.Type().PkgPath()
+	}
+}
+
+// reflectArrayName returns the name of the struct and the pkgname
+// for an array
+func reflectArrayName(v interface{}) (string, string) {
+	// Dereference the pointer
+	v_ := reflect.ValueOf(v)
+	for v_.Kind() == reflect.Ptr {
+		v_ = v_.Elem()
+	}
+	// If not an array then return
+	if v_.Kind() != reflect.Slice {
+		return "", ""
+	}
+	// If element of slice is not struct then return
+	if v_.Type().Elem().Kind() != reflect.Struct {
+		return "", ""
+	}
+	// Get type name and package path
+	if v_.Type().Elem() == nil {
+		return "", ""
+	} else {
+		return v_.Type().Elem().Name(), v_.Type().Elem().PkgPath()
+	}
+}
+
+func reflectArrayCapacity(v interface{}) int {
+	// Dereference the pointer
+	v_ := reflect.ValueOf(v)
+	for v_.Kind() == reflect.Ptr {
+		v_ = v_.Elem()
+	}
+	// If not an array then return
+	if v_.Kind() != reflect.Slice {
+		return -1
+	}
+	// Return capacity
+	return v_.Cap()
+}
+
+func reflectArraySetLength(v interface{}, len int) error {
+	// Dereference the pointer
+	v_ := reflect.ValueOf(v)
+	for v_.Kind() == reflect.Ptr {
+		v_ = v_.Elem()
+	}
+	// If not an array then return
+	if v_.Kind() != reflect.Slice || v_.CanSet() == false || len < 0 || v_.Cap() < len {
+		return gopi.ErrBadParameter
+	}
+	// Set length
+	v_.SetLen(len)
+	// Success
+	return nil
+}
+
+// reflectStructObjectField returns the RowId field from a struct
+// as a pointer, or nil otherwise
+func reflectStructObjectField(v reflect.Value) *reflect.Value {
+	// Dereference the pointer
+	for v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+	// If not a stuct then return
+	if v.Kind() != reflect.Struct {
 		return nil
 	}
 	// Get field called 'Object'
-	if f := v_.FieldByName("Object"); f.IsValid() == false {
+	if f := v.FieldByName("Object"); f.IsValid() == false {
 		return nil
 	} else if f.Type().PkgPath() != SQLITE_PKGPATH {
 		return nil
@@ -84,18 +180,6 @@ func (this *sqobj) reflectStructObjectField(v interface{}, field string) *reflec
 		return nil
 	} else {
 		return &f
-	}
-}
-
-func (this *sqobj) reflectName(v interface{}) (string, string) {
-	v_ := reflect.ValueOf(v)
-	for v_.Kind() == reflect.Ptr {
-		v_ = v_.Elem()
-	}
-	if v_.Type() == nil {
-		return "", ""
-	} else {
-		return v_.Type().Name(), v_.Type().PkgPath()
 	}
 }
 

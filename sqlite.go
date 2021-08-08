@@ -42,6 +42,9 @@ type SQLanguage interface {
 	// Q creates a statement from a string
 	Q(string) SQStatement
 
+	// Select creates a SELECT statement from one or more sources
+	Select(sources ...SQSource) SQSelect
+
 	// CreateTable creates a table with name and specified columns
 	CreateTable(string, ...SQColumn) SQTable
 
@@ -68,6 +71,9 @@ type SQLanguage interface {
 
 	// Replace values into a table with a name and defined column names
 	Replace(string, ...string) SQInsert
+
+	// Create a table source
+	TableSource(string) SQSource
 }
 
 // SQTransaction is an sqlite transaction
@@ -128,6 +134,7 @@ type SQSelect interface {
 	SQStatement
 
 	WithDistinct() SQSelect
+	WithLimitOffset(limit, offset uint) SQSelect
 }
 
 type SQIndex interface {

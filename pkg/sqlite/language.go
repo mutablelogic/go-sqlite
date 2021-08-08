@@ -20,11 +20,7 @@ type query struct {
 type tablename struct {
 	name   string
 	schema string
-}
-
-type source struct {
-	sqlite.SQStatement
-	alias string
+	alias  string
 }
 
 type column struct {
@@ -68,7 +64,7 @@ type insert struct {
 }
 
 type sel struct {
-	source        []source
+	source        []sqlite.SQSource
 	distinct      bool
 	offset, limit uint
 }
@@ -84,14 +80,14 @@ func (language) Q(v string) sqlite.SQStatement {
 // Create a new table with name and defined columns
 func (language) CreateTable(name string, columns ...sqlite.SQColumn) sqlite.SQTable {
 	return &createtable{
-		tablename{name, ""}, false, false, false, nil, nil, columns,
+		tablename{name, "", ""}, false, false, false, nil, nil, columns,
 	}
 }
 
 // Create a new index with a source table name and defined column names
 func (language) CreateIndex(name string, columns ...string) sqlite.SQIndex {
 	return &createindex{
-		tablename{"", ""}, name, false, false, columns,
+		tablename{"", "", ""}, name, false, false, columns,
 	}
 }
 
@@ -104,48 +100,42 @@ func (language) Column(name, decltype string) sqlite.SQColumn {
 
 // Drop a table with a name
 func (language) DropTable(name string) sqlite.SQDrop {
-	return &drop{tablename{name, ""}, "TABLE", false}
+	return &drop{tablename{name, "", ""}, "TABLE", false}
 }
 
 // Drop an index with a name
 func (language) DropIndex(name string) sqlite.SQDrop {
-	return &drop{tablename{name, ""}, "INDEX", false}
+	return &drop{tablename{name, "", ""}, "INDEX", false}
 }
 
 // Drop a trigger with a name
 func (language) DropTrigger(name string) sqlite.SQDrop {
-	return &drop{tablename{name, ""}, "TRIGGER", false}
+	return &drop{tablename{name, "", ""}, "TRIGGER", false}
 }
 
 // Drop a view with a name
 func (language) DropView(name string) sqlite.SQDrop {
-	return &drop{tablename{name, ""}, "VIEW", false}
+	return &drop{tablename{name, "", ""}, "VIEW", false}
 }
 
 // Insert values into a table with a name and defined column names
 func (language) Insert(name string, columns ...string) sqlite.SQInsert {
-	return &insert{tablename{name, ""}, "INSERT", false, columns}
+	return &insert{tablename{name, "", ""}, "INSERT", false, columns}
 }
 
 // Replace values into a table with a name and defined column names
 func (language) Replace(name string, columns ...string) sqlite.SQInsert {
-	return &insert{tablename{name, ""}, "REPLACE", false, columns}
+	return &insert{tablename{name, "", ""}, "REPLACE", false, columns}
 }
 
-/*
 // Select data from source tables, expressions or select statements
 func (this *language) Select(sources ...sqlite.SQSource) sqlite.SQSelect {
-	if len(source) == 0 {
-		return nil
-	} else {
-		return &sel{sources, false, 0, 0}
-	}
+	return &sel{sources, false, 0, 0}
 }
 
-func (this *language) Source(st sqlite.SQStatement) sqlite.SQSource {
-	return &source{st, ""}
+func (this *language) TableSource(name string) sqlite.SQSource {
+	return &tablename{name, "", ""}
 }
-*/
 
 ///////////////////////////////////////////////////////////////////////////////
 // ARBITARY QUERY
@@ -162,9 +152,45 @@ func (this *sel) WithDistinct() sqlite.SQSelect {
 	return this
 }
 
+func (this *sel) WithLimitOffset(limit, offset uint) sqlite.SQSelect {
+	this.offset, this.limit = offset, limit
+	return this
+}
+
 func (this *sel) Query() string {
-	// TODO
-	return ""
+	tokens := []string{"SELECT"}
+
+	// Add distinct keyword
+	if this.distinct {
+		tokens = append(tokens, "DISTINCT")
+	}
+
+	// TODO: Add column expressions
+	tokens = append(tokens, "*")
+
+	// Add sources using a cross join
+	if len(this.source) > 0 {
+		token := "FROM "
+		for i, source := range this.source {
+			if i > 0 {
+				token += ","
+			}
+			token += fmt.Sprint(source)
+		}
+		tokens = append(tokens, token)
+	}
+
+	// Add offset and limit
+	if this.limit == 0 && this.offset > 0 {
+		tokens = append(tokens, "OFFSET", fmt.Sprint(this.offset))
+	} else if this.limit > 0 && this.offset == 0 {
+		tokens = append(tokens, "LIMIT", fmt.Sprint(this.limit))
+	} else if this.limit > 0 && this.offset > 0 {
+		tokens = append(tokens, "LIMIT", fmt.Sprint(this.limit)+","+fmt.Sprint(this.offset))
+	}
+
+	// Return the query
+	return strings.Join(tokens, " ")
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -307,11 +333,24 @@ func (this *tablename) WithSchema(schema string) {
 	this.schema = strings.TrimSpace(schema)
 }
 
+func (this *tablename) WithAlias(alias string) sqlite.SQSource {
+	this.alias = strings.TrimSpace(alias)
+	return this
+}
+
 func (this *tablename) Query() string {
 	if this.schema != "" {
 		return QuoteIdentifier(this.schema) + "." + QuoteIdentifier(this.name)
 	} else {
 		return QuoteIdentifier(this.name)
+	}
+}
+
+func (this *tablename) String() string {
+	if this.alias != "" {
+		return this.Query() + " AS " + QuoteIdentifier(this.alias)
+	} else {
+		return this.Query()
 	}
 }
 

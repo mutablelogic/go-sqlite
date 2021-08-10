@@ -63,3 +63,16 @@ func Test_Util_004(t *testing.T) {
 		}
 	}
 }
+func Test_Util_005(t *testing.T) {
+	var tests = []struct{ from, to string }{
+		{"", `''`},
+		{"test", `'test'`},
+		{"test\"", `'test"'`},
+		{"'test'", `'''test'''`},
+	}
+	for i, test := range tests {
+		if sq.Quote(test.from) != test.to {
+			t.Errorf("%d: Expected %s, got %s", i, test.to, sq.Quote(test.from))
+		}
+	}
+}

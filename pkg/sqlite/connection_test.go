@@ -49,14 +49,14 @@ func Test_Conn_004(t *testing.T) {
 	} else if r.RowsAffected != 1 {
 		t.Errorf("Unexpected RowsAffected, %d", r.RowsAffected)
 	}
-	if r, err := db.Exec(db.Insert("foo")); err != nil {
+	if r, err := db.Exec(db.N("foo").Insert()); err != nil {
 		t.Error(err)
 	} else if r.LastInsertId != 2 {
 		t.Errorf("Unexpected LastInsertId, %d", r.LastInsertId)
 	} else if r.RowsAffected != 1 {
 		t.Errorf("Unexpected RowsAffected, %d", r.RowsAffected)
 	}
-	if r, err := db.Exec(db.Insert("foo", "id", "name"), 10, "name"); err != nil {
+	if r, err := db.Exec(db.N("foo").Insert("id", "name"), 10, "name"); err != nil {
 		t.Error(err)
 	} else if r.LastInsertId != 10 {
 		t.Errorf("Unexpected LastInsertId, %d", r.LastInsertId)

@@ -30,7 +30,7 @@ type SQConnection interface {
 	// Detach database by schema name
 	Detach(string) error
 
-	// Create transaction block
+	// Create transaction block, rollback on error
 	Do(func(SQTransaction) error) error
 
 	// Close
@@ -39,41 +39,20 @@ type SQConnection interface {
 
 // SQLanguage defines the interface for SQLite language
 type SQLanguage interface {
-	// Q creates a statement from a string
-	Q(string) SQStatement
+	// Q creates an statement which can be used in Exec or Query
+	Q(interface{}) SQStatement
 
-	// Select creates a SELECT statement from one or more sources
-	Select(sources ...SQSource) SQSelect
+	// N creates a name (table or column name)
+	N(string) SQName
 
-	// CreateTable creates a table with name and specified columns
-	CreateTable(string, ...SQColumn) SQTable
+	// P creates a bound parameter
+	P() SQExpr
 
-	// CreateIndex with a source table name and defined column names
-	CreateIndex(string, ...string) SQIndex
+	// V creates a value
+	V(interface{}) SQExpr
 
-	// Column with name and declared type
-	Column(string, string) SQColumn
-
-	// DropTable with name
-	DropTable(string) SQDrop
-
-	// DropIndex with name
-	DropIndex(string) SQDrop
-
-	// DropTrigger with name
-	DropTrigger(string) SQDrop
-
-	// DropView with name
-	DropView(string) SQDrop
-
-	// Insert values into a table with a name and defined column names
-	Insert(string, ...string) SQInsert
-
-	// Replace values into a table with a name and defined column names
-	Replace(string, ...string) SQInsert
-
-	// Create a table source
-	TableSource(string) SQSource
+	// S selects data from one or more data sources
+	S(...SQName) SQSelect
 }
 
 // SQTransaction is an sqlite transaction
@@ -111,53 +90,108 @@ type SQStatement interface {
 	Query() string
 }
 
+// SQName defines a table or column name
+type SQName interface {
+	SQStatement
+	SQExpr
+
+	// Modify the source
+	WithSchema(string) SQName
+	WithType(string) SQColumn
+	WithAlias(string) SQName
+
+	// Insert or replace a row with named columns
+	Insert(...string) SQInsert
+	Replace(...string) SQInsert
+
+	// Create objects
+	CreateTable(...SQColumn) SQTable
+	CreateView(SQSelect, ...string) SQIndexView
+	//CreateIndex(SQName, ...SQColumn) SQIndexView
+
+	// Drop objects
+	DropTable() SQDrop
+	DropIndex() SQDrop
+	DropTrigger() SQDrop
+	DropView() SQDrop
+}
+
 // SQTable defines a table of columns and indexes
 type SQTable interface {
 	SQStatement
 
 	IfNotExists() SQTable
-	WithSchema(string) SQTable
 	WithTemporary() SQTable
 	WithoutRowID() SQTable
 	WithIndex(...string) SQTable
 	WithUnique(...string) SQTable
 }
 
-type SQInsert interface {
+// SQIndexView defines a create index or view statement
+type SQIndexView interface {
 	SQStatement
 
-	WithSchema(string) SQInsert
-	DefaultValues() SQInsert
+	IfNotExists() SQIndexView
+	WithTemporary() SQIndexView
+	WithUnique() SQIndexView
 }
 
-type SQSelect interface {
-	SQStatement
-
-	WithDistinct() SQSelect
-	WithLimitOffset(limit, offset uint) SQSelect
-}
-
-type SQIndex interface {
-	SQStatement
-
-	IfNotExists() SQIndex
-	WithName(string) SQIndex
-	WithSchema(string) SQIndex
-	WithUnique() SQIndex
-}
-
+// SQDrop defines a drop for tables, views, indexes, and triggers
 type SQDrop interface {
 	SQStatement
 
 	IfExists() SQDrop
-	WithSchema(string) SQDrop
 }
 
+// SQInsert defines an insert or replace statement
+type SQInsert interface {
+	SQStatement
+
+	DefaultValues() SQInsert
+}
+
+// SQSelect defines a select statement
+type SQSelect interface {
+	SQStatement
+
+	// Set select flags
+	WithDistinct() SQSelect
+	WithLimitOffset(limit, offset uint) SQSelect
+	Where(...interface{}) SQSelect
+}
+
+// SQAlter defines an alter table statement
+type SQAlter interface {
+	SQStatement
+
+	WithSchema(string) SQAlter
+}
+
+// SQColumn represents a column definition
 type SQColumn interface {
 	Primary() SQColumn
 	NotNull() SQColumn
 }
 
-type SQSource interface {
-	WithAlias(string) SQSource
+// SQExpr defines any expression
+type SQExpr interface {
+	SQStatement
+
+	// Comparison expression with one or more right hand side expressions
+	Is(SQExpr, ...SQExpr) SQComparison
 }
+
+// SQComparison defines a comparison between two expressions
+type SQComparison interface {
+	SQStatement
+
+	// Negate the comparison
+	Not() SQComparison
+}
+
+/*
+	Gt() SQComparison
+	GtEq() SQComparison
+	Lt() SQComparison
+	LtEq() SQComparison
+*/

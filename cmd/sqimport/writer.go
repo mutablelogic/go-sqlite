@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/djthorpe/go-sqlite"
 )
 
@@ -30,7 +32,20 @@ func NewWriter(db sqlite.SQConnection) *writer {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// METHODS
+// STRINGIFY
+
+func (this *writer) String() string {
+	str := "<writer"
+	str += fmt.Sprint(" db=", this.SQConnection)
+	if this.Name != "" {
+		str += fmt.Sprintf(" name=%q", this.Name)
+	}
+	str += fmt.Sprint(" overwrite=", this.Overwrite)
+	return str + ">"
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
 
 func (this *writer) CreateTable(cols []string) []sqlite.SQStatement {
 	result := []sqlite.SQStatement{}
@@ -57,6 +72,10 @@ func (this *writer) Insert(cols, rows []string) []sqlite.SQStatement {
 	return []sqlite.SQStatement{
 		&row{this.SQConnection.Insert(this.Name, cols...), rows},
 	}
+}
+
+func (this *writer) Select() (sqlite.SQRows, error) {
+	return this.SQConnection.Query(this.SQConnection.Select(this.SQConnection.TableSource(this.Name)))
 }
 
 func (this *writer) Do(st []sqlite.SQStatement) error {

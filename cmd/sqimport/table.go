@@ -148,6 +148,28 @@ func (this *table) Read(db sqlite.SQConnection) error {
 	return nil
 }
 
+// Scan all table rows
+func (this *table) Scan(db sqlite.SQConnection) error {
+	this.Mutex.Lock()
+	defer this.Mutex.Unlock()
+
+	rs, err := this.w.Select()
+	if err != nil {
+		return err
+	}
+	defer rs.Close()
+	for {
+		row := rs.NextMap()
+		if row == nil {
+			break
+		}
+		fmt.Println(row)
+	}
+
+	// Return sucess
+	return nil
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 

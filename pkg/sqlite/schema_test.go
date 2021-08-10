@@ -30,8 +30,9 @@ func Test_Schema_002(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := db.Exec(db.CreateTable("foo", db.Column("a", "TEXT"))); err != nil {
-		t.Fatal(err)
+	st := db.N("foo").CreateTable(db.N("a").WithType("TEXT"))
+	if _, err := db.Exec(st); err != nil {
+		t.Fatalf("%q: %v", st.Query(), err)
 	}
 	tables := db.Tables()
 	if tables == nil {

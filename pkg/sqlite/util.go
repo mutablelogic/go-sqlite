@@ -53,6 +53,24 @@ func DoubleQuote(value string) string {
 	return "\"" + value + "\""
 }
 
+// Quote puts single quotes around a string and escapes existing single quotes
+func Quote(value string) string {
+	// Change ' into ''
+	if strings.Contains(value, "'") {
+		value = strings.Replace(value, "'", "''", -1)
+	}
+	return "'" + value + "'"
+}
+
+// QuoteDeclType returns a supported type or quotes type
+func QuoteDeclType(value string) string {
+	if isReservedType(value) {
+		return value
+	} else {
+		return DoubleQuote(value)
+	}
+}
+
 // QuoteIdentifier returns a safe version of an identifier
 func QuoteIdentifier(value string) string {
 	if isReservedWord(value) {

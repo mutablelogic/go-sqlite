@@ -18,11 +18,11 @@ func (this *connection) Schemas() []string {
 	// Collate the results
 	schemas := make([]string, 0, 1)
 	for {
-		if row := rs.NextMap(); row == nil {
+		row := rs.NextMap()
+		if row == nil {
 			break
-		} else {
-			schemas = append(schemas, row["name"].(string))
 		}
+		schemas = append(schemas, row["name"].(string))
 	}
 
 	// Return success
@@ -108,13 +108,12 @@ func (this *connection) ColumnsEx(name, schema string) []sqlite.SQColumn {
 		row := rs.NextMap()
 		if row == nil {
 			break
-		} else {
-			columns = append(columns, &column{
-				name:     row["name"].(string),
-				decltype: row["type"].(string),
-				nullable: row["notnull"].(int64) == 0,
-			})
 		}
+		col := this.N(row["name"].(string)).WithType(row["type"].(string))
+		if row["notnull"].(int64) != 0 {
+			col = col.NotNull()
+		}
+		columns = append(columns, col)
 	}
 	return columns
 }

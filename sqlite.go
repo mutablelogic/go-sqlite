@@ -96,6 +96,7 @@ type SQStatement interface {
 // SQSource defines a table or column name
 type SQSource interface {
 	SQStatement
+	SQExpr
 
 	// Modify the source
 	WithSchema(string) SQSource

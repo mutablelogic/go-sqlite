@@ -39,6 +39,13 @@ func (this *source) WithType(decltype string) sqlite.SQColumn {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// CONVERT TO EXPR
+
+func (this *source) Or(v interface{}) sqlite.SQExpr {
+	return &e{this, v, "OR"}
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
 func (this *source) String() string {

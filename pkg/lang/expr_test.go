@@ -28,11 +28,11 @@ func Test_Expr_000(t *testing.T) {
 
 	for _, test := range tests {
 		if v := fmt.Sprint(test.In); v != test.String {
-			t.Errorf("db.V = %v, wanted %v", v, test.String)
+			t.Errorf("Unexpected return from String(): %q, wanted %q", v, test.String)
 		}
 		if test.Query != "" {
 			if v := test.In.Query(); v != test.Query {
-				t.Errorf("db.V = %v, wanted %v", v, test.Query)
+				t.Errorf("Unexpected return from Query(): %q, wanted %q", v, test.Query)
 			}
 		}
 	}
@@ -53,11 +53,11 @@ func Test_Expr_001(t *testing.T) {
 
 	for _, test := range tests {
 		if v := fmt.Sprint(test.In); v != test.String {
-			t.Errorf("db.V = %q, wanted %q", v, test.String)
+			t.Errorf("Unexpected return from String(): %q, wanted %q", v, test.String)
 		}
 		if test.Query != "" {
 			if v := test.In.Query(); v != test.Query {
-				t.Errorf("db.V = %q, wanted %q", v, test.Query)
+				t.Errorf("Unexpected return from Query(): %q, wanted %q", v, test.Query)
 			}
 		}
 	}

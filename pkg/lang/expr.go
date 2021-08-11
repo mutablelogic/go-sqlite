@@ -2,6 +2,7 @@ package lang
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	// Modules
@@ -13,7 +14,7 @@ import (
 
 type e struct {
 	v  interface{}
-	r  []sqlite.SQExpr
+	r  interface{}
 	op string
 }
 
@@ -42,33 +43,63 @@ func V(v interface{}) sqlite.SQExpr {
 		return &e{v, nil, ""}
 	case time.Time:
 		return &e{v, nil, ""}
+	case sqlite.SQSource:
+		return &e{v, nil, ""}
 	}
 	// Unsupported value
-	return nil
+	panic(fmt.Sprintf("V unsupported value %q", v))
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // METHODS
 
-func (this *e) Or(r sqlite.SQExpr) sqlite.SQExpr {
-	return &e{this.v, []sqlite.SQExpr{r}, "OR"}
+func (this *e) Or(v interface{}) sqlite.SQExpr {
+	if v == nil {
+		return &e{this.v, nil, "OR"}
+	}
+	switch v.(type) {
+	case string:
+		return &e{this.v, v, "OR"}
+	case uint, int, int8, int16, int32, int64, uint8, uint16, uint32, uint64, float32, float64:
+		return &e{this.v, v, "OR"}
+	case bool:
+		return &e{this.v, v, "OR"}
+	case time.Time:
+		return &e{this.v, v, "OR"}
+	}
+	panic(fmt.Sprintf("V unsupported value %q", v))
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// EXPRESSION
+// STRINGIFY
 
 func (this *e) String() string {
 	if this == P {
 		return "?"
 	}
-	if this.v == nil {
+	if this.op == "" {
+		return lhs(this.v)
+	} else {
+		return lhs(this.v) + " " + rhs(this.op, this.r)
+	}
+}
+
+func (this *e) Query() string {
+	return "SELECT " + fmt.Sprint(this)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func lhs(v interface{}) string {
+	if v == nil {
 		return "NULL"
 	}
-	switch e := this.v.(type) {
+	switch e := v.(type) {
 	case string:
 		return sqlite.Quote(e)
 	case uint, int, int8, int16, int32, int64, uint8, uint16, uint32, uint64, float32, float64:
-		return fmt.Sprint(this.v)
+		return fmt.Sprint(v)
 	case bool:
 		if e {
 			return "TRUE"
@@ -82,10 +113,10 @@ func (this *e) String() string {
 			return sqlite.Quote(e.Format(time.RFC3339Nano))
 		}
 	default:
-		return sqlite.Quote(fmt.Sprint(this.v))
+		return sqlite.Quote(fmt.Sprint(v))
 	}
 }
 
-func (this *e) Query() string {
-	return fmt.Sprint("SELECT ", this)
+func rhs(op string, v interface{}) string {
+	return strings.Join([]string{op, lhs(v)}, " ")
 }

@@ -22,7 +22,3 @@ Presently the module is in development and the API is subject to change.
 ## Building statements programmatically
 
 ## Reading results into a struct, map or slice
-
-
-
-

@@ -32,26 +32,13 @@ const (
 // GLOBAL VARIABLES
 
 var (
-	reservedWords            = make(map[string]bool, 0)
-	reservedTypes            = make(map[string]bool, 0)
-	regexpBareIdentifier     = regexp.MustCompile("^[A-Za-z_][A-Za-z0-9_]*$")
-	regexpDatetimeDDMMYYYY   = regexp.MustCompile("^(\\d{2})(\\d{2})(\\d{4})$")
-	regexpDatetimeDD_MM_YYYY = regexp.MustCompile("^(\\d{2})\\/(\\d{2})\\/(\\d{4})$")
-	regexpDatetimeDDMMYY     = regexp.MustCompile("^(\\d{2})(\\d{2})(\\d{2})$")
-	regexpDatetimeDD_MM_YY   = regexp.MustCompile("^(\\d{2})\\/(\\d{2})\\/(\\d{2})$")
+	reservedWords        = make(map[string]bool, 0)
+	reservedTypes        = make(map[string]bool, 0)
+	regexpBareIdentifier = regexp.MustCompile("^[A-Za-z_][A-Za-z0-9_]*$")
 )
 
 /////////////////////////////////////////////////////////////////////
 // PUBLIC FUNCTIONS
-
-// DoubleQuote puts double quotes around a string and escapes existing double quotes
-func DoubleQuote(value string) string {
-	// Change " into ""
-	if strings.Contains(value, "\"") {
-		value = strings.Replace(value, "\"", "\"\"", -1)
-	}
-	return "\"" + value + "\""
-}
 
 // Quote puts single quotes around a string and escapes existing single quotes
 func Quote(value string) string {
@@ -60,6 +47,15 @@ func Quote(value string) string {
 		value = strings.Replace(value, "'", "''", -1)
 	}
 	return "'" + value + "'"
+}
+
+// DoubleQuote puts double quotes around a string and escapes existing double quotes
+func DoubleQuote(value string) string {
+	// Change " into ""
+	if strings.Contains(value, "\"") {
+		value = strings.Replace(value, "\"", "\"\"", -1)
+	}
+	return "\"" + value + "\""
 }
 
 // QuoteDeclType returns a supported type or quotes type

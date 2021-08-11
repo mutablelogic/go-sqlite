@@ -42,8 +42,11 @@ type SQLanguage interface {
 	// Q creates an statement which can be used in Exec or Query
 	Q(interface{}) SQStatement
 
-	// N creates a name (table or column name)
-	N(string) SQName
+	// N creates a table name
+	N(string) SQSource
+
+	// C creates a column name
+	C(string) SQColumn
 
 	// P creates a bound parameter
 	P() SQExpr
@@ -52,7 +55,7 @@ type SQLanguage interface {
 	V(interface{}) SQExpr
 
 	// S selects data from one or more data sources
-	S(...SQName) SQSelect
+	S(...SQSource) SQSelect
 }
 
 // SQTransaction is an sqlite transaction
@@ -90,30 +93,35 @@ type SQStatement interface {
 	Query() string
 }
 
-// SQName defines a table or column name
-type SQName interface {
+// SQSource defines a table or column name
+type SQSource interface {
 	SQStatement
-	SQExpr
 
 	// Modify the source
-	WithSchema(string) SQName
+	WithSchema(string) SQSource
 	WithType(string) SQColumn
-	WithAlias(string) SQName
+	WithAlias(string) SQSource
 
 	// Insert or replace a row with named columns
 	Insert(...string) SQInsert
 	Replace(...string) SQInsert
-
-	// Create objects
-	CreateTable(...SQColumn) SQTable
-	CreateView(SQSelect, ...string) SQIndexView
-	//CreateIndex(SQName, ...SQColumn) SQIndexView
 
 	// Drop objects
 	DropTable() SQDrop
 	DropIndex() SQDrop
 	DropTrigger() SQDrop
 	DropView() SQDrop
+
+	// Create objects
+	CreateTable(...SQColumn) SQTable
+
+	/*
+
+
+
+		CreateView(SQSelect, ...string) SQIndexView
+		//CreateIndex(SQName, ...SQColumn) SQIndexView
+	*/
 }
 
 // SQTable defines a table of columns and indexes
@@ -157,7 +165,7 @@ type SQSelect interface {
 	// Set select flags
 	WithDistinct() SQSelect
 	WithLimitOffset(limit, offset uint) SQSelect
-	Where(...interface{}) SQSelect
+	Where(...SQExpr) SQSelect
 }
 
 // SQAlter defines an alter table statement
@@ -169,6 +177,10 @@ type SQAlter interface {
 
 // SQColumn represents a column definition
 type SQColumn interface {
+	SQStatement
+
+	WithType(string) SQColumn
+	WithAlias(string) SQSource
 	Primary() SQColumn
 	NotNull() SQColumn
 }
@@ -177,8 +189,11 @@ type SQColumn interface {
 type SQExpr interface {
 	SQStatement
 
+	// And, Or, Not
+	Or(interface{}) SQExpr
+
 	// Comparison expression with one or more right hand side expressions
-	Is(SQExpr, ...SQExpr) SQComparison
+	//Is(SQExpr, ...SQExpr) SQComparison
 }
 
 // SQComparison defines a comparison between two expressions

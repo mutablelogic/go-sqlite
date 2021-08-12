@@ -43,7 +43,7 @@ func V(v interface{}) sqlite.SQExpr {
 		return &e{v, nil, ""}
 	case time.Time:
 		return &e{v, nil, ""}
-	case sqlite.SQSource:
+	case sqlite.SQSource, sqlite.SQStatement:
 		return &e{v, nil, ""}
 	}
 	// Unsupported value
@@ -54,6 +54,7 @@ func V(v interface{}) sqlite.SQExpr {
 // METHODS
 
 func (this *e) Or(v interface{}) sqlite.SQExpr {
+	// TODO: if this.r is not nil, then v is this
 	if v == nil {
 		return &e{this.v, nil, "OR"}
 	}
@@ -66,7 +67,10 @@ func (this *e) Or(v interface{}) sqlite.SQExpr {
 		return &e{this.v, v, "OR"}
 	case time.Time:
 		return &e{this.v, v, "OR"}
+	case sqlite.SQSource, sqlite.SQStatement:
+		return &e{this.v, v, "OR"}
 	}
+	// Unsupported value
 	panic(fmt.Sprintf("V unsupported value %q", v))
 }
 
@@ -112,6 +116,10 @@ func lhs(v interface{}) string {
 		} else {
 			return sqlite.Quote(e.Format(time.RFC3339Nano))
 		}
+	case sqlite.SQSource:
+		return fmt.Sprint(e.WithAlias(""))
+	case sqlite.SQStatement:
+		return e.Query()
 	default:
 		return sqlite.Quote(fmt.Sprint(v))
 	}

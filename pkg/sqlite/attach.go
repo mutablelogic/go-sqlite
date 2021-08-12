@@ -1,7 +1,12 @@
 package sqlite
 
+import (
+	sqlite "github.com/djthorpe/go-sqlite"
+	. "github.com/djthorpe/go-sqlite/pkg/lang"
+)
+
 func (this *connection) Attach(schema, dsn string) error {
-	query := this.Q("ATTACH DATABASE " + DoubleQuote(dsn) + " AS " + QuoteIdentifier(schema))
+	query := Q("ATTACH DATABASE " + sqlite.DoubleQuote(dsn) + " AS " + sqlite.QuoteIdentifier(schema))
 	if _, err := this.Exec(query); err != nil {
 		return err
 	}
@@ -10,7 +15,7 @@ func (this *connection) Attach(schema, dsn string) error {
 }
 
 func (this *connection) Detach(schema string) error {
-	query := this.Q("DETACH DATABASE " + QuoteIdentifier(schema))
+	query := Q("DETACH DATABASE " + sqlite.QuoteIdentifier(schema))
 	if _, err := this.Exec(query); err != nil {
 		return err
 	}

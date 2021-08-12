@@ -19,7 +19,7 @@ func Q(v interface{}) sqlite.SQStatement {
 	switch v := v.(type) {
 	case string:
 		if v == "" {
-			return V(nil)
+			return &q{"SELECT NULL"}
 		} else {
 			return &q{v}
 		}

@@ -48,7 +48,7 @@ func (this *resultset) Next(v interface{}) error {
 	r := this.NextMap()
 	if r == nil {
 		return io.EOF
-	} else if err := marshaler.UnmarshalStruct(r, v, sqLiteStructTag, nil); err != nil {
+	} else if err := marshaler.UnmarshalStruct(r, v, sqlite.TagName, nil); err != nil {
 		return err
 	} else {
 		return nil

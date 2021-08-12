@@ -49,6 +49,7 @@ func Test_Expr_001(t *testing.T) {
 		{V(`a`).Or(`b`), `'a' OR 'b'`, ``},
 		{V(100).Or(200).Or(300), `100 OR 200 OR 300`, ``},
 		{V(N(`a`)).Or(`b`), `a OR 'b'`, ``},
+		{V(Q("X")).Or(Q("Y")), `X OR Y`, ``},
 	}
 
 	for _, test := range tests {

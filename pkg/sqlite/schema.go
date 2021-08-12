@@ -5,11 +5,12 @@ import (
 
 	// Modules
 	sqlite "github.com/djthorpe/go-sqlite"
+	. "github.com/djthorpe/go-sqlite/pkg/lang"
 )
 
 func (this *connection) Schemas() []string {
 	// Perform the query
-	rs, err := this.Query(this.Q("PRAGMA database_list"))
+	rs, err := this.Query(Q("PRAGMA database_list"))
 	if err != nil {
 		return nil
 	}
@@ -54,13 +55,13 @@ func (this *connection) TablesEx(schema string, temp bool) []string {
 
 	// Append the schema
 	if schema != "" {
-		query = fmt.Sprintf(query, QuoteIdentifier(schema)+".", QuoteIdentifier(schema)+".")
+		query = fmt.Sprintf(query, sqlite.QuoteIdentifier(schema)+".", sqlite.QuoteIdentifier(schema)+".")
 	} else {
 		query = fmt.Sprintf(query, "", "")
 	}
 
 	// Perform the query
-	rows, err := this.Query(this.Q(query), "table")
+	rows, err := this.Query(Q(query), "table")
 	if err != nil {
 		return nil
 	}
@@ -89,13 +90,13 @@ func (this *connection) Columns(name string) []sqlite.SQColumn {
 
 func (this *connection) ColumnsEx(name, schema string) []sqlite.SQColumn {
 	// Perform query
-	query := "table_info(" + QuoteIdentifier(name) + ")"
+	query := "table_info(" + sqlite.QuoteIdentifier(name) + ")"
 	if schema != "" {
-		query = "PRAGMA " + QuoteIdentifier(schema) + "." + query
+		query = "PRAGMA " + sqlite.QuoteIdentifier(schema) + "." + query
 	} else {
 		query = "PRAGMA " + query
 	}
-	rs, err := this.Query(this.Q(query))
+	rs, err := this.Query(Q(query))
 	if err != nil {
 		fmt.Println(err)
 		return nil
@@ -109,7 +110,7 @@ func (this *connection) ColumnsEx(name, schema string) []sqlite.SQColumn {
 		if row == nil {
 			break
 		}
-		col := this.N(row["name"].(string)).WithType(row["type"].(string))
+		col := N(row["name"].(string)).WithType(row["type"].(string))
 		if row["notnull"].(int64) != 0 {
 			col = col.NotNull()
 		}

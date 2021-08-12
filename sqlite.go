@@ -1,12 +1,16 @@
 package sqlite
 
+const (
+	// TagName defines the tag name used for struct tags
+	TagName = "sqlite"
+)
+
 ///////////////////////////////////////////////////////////////////////////////
 // INTERFACES - CONNECTION
 
 // SQConnection is an sqlite connection to one or more databases
 type SQConnection interface {
 	SQTransaction
-	SQLanguage
 
 	// Schemas returns a list of all the schemas in the database
 	Schemas() []string
@@ -37,27 +41,6 @@ type SQConnection interface {
 	Close() error
 }
 
-// SQLanguage defines the interface for SQLite language
-type SQLanguage interface {
-	// Q creates an statement which can be used in Exec or Query
-	Q(interface{}) SQStatement
-
-	// N creates a table name
-	N(string) SQSource
-
-	// C creates a column name
-	C(string) SQColumn
-
-	// P creates a bound parameter
-	P() SQExpr
-
-	// V creates a value
-	V(interface{}) SQExpr
-
-	// S selects data from one or more data sources
-	S(...SQSource) SQSelect
-}
-
 // SQTransaction is an sqlite transaction
 type SQTransaction interface {
 	// Query and return a set of results
@@ -65,6 +48,9 @@ type SQTransaction interface {
 
 	// Execute a statement and return affected rows
 	Exec(SQStatement, ...interface{}) (SQResult, error)
+
+	// Prepare a statement
+	Prepare(SQStatement) (SQStatement, error)
 }
 
 // SQRows increments over returned rows from a query
@@ -88,7 +74,7 @@ type SQResult struct {
 	RowsAffected uint64
 }
 
-// SQStatement is any statement which can be executed
+// SQStatement is any statement which can be prepared or executed
 type SQStatement interface {
 	Query() string
 }
@@ -166,7 +152,7 @@ type SQSelect interface {
 	// Set select flags
 	WithDistinct() SQSelect
 	WithLimitOffset(limit, offset uint) SQSelect
-	Where(...SQExpr) SQSelect
+	Where(...interface{}) SQSelect
 }
 
 // SQAlter defines an alter table statement

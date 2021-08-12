@@ -14,7 +14,7 @@ type sel struct {
 	source        []sqlite.SQSource
 	distinct      bool
 	limit, offset uint
-	where         []sqlite.SQExpr
+	where         []interface{}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -36,19 +36,13 @@ func (this *sel) WithLimitOffset(limit, offset uint) sqlite.SQSelect {
 	return &sel{this.source, this.distinct, limit, offset, this.where}
 }
 
-func (this *sel) Where(v ...sqlite.SQExpr) sqlite.SQSelect {
+func (this *sel) Where(v ...interface{}) sqlite.SQSelect {
 	if len(v) == 0 {
 		// Reset where clause
 		return &sel{this.source, this.distinct, this.limit, this.offset, nil}
-	} else if len(v) == 1 {
-		// Where clause with an expression
-		return &sel{this.source, this.distinct, this.limit, this.offset, []sqlite.SQExpr{v[0]}}
-	} else if len(v) == 2 {
-		// Where clause with A OR B
-		return &sel{this.source, this.distinct, this.limit, this.offset, []sqlite.SQExpr{v[0].Or(v[1])}}
 	} else {
-		// TODO
-		panic("XXX")
+		// Where clause with an expression
+		return &sel{this.source, this.distinct, this.limit, this.offset, append(this.where, v...)}
 	}
 }
 

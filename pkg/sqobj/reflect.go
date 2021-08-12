@@ -1,0 +1,89 @@
+package sqobj
+
+import (
+	"reflect"
+	"strings"
+	"time"
+
+	// Modules
+	marshaler "github.com/djthorpe/go-marshaler"
+	sqlite "github.com/djthorpe/go-sqlite"
+	. "github.com/djthorpe/go-sqlite/pkg/lang"
+)
+
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+var (
+	timeType = reflect.TypeOf(time.Time{})
+	blobType = reflect.TypeOf([]byte{})
+)
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+// CreateTable returns a CREATE TABLE statement for the given struct
+// or nil if the argument is not a pointer to a struct or has no fields which are exported
+func CreateTable(name string, v interface{}) sqlite.SQTable {
+	if c := structCols(v); c == nil {
+		return nil
+	} else {
+		return N(name).CreateTable(c...)
+	}
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func structCols(v interface{}) []sqlite.SQColumn {
+	fields := marshaler.NewEncoder(sqlite.TagName).Reflect(v)
+	if fields == nil {
+		return nil
+	}
+	result := make([]sqlite.SQColumn, 0, len(fields))
+	for _, field := range fields {
+		c := C(field.Name).WithType(decltype(field.Type))
+		for _, tag := range field.Tags {
+			if sqlite.IsSupportedType(tag) {
+				c = c.WithType(strings.ToUpper(tag))
+			} else if isNotNull(tag) {
+				c = c.NotNull()
+			} else if isPrimary(tag) {
+				c = c.Primary()
+			}
+		}
+		result = append(result, c)
+	}
+	return result
+}
+
+func isNotNull(tag string) bool {
+	tag = strings.TrimSpace(strings.ToUpper(tag))
+	return tag == "NOT NULL" || tag == "NOTNULL"
+}
+
+func isPrimary(tag string) bool {
+	tag = strings.TrimSpace(strings.ToUpper(tag))
+	return tag == "PRI" || tag == "PRIMARY" || tag == "PRIMARY KEY"
+}
+
+func decltype(t reflect.Type) string {
+	switch t.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return "INTEGER"
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return "INTEGER"
+	case reflect.Float32, reflect.Float64:
+		return "FLOAT"
+	case reflect.Bool:
+		return "INTEGER"
+	default:
+		if t == timeType {
+			return "TIMESTAMP"
+		}
+		if t == blobType {
+			return "BLOB"
+		}
+		return "TEXT"
+	}
+}

@@ -3,6 +3,7 @@ package sqlite_test
 import (
 	"testing"
 
+	. "github.com/djthorpe/go-sqlite/pkg/lang"
 	sq "github.com/djthorpe/go-sqlite/pkg/sqlite"
 )
 
@@ -30,7 +31,7 @@ func Test_Schema_002(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	st := db.N("foo").CreateTable(db.N("a").WithType("TEXT"))
+	st := N("foo").CreateTable(N("a").WithType("TEXT"))
 	if _, err := db.Exec(st); err != nil {
 		t.Fatalf("%q: %v", st.Query(), err)
 	}

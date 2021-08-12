@@ -3,21 +3,52 @@
 This module provides an alternative interface for sqlite, including:
 
   * Opening in-memory databases and databases by file path;
-  * Attaching and detaching databases by schema name;
-  * Reflection on databases (schemas, tables, columns, indexes, etc);
   * Transactions (committing changes and rolling back on errors);
-  * Executing arbitrary statements or building statements programmatically;
   * Reading results into a struct, map or slice.
+  * Reflection on databases (schemas, tables, columns, indexes, etc);
+  * Attaching and detaching databases by schema name;
+  * Executing arbitrary statements or building statements programmatically;
 
 Presently the module is in development and the API is subject to change.
 
 ## Opening and creating databases
 
-## Attaching databases by schema name
+You can create a new in-memory database using the `New` method, or you can open an existing file-based database using the `Open` method.
+Both methods take an optional `*time.Location` argument which allows interpretation of time values with time zone. For example,
 
-## Database reflection
+```go
+package main
+
+import (
+  "github.com/djthorpe/go-sqlite/pkg/sqlite"
+)
+
+func main() {
+  db, err := sqlite.New() // Open in-memory database with local time zone
+  if err != nil {
+    // ...
+  }
+  defer db.Close()
+
+  path := // ...
+  db, err := sqlite.Open(path,time.UTC) // Open file database with UTC time zone
+  if err != nil {
+    // ...
+  }
+  defer db.Close()
+}
+
+```
+
+Use `Close()` to release database resources.
 
 ## Executing queries and transactions
+
+## Attaching databases by schema name
+
+You can load additional databases to a database by schema name. Use `Attach` and `Detach` to attach and detach databases.
+
+## Database reflection
 
 ## Building statements programmatically
 

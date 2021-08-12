@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	sq "github.com/djthorpe/go-sqlite"
+	. "github.com/djthorpe/go-sqlite/pkg/lang"
 	sqlite "github.com/djthorpe/go-sqlite/pkg/sqlite"
 )
 
@@ -39,31 +40,31 @@ func Test_Conn_004(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if _, err := db.Exec(db.Q("CREATE TABLE foo (id INTEGER PRIMARY KEY, name TEXT)")); err != nil {
+	if _, err := db.Exec(Q("CREATE TABLE foo (id INTEGER PRIMARY KEY, name TEXT)")); err != nil {
 		t.Fatal(err)
 	}
-	if r, err := db.Exec(db.Q("INSERT INTO foo (id, name) VALUES (1, 'bar')")); err != nil {
+	if r, err := db.Exec(Q("INSERT INTO foo (id, name) VALUES (1, 'bar')")); err != nil {
 		t.Error(err)
 	} else if r.LastInsertId != 1 {
 		t.Errorf("Unexpected LastInsertId, %d", r.LastInsertId)
 	} else if r.RowsAffected != 1 {
 		t.Errorf("Unexpected RowsAffected, %d", r.RowsAffected)
 	}
-	if r, err := db.Exec(db.N("foo").Insert()); err != nil {
+	if r, err := db.Exec(N("foo").Insert()); err != nil {
 		t.Error(err)
 	} else if r.LastInsertId != 2 {
 		t.Errorf("Unexpected LastInsertId, %d", r.LastInsertId)
 	} else if r.RowsAffected != 1 {
 		t.Errorf("Unexpected RowsAffected, %d", r.RowsAffected)
 	}
-	if r, err := db.Exec(db.N("foo").Insert("id", "name"), 10, "name"); err != nil {
+	if r, err := db.Exec(N("foo").Insert("id", "name"), 10, "name"); err != nil {
 		t.Error(err)
 	} else if r.LastInsertId != 10 {
 		t.Errorf("Unexpected LastInsertId, %d", r.LastInsertId)
 	} else if r.RowsAffected != 1 {
 		t.Errorf("Unexpected RowsAffected, %d", r.RowsAffected)
 	}
-	rows, err := db.Query(db.Q("SELECT * FROM foo"))
+	rows, err := db.Query(Q("SELECT * FROM foo"))
 	if err != nil {
 		t.Error(err)
 	}
@@ -82,7 +83,7 @@ func Test_Conn_005(t *testing.T) {
 	}
 	defer db.Close()
 	if err := db.Do(func(txn sq.SQTransaction) error {
-		_, err := txn.Exec(db.Q("CREATE TABLE foo (id INTEGER PRIMARY KEY, name TEXT)"))
+		_, err := txn.Exec(Q("CREATE TABLE foo (id INTEGER PRIMARY KEY, name TEXT)"))
 		return err
 	}); err != nil {
 		t.Fatal(err)
@@ -90,7 +91,7 @@ func Test_Conn_005(t *testing.T) {
 
 	if err := db.Do(func(txn sq.SQTransaction) error {
 		for i := 0; i < 5; i++ {
-			if _, err := txn.Exec(db.Q("INSERT INTO foo DEFAULT VALUES")); err != nil {
+			if _, err := txn.Exec(Q("INSERT INTO foo DEFAULT VALUES")); err != nil {
 				return err
 			}
 		}
@@ -99,55 +100,3 @@ func Test_Conn_005(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-
-/*
-func Test_Conn_006(t *testing.T) {
-	type foo struct {
-		Id   int64  `sqlite:"id,primary"`
-		Name string `sqlite:"name,null"`
-	}
-
-	db, err := sqlite.New()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-
-	// Create the table
-	q := db.CreateTable("foo", sqlite.ReflectStruct(foo{}, "sqlite")...)
-	if _, err := db.Exec(q); err != nil {
-		t.Fatal(err)
-	} else {
-		t.Log(q)
-	}
-
-	// Insert some rows
-	if err := db.Do(func(txn sq.SQTransaction) error {
-		for i := 0; i < 50; i++ {
-			if _, err := txn.Exec(db.Q("INSERT INTO foo (name) VALUES ('foo')")); err != nil {
-				return err
-			}
-		}
-		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	// Read back the rows
-	var row foo
-	rows, err := db.Query(db.Q("SELECT * FROM foo"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rows.Close()
-	for {
-		err := rows.Next(&row)
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			t.Fatal(err)
-		}
-		t.Log(row)
-	}
-}
-*/

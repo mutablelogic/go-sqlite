@@ -14,7 +14,7 @@ func Test_Query_000(t *testing.T) {
 		String string
 		Query  string
 	}{
-		{Q(""), `''`, `SELECT ''`},
+		{Q(""), `SELECT NULL`, `SELECT NULL`},
 		{Q("PRAGMA TEST"), `PRAGMA TEST`, `PRAGMA TEST`},
 	}
 

@@ -21,3 +21,20 @@ func Test_Reflect_000(t *testing.T) {
 		t.Error("Unexpected return, ", q.Query())
 	}
 }
+
+func Test_Reflect_001(t *testing.T) {
+	var a struct {
+		A int       `sqlite:"a,index:x"`
+		B bool      `sqlite:"b,index:x"`
+		C float32   `sqlite:"c,unique:y"`
+		D time.Time `sqlite:"d,index:z"`
+		E []byte    `sqlite:"e"`
+	}
+	if q := sqobj.CreateIndexes("foo", &a); q == nil {
+		t.Fatal("CreateIndexes failed")
+	} else {
+		for _, q := range q {
+			t.Log(q)
+		}
+	}
+}

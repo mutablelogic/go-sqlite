@@ -12,6 +12,15 @@ import (
 )
 
 ///////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+type index struct {
+	name   string
+	unique bool
+	cols   []string
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 var (
@@ -30,6 +39,30 @@ func CreateTable(name string, v interface{}) sqlite.SQTable {
 	} else {
 		return N(name).CreateTable(c...)
 	}
+}
+
+// CreateIndexes returns CREATE INDEX statements for the given struct
+// or nil if the argument is not a pointer to a struct or has no fields which are exported
+func CreateIndexes(name string, v interface{}) []sqlite.SQIndexView {
+	var result []sqlite.SQIndexView
+	for _, index := range structIndexes(v) {
+		q := N(index.name).CreateIndex(name, index.cols...)
+		if index.unique {
+			q = q.WithUnique()
+		}
+		result = append(result, q)
+	}
+	return result
+}
+
+// InsertRow returns an INSERT statement for the given struct
+// or nil if the argument is not a pointer to a struct or has no fields which are exported
+func InsertRow(name string, v interface{}) sqlite.SQInsert {
+	c := structCols(v)
+	if c == nil || len(c) == 0 {
+		return nil
+	}
+	return N(name).Insert(namesForColumns(c)...)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -53,6 +86,33 @@ func structCols(v interface{}) []sqlite.SQColumn {
 			}
 		}
 		result = append(result, c)
+	}
+
+	return result
+}
+
+func structIndexes(v interface{}) map[string]*index {
+	result := map[string]*index{}
+	fields := marshaler.NewEncoder(sqlite.TagName).Reflect(v)
+	if fields == nil {
+		return nil
+	}
+	for _, field := range fields {
+		for _, tag := range field.Tags {
+			if strings.HasPrefix(tag, "index:") {
+				if _, exists := result[tag]; exists {
+					result[tag].cols = append(result[tag].cols, field.Name)
+				} else {
+					result[tag] = &index{tag[6:], false, []string{field.Name}}
+				}
+			} else if strings.HasPrefix(tag, "unique:") {
+				if _, exists := result[tag]; exists {
+					result[tag].cols = append(result[tag].cols, field.Name)
+				} else {
+					result[tag] = &index{tag[7:], true, []string{field.Name}}
+				}
+			}
+		}
 	}
 	return result
 }
@@ -86,4 +146,12 @@ func decltype(t reflect.Type) string {
 		}
 		return "TEXT"
 	}
+}
+
+func namesForColumns(cols []sqlite.SQColumn) []string {
+	result := make([]string, len(cols))
+	for i, col := range cols {
+		result[i] = col.Name()
+	}
+	return result
 }

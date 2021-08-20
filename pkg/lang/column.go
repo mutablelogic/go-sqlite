@@ -27,6 +27,10 @@ func C(name string) sqlite.SQColumn {
 ///////////////////////////////////////////////////////////////////////////////
 // PROPERTIES
 
+func (this *column) Name() string {
+	return sqlite.QuoteIdentifier(this.source.String())
+}
+
 func (this *column) WithType(v string) sqlite.SQColumn {
 	return &column{this.source, v, this.notnull, this.primary}
 }
@@ -47,7 +51,7 @@ func (this *column) Primary() sqlite.SQColumn {
 // STRINGIFY
 
 func (this *column) String() string {
-	tokens := []string{sqlite.QuoteIdentifier(this.source.String())}
+	tokens := []string{this.Name()}
 	if this.decltype != "" {
 		tokens = append(tokens, sqlite.QuoteDeclType(this.decltype))
 	} else {

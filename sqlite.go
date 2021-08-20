@@ -101,14 +101,8 @@ type SQSource interface {
 
 	// Create objects
 	CreateTable(...SQColumn) SQTable
-
-	/*
-
-
-
-		CreateView(SQSelect, ...string) SQIndexView
-		//CreateIndex(SQName, ...SQColumn) SQIndexView
-	*/
+	CreateIndex(string, ...string) SQIndexView
+	//CreateView(SQSelect, ...string) SQIndexView
 }
 
 // SQTable defines a table of columns and indexes
@@ -166,6 +160,7 @@ type SQAlter interface {
 type SQColumn interface {
 	SQStatement
 
+	Name() string
 	WithType(string) SQColumn
 	WithAlias(string) SQSource
 	Primary() SQColumn

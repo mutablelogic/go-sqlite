@@ -3,8 +3,8 @@ package sqlite_test
 import (
 	"testing"
 
-	sq "github.com/djthorpe/go-sqlite/pkg/sqlite"
-	"github.com/djthorpe/sqlite"
+	"github.com/djthorpe/go-sqlite"
+	. "github.com/djthorpe/go-sqlite"
 )
 
 func Test_Util_001(t *testing.T) {
@@ -15,8 +15,8 @@ func Test_Util_001(t *testing.T) {
 		{"\"test\"", `"""test"""`},
 	}
 	for i, test := range tests {
-		if sq.DoubleQuote(test.from) != test.to {
-			t.Errorf("%d: Expected %s, got %s", i, test.to, sq.DoubleQuote(test.from))
+		if DoubleQuote(test.from) != test.to {
+			t.Errorf("%d: Expected %s, got %s", i, test.to, DoubleQuote(test.from))
 		}
 	}
 }
@@ -29,8 +29,8 @@ func Test_Util_002(t *testing.T) {
 		{"some other", `"some other"`},
 	}
 	for i, test := range tests {
-		if sq.QuoteIdentifier(test.from) != test.to {
-			t.Errorf("%d: Expected %s, got %s", i, test.to, sq.QuoteIdentifier(test.from))
+		if QuoteIdentifier(test.from) != test.to {
+			t.Errorf("%d: Expected %s, got %s", i, test.to, QuoteIdentifier(test.from))
 		}
 	}
 }
@@ -49,8 +49,8 @@ func Test_Util_003(t *testing.T) {
 		{[]string{"some other", "select"}, `"some other","select"`},
 	}
 	for i, test := range tests {
-		if sq.QuoteIdentifiers(test.from...) != test.to {
-			t.Errorf("%d: Expected %s, got %s", i, test.to, sq.QuoteIdentifiers(test.from...))
+		if QuoteIdentifiers(test.from...) != test.to {
+			t.Errorf("%d: Expected %s, got %s", i, test.to, QuoteIdentifiers(test.from...))
 		}
 	}
 }
@@ -71,8 +71,8 @@ func Test_Util_005(t *testing.T) {
 		{"'test'", `'''test'''`},
 	}
 	for i, test := range tests {
-		if sq.Quote(test.from) != test.to {
-			t.Errorf("%d: Expected %s, got %s", i, test.to, sq.Quote(test.from))
+		if Quote(test.from) != test.to {
+			t.Errorf("%d: Expected %s, got %s", i, test.to, Quote(test.from))
 		}
 	}
 }

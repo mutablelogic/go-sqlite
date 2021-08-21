@@ -8,7 +8,7 @@ require (
 	github.com/djthorpe/sqlite v1.0.8
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/mattn/go-sqlite3 v1.14.8
-	github.com/rjeczalik/notify v0.9.2 // indirect
+	github.com/rjeczalik/notify v0.9.2
 	github.com/stretchr/testify v1.7.0 // indirect
 	golang.org/x/text v0.3.6
 )

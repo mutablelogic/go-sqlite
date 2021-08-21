@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	// Modules
-	sqlite "github.com/djthorpe/go-sqlite"
+	. "github.com/djthorpe/go-sqlite"
 	charmap "golang.org/x/text/encoding/charmap"
 )
 
@@ -18,8 +18,9 @@ import (
 type decoder struct {
 	cols   []string
 	csvd   *csv.Reader
-	reader func() ([]sqlite.SQStatement, error)
+	reader func() ([]SQStatement, error)
 	writer *writer
+	header bool
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,6 +57,18 @@ func NewDecoder(r io.Reader, w *writer, mimetype string) (*decoder, error) {
 	return this, nil
 }
 
+func (this *decoder) SetHeader(v bool) {
+	this.header = v
+}
+
+func (this *decoder) SetDelimiter(r rune) {
+	this.csvd.Comma = r
+}
+
+func (this *decoder) SetComment(r rune) {
+	this.csvd.Comment = r
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
@@ -70,15 +83,30 @@ func (this *decoder) Read() error {
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func (this *decoder) csv() ([]sqlite.SQStatement, error) {
-	if row, err := this.csvd.Read(); err != nil {
+func (this *decoder) csv() ([]SQStatement, error) {
+	var result []SQStatement
+
+	row, err := this.csvd.Read()
+	if err != nil {
 		return nil, err
-	} else if this.cols == nil {
-		this.cols = row
-		return this.writer.CreateTable(row), nil
-	} else {
-		return this.writer.Insert(this.cols, row), nil
 	}
+
+	// Create table
+	if this.cols == nil {
+		if this.header == false {
+			this.cols, row = row, nil
+		} else {
+			this.cols = makeCols(row)
+		}
+		result = append(result, this.writer.CreateTable(this.cols)...)
+	}
+
+	// Add row data
+	if row != nil {
+		result = append(result, this.writer.Insert(this.cols, row)...)
+	}
+
+	return result, nil
 }
 
 func charsetReader(r io.Reader, charset string) (io.Reader, error) {
@@ -93,4 +121,12 @@ func charsetReader(r io.Reader, charset string) (io.Reader, error) {
 	default:
 		return nil, fmt.Errorf("unsupported charset: %q", charset)
 	}
+}
+
+func makeCols(row []string) []string {
+	var result []string
+	for i := range row {
+		result = append(result, fmt.Sprintf("col_%02d", i))
+	}
+	return result
 }

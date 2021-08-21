@@ -3,14 +3,16 @@ package main
 import (
 	"fmt"
 
-	"github.com/djthorpe/go-sqlite"
+	// Modules
+	. "github.com/djthorpe/go-sqlite"
+	. "github.com/djthorpe/go-sqlite/pkg/lang"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type writer struct {
-	sqlite.SQConnection
+	SQConnection
 
 	// The writer's table name
 	Name string
@@ -20,14 +22,14 @@ type writer struct {
 }
 
 type row struct {
-	sqlite.SQStatement
+	SQStatement
 	args []string
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewWriter(db sqlite.SQConnection) *writer {
+func NewWriter(db SQConnection) *writer {
 	return &writer{db, "", false}
 }
 
@@ -47,39 +49,39 @@ func (this *writer) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (this *writer) CreateTable(cols []string) []sqlite.SQStatement {
-	result := []sqlite.SQStatement{}
+func (this *writer) CreateTable(cols []string) []SQStatement {
+	result := []SQStatement{}
 
 	// Set all as text columns
-	c := []sqlite.SQColumn{}
+	c := []SQColumn{}
 	for _, name := range cols {
-		c = append(c, this.Column(name, "TEXT"))
+		c = append(c, C(name))
 	}
 
 	// Drop table
 	if this.Overwrite {
-		result = append(result, this.DropTable(this.Name).IfExists())
+		result = append(result, N(this.Name).DropTable().IfExists())
 	}
 
 	// Create table
-	result = append(result, this.SQConnection.CreateTable(this.Name, c...))
+	result = append(result, N(this.Name).CreateTable(c...))
 
 	// Return success
 	return result
 }
 
-func (this *writer) Insert(cols, rows []string) []sqlite.SQStatement {
-	return []sqlite.SQStatement{
-		&row{this.SQConnection.Insert(this.Name, cols...), rows},
+func (this *writer) Insert(cols, rows []string) []SQStatement {
+	return []SQStatement{
+		&row{N(this.Name).Insert(cols...), rows},
 	}
 }
 
-func (this *writer) Select() (sqlite.SQRows, error) {
-	return this.SQConnection.Query(this.SQConnection.Select(this.SQConnection.TableSource(this.Name)))
+func (this *writer) Select() (SQRows, error) {
+	return this.SQConnection.Query(S(N(this.Name)))
 }
 
-func (this *writer) Do(st []sqlite.SQStatement) error {
-	return this.SQConnection.Do(func(txn sqlite.SQTransaction) error {
+func (this *writer) Do(st []SQStatement) error {
+	return this.SQConnection.Do(func(txn SQTransaction) error {
 		for _, st := range st {
 			if st_, ok := st.(*row); ok {
 				if _, err := txn.Exec(st, to_interface(st_.args)...); err != nil {

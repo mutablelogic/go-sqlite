@@ -10,7 +10,7 @@ import (
 	"time"
 
 	// Modules
-	sq "github.com/djthorpe/go-sqlite"
+	. "github.com/djthorpe/go-sqlite"
 	sqlite "github.com/djthorpe/go-sqlite/pkg/sqlite"
 	multierror "github.com/hashicorp/go-multierror"
 )
@@ -19,9 +19,9 @@ var (
 	flagLocation  = flag.String("tz", "Local", "Timezone name")
 	flagOverwrite = flag.Bool("overwrite", false, "Overwrite existing tables")
 	flagQuiet     = flag.Bool("quiet", false, "Suppress output")
-	flagScan      = flag.Bool("scan", true, "Adjust data types for columns")
-	//flagSeparator = flag.String("separator", "", "Field separator")
-	//flagComment   = flag.String("comment", "#", "Comment character")
+	flagHeader    = flag.Bool("header", true, "CSV contains header row")
+	flagDelimiter = flag.String("delimiter", "", "Field delimiter")
+	flagComment   = flag.String("comment", "#", "Comment character")
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,6 +70,13 @@ func main() {
 		if err != nil {
 			result = multierror.Append(result, err)
 		}
+		table.Header = *flagHeader
+		if *flagDelimiter != "" {
+			table.Delimiter = rune((*flagDelimiter)[0])
+		}
+		if *flagComment != "" {
+			table.Comment = rune((*flagComment)[0])
+		}
 
 		// Read in data
 		if err := read(db, table, log); err != nil {
@@ -95,7 +102,7 @@ func logger(name string) *log.Logger {
 	}
 }
 
-func read(db sq.SQConnection, table *table, log *log.Logger) error {
+func read(db SQConnection, table *table, log *log.Logger) error {
 	l := false
 	for {
 		err := table.Read(db)
@@ -112,6 +119,6 @@ func read(db sq.SQConnection, table *table, log *log.Logger) error {
 	}
 }
 
-func scan(db sq.SQConnection, table *table) error {
+func scan(db SQConnection, table *table) error {
 	return table.Scan(db)
 }

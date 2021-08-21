@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"fmt"
+	"strings"
 
 	// Modules
 	sqlite "github.com/djthorpe/go-sqlite"
@@ -98,7 +99,6 @@ func (this *connection) ColumnsEx(name, schema string) []sqlite.SQColumn {
 	}
 	rs, err := this.Query(Q(query))
 	if err != nil {
-		fmt.Println(err)
 		return nil
 	}
 	defer rs.Close()
@@ -117,4 +117,33 @@ func (this *connection) ColumnsEx(name, schema string) []sqlite.SQColumn {
 		columns = append(columns, col)
 	}
 	return columns
+}
+
+func (this *connection) Modules(prefix string) []string {
+	// Perform query
+	rs, err := this.Query(Q("PRAGMA module_list"))
+	if err != nil {
+		return nil
+	}
+	defer rs.Close()
+
+	// Collate results, estimate up to 10 rows
+	result := make([]string, 0, 10)
+	for {
+		row := rs.NextArray()
+		if row == nil || len(row) < 1 {
+			break
+		}
+		module := row[0].(string)
+		if prefix == "" || strings.HasPrefix(module, prefix) {
+			result = append(result, row[0].(string))
+		}
+	}
+
+	// Return nil if no matching results
+	if len(result) == 0 {
+		return nil
+	} else {
+		return result
+	}
 }

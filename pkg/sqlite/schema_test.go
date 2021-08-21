@@ -46,3 +46,21 @@ func Test_Schema_002(t *testing.T) {
 		t.Fatal("Tables not 'foo'")
 	}
 }
+func Test_Schema_003(t *testing.T) {
+	db, err := sq.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	modules := db.Modules("")
+	if modules == nil {
+		t.Error("Modules returned nil")
+	}
+	for _, module := range modules {
+		if modules := db.Modules(module); len(modules) == 0 {
+			t.Errorf("Modules with arg %q expected non-empty return", module)
+		} else {
+			t.Logf("Module(%q) => %q", module, modules)
+		}
+	}
+}

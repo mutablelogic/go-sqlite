@@ -17,11 +17,18 @@ type column struct {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+const (
+	defaultColumnDecltype = "TEXT"
+)
+
+///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // C defines a column name
 func C(name string) sqlite.SQColumn {
-	return &column{source{name, "", ""}, "TEXT", false, false}
+	return &column{source{name, "", ""}, defaultColumnDecltype, false, false}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -29,6 +36,14 @@ func C(name string) sqlite.SQColumn {
 
 func (this *column) Name() string {
 	return this.source.String()
+}
+
+func (this *column) Type() string {
+	return this.decltype
+}
+
+func (this *column) Nullable() bool {
+	return this.notnull == false
 }
 
 func (this *column) WithType(v string) sqlite.SQColumn {
@@ -55,7 +70,7 @@ func (this *column) String() string {
 	if this.decltype != "" {
 		tokens = append(tokens, sqlite.QuoteDeclType(this.decltype))
 	} else {
-		tokens = append(tokens, "TEXT")
+		tokens = append(tokens, defaultColumnDecltype)
 	}
 	if this.notnull {
 		tokens = append(tokens, "NOT NULL")

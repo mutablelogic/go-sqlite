@@ -166,6 +166,9 @@ type SQColumn interface {
 	SQStatement
 
 	Name() string
+	Type() string
+	Nullable() bool
+
 	WithType(string) SQColumn
 	WithAlias(string) SQSource
 	Primary() SQColumn

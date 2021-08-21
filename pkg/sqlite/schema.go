@@ -119,7 +119,7 @@ func (this *connection) ColumnsEx(name, schema string) []sqlite.SQColumn {
 	return columns
 }
 
-func (this *connection) Modules(prefix string) []string {
+func (this *connection) Modules(prefix ...string) []string {
 	// Perform query
 	rs, err := this.Query(Q("PRAGMA module_list"))
 	if err != nil {
@@ -135,7 +135,7 @@ func (this *connection) Modules(prefix string) []string {
 			break
 		}
 		module := row[0].(string)
-		if prefix == "" || strings.HasPrefix(module, prefix) {
+		if moduleHasPrefix(module, prefix) {
 			result = append(result, row[0].(string))
 		}
 	}
@@ -146,4 +146,16 @@ func (this *connection) Modules(prefix string) []string {
 	} else {
 		return result
 	}
+}
+
+func (this *connection) moduleHasPrefix(module string, prefix []string) bool {
+	if len(prefix) == 0 {
+		return true
+	}
+	for _, prefix := range prefix {
+		if strings.HasPrefix(module, prefix) {
+			return true
+		}
+	}
+	return false
 }

@@ -34,10 +34,9 @@ type SQConnection interface {
 	// Detach database by schema name
 	Detach(string) error
 
-	// Modules returns a list of virtual table modules. If a non-empty
-	// string is provided, only modules with the prefix of the string will
-	// be returned.
-	Modules(string) []string
+	// Modules returns a list of virtual table modules. If a string is provided,
+	// only modules with the prefix of the string will be returned.
+	Modules(...string) []string
 
 	// Create transaction block, rollback on error
 	Do(func(SQTransaction) error) error

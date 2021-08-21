@@ -9,6 +9,9 @@ import (
 	. "github.com/djthorpe/go-sqlite/pkg/lang"
 )
 
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
 func (this *connection) Schemas() []string {
 	// Perform the query
 	rs, err := this.Query(Q("PRAGMA database_list"))
@@ -148,7 +151,10 @@ func (this *connection) Modules(prefix ...string) []string {
 	}
 }
 
-func (this *connection) moduleHasPrefix(module string, prefix []string) bool {
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func moduleHasPrefix(module string, prefix []string) bool {
 	if len(prefix) == 0 {
 		return true
 	}

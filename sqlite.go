@@ -151,6 +151,11 @@ type SQSelect interface {
 	// Set select flags
 	WithDistinct() SQSelect
 	WithLimitOffset(limit, offset uint) SQSelect
+
+	// Destination columns for results
+	To(...SQSource) SQSelect
+
+	// Where clause
 	Where(...interface{}) SQSelect
 }
 
@@ -171,6 +176,7 @@ type SQColumn interface {
 
 	WithType(string) SQColumn
 	WithAlias(string) SQSource
+
 	Primary() SQColumn
 	NotNull() SQColumn
 }

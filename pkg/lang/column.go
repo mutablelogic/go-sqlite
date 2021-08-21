@@ -28,7 +28,7 @@ func C(name string) sqlite.SQColumn {
 // PROPERTIES
 
 func (this *column) Name() string {
-	return sqlite.QuoteIdentifier(this.source.String())
+	return this.source.String()
 }
 
 func (this *column) WithType(v string) sqlite.SQColumn {

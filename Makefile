@@ -14,7 +14,7 @@ all: test commands
 commands: mkdir $(COMMAND)
 
 $(COMMAND): 
-	@echo "Building $(BUILDDIR)/$(COMMAND)"
+	@echo "Building ${BUILDDIR}/$@"
 	@$(GO) build -o ${BUILDDIR}/$@ -tags "$(TAGS)" ${GOFLAGS} ./$@
 
 .PHONY: test

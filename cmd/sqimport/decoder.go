@@ -61,6 +61,10 @@ func (this *decoder) SetHeader(v bool) {
 	this.header = v
 }
 
+func (this *decoder) SetTrimSpace(v bool) {
+	this.csvd.TrimLeadingSpace = v
+}
+
 func (this *decoder) SetDelimiter(r rune) {
 	this.csvd.Comma = r
 }
@@ -93,7 +97,7 @@ func (this *decoder) csv() ([]SQStatement, error) {
 
 	// Create table
 	if this.cols == nil {
-		if this.header == false {
+		if this.header {
 			this.cols, row = row, nil
 		} else {
 			this.cols = makeCols(row)

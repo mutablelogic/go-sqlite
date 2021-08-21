@@ -22,6 +22,7 @@ var (
 	flagHeader    = flag.Bool("header", true, "CSV contains header row")
 	flagDelimiter = flag.String("delimiter", "", "Field delimiter")
 	flagComment   = flag.String("comment", "#", "Comment character")
+	flagTrimSpace = flag.Bool("trimspace", true, "Trim leading space of a field")
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,6 +72,7 @@ func main() {
 			result = multierror.Append(result, err)
 		}
 		table.Header = *flagHeader
+		table.TrimSpace = *flagTrimSpace
 		if *flagDelimiter != "" {
 			table.Delimiter = rune((*flagDelimiter)[0])
 		}

@@ -32,6 +32,7 @@ type table struct {
 	Header    bool
 	Delimiter rune
 	Comment   rune
+	TrimSpace bool
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,6 +139,7 @@ func (this *table) Read(db SQConnection) error {
 		} else {
 			this.dec = dec
 			this.dec.SetHeader(this.Header)
+			this.dec.SetTrimSpace(this.TrimSpace)
 			if this.Delimiter != 0 {
 				this.dec.SetDelimiter(this.Delimiter)
 			}

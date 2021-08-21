@@ -83,6 +83,7 @@ func (this *writer) Select() (SQRows, error) {
 func (this *writer) Do(st []SQStatement) error {
 	return this.SQConnection.Do(func(txn SQTransaction) error {
 		for _, st := range st {
+			fmt.Println(st)
 			if st_, ok := st.(*row); ok {
 				if _, err := txn.Exec(st, to_interface(st_.args)...); err != nil {
 					return err

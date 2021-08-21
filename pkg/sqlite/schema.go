@@ -130,11 +130,11 @@ func (this *connection) Modules(prefix ...string) []string {
 	}
 	defer rs.Close()
 
-	// Collate results, estimate up to 10 rows
-	result := make([]string, 0, 10)
+	// Collate results
+	var result []string
 	for {
 		row := rs.NextArray()
-		if row == nil || len(row) < 1 {
+		if len(row) == 0 {
 			break
 		}
 		module := row[0].(string)

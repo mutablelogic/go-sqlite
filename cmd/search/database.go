@@ -15,15 +15,21 @@ import (
 
 type File struct {
 	Path    string    `sqlite:"path,primary"`
-	Name    string    `sqlite:"name,index:name"`
-	ModTime time.Time `sqlite:"modtime"`
+	Name    string    `sqlite:"name,not null,index:name"`
+	ModTime time.Time `sqlite:"modtime,not null"`
+}
+
+type Search struct {
+	Path    string `sqlite:"path"`
+	Content string `sqlite:"content"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (
-	tFile = "file"
+	tFile   = "file"
+	tSearch = "search"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -40,6 +46,10 @@ func OpenDatabase(filename string) (sq.SQConnection, error) {
 		// Create tables and indexes
 		q := sqobj.CreateTable(tFile, File{}).IfNotExists()
 		if _, err := tx.Exec(q); err != nil {
+			return err
+		}
+		s := sqobj.CreateVirtualTable(tSearch, "fts4").IfNotExists()
+		if _, err := tx.Exec(s); err != nil {
 			return err
 		}
 		for _, q := range sqobj.CreateIndexes(tFile, File{}) {

@@ -139,7 +139,7 @@ func (this *connection) Modules(prefix ...string) []string {
 		}
 		module := row[0].(string)
 		if moduleHasPrefix(module, prefix) {
-			result = append(result, row[0].(string))
+			result = append(result, module)
 		}
 	}
 

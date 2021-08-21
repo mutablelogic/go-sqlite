@@ -96,7 +96,7 @@ func (this *sel) Query() string {
 	} else if this.limit > 0 && this.offset == 0 {
 		tokens = append(tokens, "LIMIT", fmt.Sprint(this.limit))
 	} else if this.limit > 0 && this.offset > 0 {
-		tokens = append(tokens, "LIMIT", fmt.Sprint(this.limit)+","+fmt.Sprint(this.offset))
+		tokens = append(tokens, "LIMIT", fmt.Sprint(this.offset)+","+fmt.Sprint(this.limit))
 	}
 
 	// Return the query

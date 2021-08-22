@@ -46,6 +46,9 @@ type SQImporter interface {
 	// Return the URL of the source
 	URL() *url.URL
 
+	// Return the Table name for the destination
+	Name() string
+
 	// Return a decoder for a mimetype
 	Decoder(string) (SQImportDecoder, error)
 }

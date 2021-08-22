@@ -94,6 +94,10 @@ func (this *importer) URL() *url.URL {
 	return this.url
 }
 
+func (this *importer) Name() string {
+	return this.c.Name
+}
+
 // Read a row from the source data and potentially insert into the table. On end
 // of data, returns io.EOF.
 func (this *importer) Read() error {

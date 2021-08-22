@@ -1,4 +1,5 @@
 https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/latest/owid-covid-latest.csv
+https://raw.githubusercontent.com/robert-koch-institut/COVID-19-Impfungen_in_Deutschland/master/Aktuell_Deutschland_Bundeslaender_COVID-19-Impfungen.csv
 https://people.sc.fsu.edu/~jburkardt/data/csv/addresses.csv
 https://people.sc.fsu.edu/~jburkardt/data/csv/airtravel.csv
 https://people.sc.fsu.edu/~jburkardt/data/csv/biostats.csv

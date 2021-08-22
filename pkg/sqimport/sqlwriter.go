@@ -4,7 +4,6 @@ import (
 
 	// Modules
 	"github.com/djthorpe/go-sqlite"
-	. "github.com/djthorpe/go-sqlite"
 	. "github.com/djthorpe/go-sqlite/pkg/lang"
 )
 
@@ -12,7 +11,7 @@ import (
 // TYPES
 
 type sqlwriter struct {
-	SQConnection
+	sqlite.SQConnection
 	overwrite bool
 	cols      []string
 	insert    sqlite.SQStatement
@@ -21,7 +20,7 @@ type sqlwriter struct {
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewSQLWriter(c SQImportConfig, db SQConnection) (SQWriter, error) {
+func NewSQLWriter(c sqlite.SQImportConfig, db sqlite.SQConnection) (sqlite.SQWriter, error) {
 	return &sqlwriter{db, c.Overwrite, nil, nil}, nil
 }
 
@@ -104,6 +103,7 @@ func (this *sqlwriter) addColumns(name, schema string, cols []sqlite.SQColumn) e
 }
 
 func (this *sqlwriter) insertRow(name, schema string, cols []string, row []interface{}) error {
+	// Prepare insert statement
 	if this.insert == nil || len(cols) != len(this.cols) {
 		if q, err := this.Prepare(N(name).WithSchema(schema).Insert(cols...)); err != nil {
 			return err
@@ -111,6 +111,7 @@ func (this *sqlwriter) insertRow(name, schema string, cols []string, row []inter
 			this.insert = q
 		}
 	}
+	// Insert data
 	if _, err := this.Exec(this.insert, row...); err != nil {
 		return err
 	} else {

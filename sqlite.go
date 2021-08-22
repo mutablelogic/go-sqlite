@@ -108,6 +108,9 @@ type SQSource interface {
 	CreateVirtualTable(string, ...string) SQIndexView
 	CreateIndex(string, ...string) SQIndexView
 	//CreateView(SQSelect, ...string) SQIndexView
+
+	// Alter objects
+	AlterTable() SQAlter
 }
 
 // SQTable defines a table of columns and indexes
@@ -164,6 +167,8 @@ type SQAlter interface {
 	SQStatement
 
 	WithSchema(string) SQAlter
+	AddColumn(SQColumn) SQStatement
+	DropColumn(SQColumn) SQStatement
 }
 
 // SQColumn represents a column definition

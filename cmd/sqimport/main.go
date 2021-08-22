@@ -11,8 +11,8 @@ import (
 
 	// Modules
 	. "github.com/djthorpe/go-sqlite"
+	sqimport "github.com/djthorpe/go-sqlite/pkg/sqimport"
 	sqlite "github.com/djthorpe/go-sqlite/pkg/sqlite"
-	multierror "github.com/hashicorp/go-multierror"
 )
 
 var (
@@ -56,43 +56,41 @@ func main() {
 	}
 	defer db.Close()
 
-	// Read files
-	var result error
-	for _, arg := range flag.Args()[1:] {
-		// Create a table writer
-		writer := NewWriter(db)
-		if *flagOverwrite {
-			writer.Overwrite = true
-		}
-		log.Println("writer:", writer)
-
-		// Create a table reader
-		table, err := NewTable(arg, writer)
-		if err != nil {
-			result = multierror.Append(result, err)
-		}
-		table.Header = *flagHeader
-		table.TrimSpace = *flagTrimSpace
-		if *flagDelimiter != "" {
-			table.Delimiter = rune((*flagDelimiter)[0])
-		}
-		if *flagComment != "" {
-			table.Comment = rune((*flagComment)[0])
-		}
-
-		// Read in data
-		if err := read(db, table, log); err != nil {
-			result = multierror.Append(result, err)
-		}
-		// Scan and adjust data types
-		if err := scan(db, table); err != nil {
-			result = multierror.Append(result, err)
-		}
+	// Create a configuration
+	config := SQImportConfig{
+		Header:    *flagHeader,
+		TrimSpace: *flagTrimSpace,
+	}
+	if *flagDelimiter != "" {
+		config.Delimiter = rune((*flagDelimiter)[0])
+	}
+	if *flagComment != "" {
+		config.Comment = rune((*flagComment)[0])
 	}
 
-	// Print import errors
-	if result != nil {
-		fmt.Fprintln(os.Stderr, result)
+	// Create an SQL Writer
+	writer, err := sqimport.NewSQLWriter(config, db)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	// Read files
+	for _, url := range flag.Args()[1:] {
+		// Create an importer
+		importer, err := sqimport.NewImporter(config, url, writer)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, importer.URL(), ": ", err)
+			continue
+		}
+		for {
+			if err := importer.Read(); err == io.EOF {
+				break
+			} else if err != nil {
+				fmt.Fprintln(os.Stderr, importer.URL(), ": ", err)
+				break
+			}
+		}
 	}
 }
 
@@ -102,25 +100,4 @@ func logger(name string) *log.Logger {
 	} else {
 		return log.New(os.Stderr, name, 0)
 	}
-}
-
-func read(db SQConnection, table *table, log *log.Logger) error {
-	l := false
-	for {
-		err := table.Read(db)
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if !l {
-			log.Println("table: ", table)
-			l = true
-		}
-	}
-}
-
-func scan(db SQConnection, table *table) error {
-	return table.Scan(db)
 }

@@ -40,9 +40,107 @@ func main() {
 
 ```
 
-Use `Close()` to release database resources.
+Use `db.Close()` to release database resources.
 
 ## Executing queries and transactions
+
+Statements are executed using the `db.Exec` method on a query. In order to create
+a query from a string, use the `Q()` method (see below for information on building
+SQL statements).
+
+For example,
+
+```go
+package main
+
+import (
+  "github.com/djthorpe/go-sqlite/pkg/sqlite"
+  . "github.com/djthorpe/go-sqlite/pkg/lang"
+)
+
+func main() {
+  db, err := sqlite.New() // Open in-memory database with local time zone
+  if err != nil {
+    // ...
+  }
+  defer db.Close()
+
+  if result,err := db.Exec(Q("CREATE TABLE test (a TEXT,b TEXT)")); err != nil {
+    // ...
+  } else {
+    fmt.Println(result)
+  }
+}
+```
+
+The result object returned (of type SQResult) contains fields `LastInsertId` and `RowsAffected`
+which may or may not be set depending on the query executed. To return data, a result set is
+returned which should allows you to iterate across the results as a map of values, a slice
+of values:
+
+
+```go
+package main
+
+import (
+  "github.com/djthorpe/go-sqlite/pkg/sqlite"
+  . "github.com/djthorpe/go-sqlite/pkg/lang"
+)
+
+func main() {
+  db, err := sqlite.New() // Open in-memory database with local time zone
+  if err != nil {
+    // ...
+  }
+  defer db.Close()
+
+  results,err := db.Select(Q("SELECT a,b FROM test"))
+  if err != nil {
+    // ...
+  }
+  defer results.Close()
+  for {
+    row := results.NextArray()
+    if row == nil {
+      break
+    }
+    // ...
+  }
+}
+```
+
+You can also create a block of code, which when returning any error will rollback
+any database snapshot, or else commit the snapshot if no error occurred:
+
+```go
+package main
+
+import (
+  "github.com/djthorpe/go-sqlite/pkg/sqlite"
+  . "github.com/djthorpe/go-sqlite/pkg/lang"
+)
+
+func main() {
+  db, err := sqlite.New() // Open in-memory database with local time zone
+  if err != nil {
+    // ...
+  }
+  defer db.Close()
+
+  db.Do(func (txn sqlite.SQTransaction) error {
+    _, err := txn.Exec(Q("..."))
+    if err != nil {
+      // Rollback any database changes
+      return err
+    }
+    
+    // Perform further operatins here...
+
+    // Return success, commit transaction
+    return nil
+  })
+}
+```
 
 ## Attaching databases by schema name
 
@@ -81,3 +179,6 @@ If the symbols P,V,N,Q or S clash with any symbols in your code namespace, you c
 without the dot prefix and refer to the sumbols prefixed with `lang.` instead.
 
 ## Reading results into a struct, map or slice
+
+
+## Importing data

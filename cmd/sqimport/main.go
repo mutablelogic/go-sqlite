@@ -32,7 +32,7 @@ func main() {
 
 	// Check number of arguments
 	if flag.NArg() < 2 {
-		fmt.Fprintln(os.Stderr, "Usage: sqimport <sqlite-database> <file>...")
+		fmt.Fprintln(os.Stderr, "Usage: sqimport <sqlite-database> <url>...")
 		os.Exit(1)
 	}
 
@@ -55,11 +55,13 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
+	log.Println("database:", flag.Arg(0))
 
 	// Create a configuration
 	config := SQImportConfig{
 		Header:    *flagHeader,
 		TrimSpace: *flagTrimSpace,
+		Overwrite: *flagOverwrite,
 	}
 	if *flagDelimiter != "" {
 		config.Delimiter = rune((*flagDelimiter)[0])
@@ -83,6 +85,7 @@ func main() {
 			fmt.Fprintln(os.Stderr, importer.URL(), ": ", err)
 			continue
 		}
+		log.Println("import:", importer.URL())
 		for {
 			if err := importer.Read(); err == io.EOF {
 				break

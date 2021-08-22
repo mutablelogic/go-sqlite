@@ -166,7 +166,7 @@ type SQSelect interface {
 type SQAlter interface {
 	SQStatement
 
-	WithSchema(string) SQAlter
+	// Alter operation
 	AddColumn(SQColumn) SQStatement
 	DropColumn(SQColumn) SQStatement
 }

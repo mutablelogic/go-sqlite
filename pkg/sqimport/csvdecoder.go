@@ -14,7 +14,6 @@ import (
 
 type csvdecoder struct {
 	r            *csv.Reader
-	w            sqlite.SQWriter
 	header       bool
 	name, schema string
 	cols         []string
@@ -24,8 +23,8 @@ type csvdecoder struct {
 // LIFECYCLE
 
 // NewCSVDecoder returns a CSV decoder setting options
-func (this *importer) NewCSVDecoder(r io.Reader, w sqlite.SQWriter, delimiter rune) (sqlite.SQImportDecoder, error) {
-	decoder := &csvdecoder{csv.NewReader(r), w, this.c.Header, this.c.Name, this.c.Schema, nil}
+func (this *importer) NewCSVDecoder(r io.Reader, delimiter rune) (sqlite.SQImportDecoder, error) {
+	decoder := &csvdecoder{csv.NewReader(r), this.c.Header, this.c.Name, this.c.Schema, nil}
 
 	// Set delimiter
 	if this.c.Delimiter != 0 {
@@ -47,7 +46,11 @@ func (this *importer) NewCSVDecoder(r io.Reader, w sqlite.SQWriter, delimiter ru
 }
 
 // Read reads a CSV record, and returns io.EOF on end of reading
-func (this *csvdecoder) Read() error {
+func (this *csvdecoder) Read(w sqlite.SQWriter) error {
+	// Check arguments
+	if w == nil {
+		return sqlite.ErrBadParameter.With("SQLWriter")
+	}
 	// Read a row
 	row, err := this.r.Read()
 	if err != nil {
@@ -75,7 +78,7 @@ func (this *csvdecoder) Read() error {
 	}
 
 	// Write the row
-	return this.w.Write(this.name, this.schema, this.cols[:len(row)], csvRow(row))
+	return w.Write(this.name, this.schema, this.cols[:len(row)], csvRow(row))
 }
 
 ////////////////////////////////////////////////////////////////////////////////

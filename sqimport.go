@@ -62,6 +62,6 @@ type SQWriter interface {
 }
 
 type SQImportDecoder interface {
-	// Read from the source. Returns io.EOF when no more data is available.
-	Read() error
+	// Read from the source, and write rows. Returns io.EOF when no more data is available.
+	Read(SQWriter) error
 }

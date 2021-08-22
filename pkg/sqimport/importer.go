@@ -11,7 +11,7 @@ import (
 
 	// Modules
 	sqlite "github.com/djthorpe/go-sqlite"
-	"github.com/hashicorp/go-multierror"
+	multierror "github.com/hashicorp/go-multierror"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -138,7 +138,7 @@ func (this *importer) Read() error {
 	}
 
 	// Read the row
-	if err := this.dec.Read(); err != nil {
+	if err := this.dec.Read(this.w); err != nil {
 		// Release resources
 		result = err
 		if err := this.r.Close(); err != nil {
@@ -175,13 +175,13 @@ func (this *importer) Decoder(mimetype string) (sqlite.SQImportDecoder, error) {
 	// parameters
 	switch {
 	case mediatype == "text/csv":
-		return this.NewCSVDecoder(r, this.w, ',')
+		return this.NewCSVDecoder(r, ',')
 	case mediatype == "text/tsv":
-		return this.NewCSVDecoder(r, this.w, '\t')
+		return this.NewCSVDecoder(r, '\t')
 	case mediatype == "text/plain" && this.c.Ext == ".csv":
-		return this.NewCSVDecoder(r, this.w, ',')
+		return this.NewCSVDecoder(r, ',')
 	case mediatype == "text/plain" && this.c.Ext == ".tsv":
-		return this.NewCSVDecoder(r, this.w, '\t')
+		return this.NewCSVDecoder(r, '\t')
 	default:
 		return nil, fmt.Errorf("unsupported media type: %q (file extension %q)", mediatype, this.c.Ext)
 	}

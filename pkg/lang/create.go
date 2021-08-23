@@ -35,7 +35,7 @@ func (this *createtable) IfNotExists() sqlite.SQTable {
 }
 
 func (this *createtable) WithTemporary() sqlite.SQTable {
-	return &createtable{this.source, true, this.ifnotexists, this.ifnotexists, this.unique, this.index, this.columns}
+	return &createtable{this.source, true, this.ifnotexists, this.withoutrowid, this.unique, this.index, this.columns}
 }
 
 func (this *createtable) WithoutRowID() sqlite.SQTable {

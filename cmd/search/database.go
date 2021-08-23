@@ -53,8 +53,7 @@ func OpenDatabase(filename string) (sq.SQConnection, error) {
 			return err
 		}
 		for _, q := range sqobj.CreateIndexes(tFile, File{}) {
-			q = q.IfNotExists()
-			if _, err := tx.Exec(q); err != nil {
+			if _, err := tx.Exec(q.IfNotExists()); err != nil {
 				return err
 			}
 		}

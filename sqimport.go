@@ -7,33 +7,33 @@ import "net/url"
 
 type SQImportConfig struct {
 	// Schema defines the table schema to import into. Optional.
-	Schema string
+	Schema string `sqlite:"schema,omitempty"`
 
 	// Name defines the table name to import into, if empty will be inferred
 	// from the import source URL
-	Name string
+	Name string `sqlite:"name,omitempty"`
 
 	// Ext defines the extension to infer the mimetype from. Optional.
-	Ext string
+	Ext string `sqlite:"ext,omitempty"`
 
 	// Header when true indicates the first line of a CSV file is a header
-	Header bool
+	Header bool `sqlite:"header,omitempty"`
 
 	// TrimSpace when true indicates the CSV file should be trimmed of whitespace
 	// for each field
-	TrimSpace bool
+	TrimSpace bool `sqlite:"trimspace,omitempty"`
 
 	// Comment defines the character which indicates a line is a comment. Optional.
-	Comment rune
+	Comment rune `sqlite:"comment,omitempty"`
 
 	// Delimiter defines the character which indicates a field delimiter. Optional.
-	Delimiter rune
+	Delimiter rune `sqlite:"delimiter,omitempty"`
 
 	// LazyQuotes when true indicates the CSV file should allow non-standard quotes.
-	LazyQuotes bool
+	LazyQuotes bool `sqlite:"lazyquotes,omitempty"`
 
 	// Overwrite existing table (will append data otherwise)
-	Overwrite bool
+	Overwrite bool `sqlite:"overwrite,omitempty"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////

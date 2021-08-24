@@ -21,12 +21,12 @@ type insert struct {
 
 // Insert values into a table with a name and defined column names
 func (this *source) Insert(columns ...string) sqlite.SQInsert {
-	return &insert{source{this.name, this.schema, ""}, "INSERT", false, columns}
+	return &insert{source{this.name, this.schema, "", false}, "INSERT", false, columns}
 }
 
 // Replace values into a table with a name and defined column names
 func (this *source) Replace(columns ...string) sqlite.SQInsert {
-	return &insert{source{this.name, this.schema, ""}, "REPLACE", false, columns}
+	return &insert{source{this.name, this.schema, "", false}, "REPLACE", false, columns}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -92,6 +92,7 @@ type SQSource interface {
 	WithSchema(string) SQSource
 	WithType(string) SQColumn
 	WithAlias(string) SQSource
+	WithDesc() SQSource
 
 	// Insert or replace a row with named columns
 	Insert(...string) SQInsert
@@ -158,8 +159,9 @@ type SQSelect interface {
 	// Destination columns for results
 	To(...SQSource) SQSelect
 
-	// Where clause
+	// Where and order clauses
 	Where(...interface{}) SQSelect
+	Order(...SQSource) SQSelect
 }
 
 // SQAlter defines an alter table statement

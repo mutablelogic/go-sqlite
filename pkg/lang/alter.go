@@ -21,7 +21,7 @@ type altertable struct {
 
 // Create a new table with name and defined columns
 func (this *source) AlterTable() sqlite.SQAlter {
-	return &altertable{source{this.name, this.schema, ""}, "", nil}
+	return &altertable{source{this.name, this.schema, "", false}, "", nil}
 }
 
 ///////////////////////////////////////////////////////////////////////////////

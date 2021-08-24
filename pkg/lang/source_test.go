@@ -25,6 +25,7 @@ func Test_Source_000(t *testing.T) {
 		{N("x y").WithSchema("main").WithAlias("b"), `main."x y" AS b`, `SELECT * FROM main."x y" AS b`},
 		{N("insert").WithSchema("main").WithAlias("b"), `main."insert" AS b`, `SELECT * FROM main."insert" AS b`},
 		{N("x").WithType("TEXT"), `x TEXT`, ``},
+		{N("x").WithDesc(), `x DESC`, ``},
 	}
 
 	for _, test := range tests {

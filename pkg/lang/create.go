@@ -24,7 +24,7 @@ type createtable struct {
 
 // Create a new table with name and defined columns
 func (this *source) CreateTable(columns ...sqlite.SQColumn) sqlite.SQTable {
-	return &createtable{source{this.name, this.schema, ""}, false, false, false, nil, nil, columns}
+	return &createtable{source{this.name, this.schema, "", false}, false, false, false, nil, nil, columns}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

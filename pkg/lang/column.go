@@ -28,7 +28,7 @@ const (
 
 // C defines a column name
 func C(name string) sqlite.SQColumn {
-	return &column{source{name, "", ""}, defaultColumnDecltype, false, false}
+	return &column{source{name, "", "", false}, defaultColumnDecltype, false, false}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -51,7 +51,7 @@ func (this *column) WithType(v string) sqlite.SQColumn {
 }
 
 func (this *column) WithAlias(v string) sqlite.SQSource {
-	return &source{this.name, "", v}
+	return &source{this.name, "", v, false}
 }
 
 func (this *column) NotNull() sqlite.SQColumn {

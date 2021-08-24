@@ -13,6 +13,7 @@ type source struct {
 	name   string
 	schema string
 	alias  string
+	desc   bool
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -20,22 +21,26 @@ type source struct {
 
 // N defines a table name or column name
 func N(s string) sqlite.SQSource {
-	return &source{s, "", ""}
+	return &source{s, "", "", false}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PROPERTIES
 
 func (this *source) WithSchema(schema string) sqlite.SQSource {
-	return &source{this.name, schema, this.alias}
+	return &source{this.name, schema, this.alias, this.desc}
 }
 
 func (this *source) WithAlias(alias string) sqlite.SQSource {
-	return &source{this.name, this.schema, alias}
+	return &source{this.name, this.schema, alias, this.desc}
 }
 
 func (this *source) WithType(decltype string) sqlite.SQColumn {
 	return &column{*this, decltype, false, false}
+}
+
+func (this *source) WithDesc() sqlite.SQSource {
+	return &source{this.name, this.schema, this.alias, true}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -57,6 +62,9 @@ func (this *source) String() string {
 	}
 	if this.alias != "" {
 		tokens = append(tokens, " AS ", sqlite.QuoteIdentifier(this.alias))
+	}
+	if this.desc {
+		tokens = append(tokens, " DESC")
 	}
 	return strings.Join(tokens, "")
 }

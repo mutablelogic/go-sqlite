@@ -20,22 +20,22 @@ type drop struct {
 
 // Drop a table
 func (this *source) DropTable() sqlite.SQDrop {
-	return &drop{source{this.name, this.schema, ""}, "TABLE", false}
+	return &drop{source{this.name, this.schema, "", false}, "TABLE", false}
 }
 
 // Drop a index
 func (this *source) DropIndex() sqlite.SQDrop {
-	return &drop{source{this.name, this.schema, ""}, "INDEX", false}
+	return &drop{source{this.name, this.schema, "", false}, "INDEX", false}
 }
 
 // Drop a trigger
 func (this *source) DropTrigger() sqlite.SQDrop {
-	return &drop{source{this.name, this.schema, ""}, "TRIGGER", false}
+	return &drop{source{this.name, this.schema, "", false}, "TRIGGER", false}
 }
 
 // Drop a view
 func (this *source) DropView() sqlite.SQDrop {
-	return &drop{source{this.name, this.schema, ""}, "VIEW", false}
+	return &drop{source{this.name, this.schema, "", false}, "VIEW", false}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

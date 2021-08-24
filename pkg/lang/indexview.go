@@ -29,12 +29,12 @@ type createvirtual struct {
 
 // Create a new index with name and defined columns
 func (this *source) CreateIndex(name string, columns ...string) sqlite.SQIndexView {
-	return &createindex{source{this.name, this.schema, ""}, name, false, false, columns}
+	return &createindex{source{this.name, this.schema, "", false}, name, false, false, columns}
 }
 
 // Create a virtual table with module name name and arguments
 func (this *source) CreateVirtualTable(module string, args ...string) sqlite.SQIndexView {
-	return &createvirtual{source{this.name, this.schema, ""}, module, false, args}
+	return &createvirtual{source{this.name, this.schema, "", false}, module, false, args}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,7 +61,7 @@ func (this *createvirtual) WithUnique() sqlite.SQIndexView {
 }
 
 func (this *createvirtual) WithTemporary() sqlite.SQIndexView {
-	return &createvirtual{source{this.name, "temp", ""}, this.module, this.ifnotexists, this.args}
+	return &createvirtual{source{this.name, "temp", "", false}, this.module, this.ifnotexists, this.args}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

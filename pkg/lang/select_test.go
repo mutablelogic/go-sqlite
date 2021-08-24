@@ -31,6 +31,8 @@ func Test_Select_000(t *testing.T) {
 		{S(N("a")).Where(P).Where(P), "SELECT * FROM a WHERE ? AND ?", ""},
 		{S(N("a")).Where(V("foo"), V(true)), "SELECT * FROM a WHERE 'foo' AND TRUE", ""},
 		{S(N("a")).Where(V("foo"), V(false)), "SELECT * FROM a WHERE 'foo' AND FALSE", ""},
+		{S(N("foo")).Order(N("a")).Order(N("b")), "SELECT * FROM foo ORDER BY a,b", ""},
+		{S(N("foo")).Order(N("a"), N("b").WithDesc()), "SELECT * FROM foo ORDER BY a,b DESC", ""},
 	}
 
 	for i, test := range tests {

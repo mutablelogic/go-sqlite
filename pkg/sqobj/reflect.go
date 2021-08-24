@@ -7,8 +7,10 @@ import (
 
 	// Modules
 	marshaler "github.com/djthorpe/go-marshaler"
-	sqlite "github.com/djthorpe/go-sqlite"
+	. "github.com/djthorpe/go-sqlite"
 	. "github.com/djthorpe/go-sqlite/pkg/lang"
+	sqlite "github.com/djthorpe/go-sqlite/pkg/sqlite"
+	"github.com/hashicorp/go-multierror"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -33,7 +35,7 @@ var (
 
 // CreateTable returns a CREATE TABLE statement for the given struct
 // or nil if the argument is not a pointer to a struct or has no fields which are exported
-func CreateTable(name string, v interface{}) sqlite.SQTable {
+func CreateTable(name string, v interface{}) SQTable {
 	if c := structCols(v); c == nil {
 		return nil
 	} else {
@@ -43,8 +45,8 @@ func CreateTable(name string, v interface{}) sqlite.SQTable {
 
 // CreateIndexes returns CREATE INDEX statements for the given struct
 // or nil if the argument is not a pointer to a struct or has no fields which are exported
-func CreateIndexes(name string, v interface{}) []sqlite.SQIndexView {
-	var result []sqlite.SQIndexView
+func CreateIndexes(name string, v interface{}) []SQIndexView {
+	var result []SQIndexView
 	for _, index := range structIndexes(v) {
 		q := N(index.name).CreateIndex(name, index.cols...)
 		if index.unique {
@@ -55,9 +57,9 @@ func CreateIndexes(name string, v interface{}) []sqlite.SQIndexView {
 	return result
 }
 
-// InsertRow returns an INSERT statement for the given struct
-// or nil if the argument is not a pointer to a struct or has no fields which are exported
-func InsertRow(name string, v interface{}) sqlite.SQInsert {
+// InsertRow returns an INSERT statement for the given struct or nil if the
+// argument is not a pointer to a struct or has no fields which are exported
+func InsertRow(name string, v interface{}) SQInsert {
 	c := structCols(v)
 	if c == nil || len(c) == 0 {
 		return nil
@@ -65,19 +67,38 @@ func InsertRow(name string, v interface{}) sqlite.SQInsert {
 	return N(name).Insert(namesForColumns(c)...)
 }
 
+// InsertParams returns the parameters from a struct to use for an insert statement or
+// returns an error
+func InsertParams(v interface{}) ([]interface{}, error) {
+	fields := marshaler.NewEncoder(TagName).Reflect(v)
+	if fields == nil {
+		return nil, ErrBadParameter
+	}
+	var err error
+	result := make([]interface{}, len(fields))
+	for i, field := range fields {
+		if v, err_ := sqlite.BoundValue(field.Value); err_ != nil {
+			err = multierror.Append(err, err_)
+		} else {
+			result[i] = v
+		}
+	}
+	return result, err
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func structCols(v interface{}) []sqlite.SQColumn {
-	fields := marshaler.NewEncoder(sqlite.TagName).Reflect(v)
+func structCols(v interface{}) []SQColumn {
+	fields := marshaler.NewEncoder(TagName).Reflect(v)
 	if fields == nil {
 		return nil
 	}
-	result := make([]sqlite.SQColumn, 0, len(fields))
+	result := make([]SQColumn, 0, len(fields))
 	for _, field := range fields {
 		c := C(field.Name).WithType(decltype(field.Type))
 		for _, tag := range field.Tags {
-			if sqlite.IsSupportedType(tag) {
+			if IsSupportedType(tag) {
 				c = c.WithType(strings.ToUpper(tag))
 			} else if isNotNull(tag) {
 				c = c.NotNull()
@@ -93,7 +114,7 @@ func structCols(v interface{}) []sqlite.SQColumn {
 
 func structIndexes(v interface{}) map[string]*index {
 	result := map[string]*index{}
-	fields := marshaler.NewEncoder(sqlite.TagName).Reflect(v)
+	fields := marshaler.NewEncoder(TagName).Reflect(v)
 	if fields == nil {
 		return nil
 	}
@@ -148,7 +169,7 @@ func decltype(t reflect.Type) string {
 	}
 }
 
-func namesForColumns(cols []sqlite.SQColumn) []string {
+func namesForColumns(cols []SQColumn) []string {
 	result := make([]string, len(cols))
 	for i, col := range cols {
 		result[i] = col.Name()

@@ -1,6 +1,7 @@
 package sqobj_test
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -36,5 +37,26 @@ func Test_Reflect_001(t *testing.T) {
 		for _, q := range q {
 			t.Log(q)
 		}
+	}
+}
+
+func Test_Reflect_002(t *testing.T) {
+	var params struct {
+		A int       `sqlite:"a,index:x"`
+		B bool      `sqlite:"b,index:x"`
+		C float32   `sqlite:"c,unique:y"`
+		D time.Time `sqlite:"d,index:z"`
+		E []byte    `sqlite:"e"`
+	}
+	params.A = 100
+	params.B = true
+	params.C = math.Pi
+	params.D = time.Now()
+	params.E = []byte("hello")
+
+	if bound, err := sqobj.InsertParams(&params); err != nil {
+		t.Error(err)
+	} else {
+		t.Log(bound)
 	}
 }

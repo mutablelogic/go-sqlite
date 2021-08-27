@@ -35,6 +35,7 @@ var (
 	reservedWords        = make(map[string]bool, 0)
 	reservedTypes        = make(map[string]bool, 0)
 	regexpBareIdentifier = regexp.MustCompile("^[A-Za-z_][A-Za-z0-9_]*$")
+	syncReservedWords    = sync.RWMutex{}
 )
 
 /////////////////////////////////////////////////////////////////////
@@ -116,11 +117,15 @@ func isBareIdentifier(value string) bool {
 func isReservedWord(value string) bool {
 	var once sync.Once
 	once.Do(func() {
+		syncReservedWords.Lock()
+		defer syncReservedWords.Unlock()
 		for _, word := range strings.Fields(reserved_words) {
 			reservedWords[strings.ToUpper(word)] = true
 		}
 	})
 	value = strings.TrimSpace(strings.ToUpper(value))
+	syncReservedWords.RLock()
+	defer syncReservedWords.RUnlock()
 	_, exists := reservedWords[value]
 	return exists
 }
@@ -128,11 +133,15 @@ func isReservedWord(value string) bool {
 func isReservedType(value string) bool {
 	var once sync.Once
 	once.Do(func() {
+		syncReservedWords.Lock()
+		defer syncReservedWords.Unlock()
 		for _, word := range strings.Fields(reserved_types) {
 			reservedTypes[strings.ToUpper(word)] = true
 		}
 	})
 	value = strings.TrimSpace(strings.ToUpper(value))
+	syncReservedWords.RLock()
+	defer syncReservedWords.RUnlock()
 	_, exists := reservedTypes[value]
 	return exists
 }

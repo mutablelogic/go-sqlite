@@ -88,7 +88,11 @@ type SQSource interface {
 	SQStatement
 	SQExpr
 
+	// Return name
+	Name() string
+
 	// Modify the source
+	WithName(string) SQSource
 	WithSchema(string) SQSource
 	WithType(string) SQColumn
 	WithAlias(string) SQSource

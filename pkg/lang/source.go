@@ -27,6 +27,14 @@ func N(s string) sqlite.SQSource {
 ///////////////////////////////////////////////////////////////////////////////
 // PROPERTIES
 
+func (this *source) Name() string {
+	return this.name
+}
+
+func (this *source) WithName(name string) sqlite.SQSource {
+	return &source{name, this.schema, this.alias, this.desc}
+}
+
 func (this *source) WithSchema(schema string) sqlite.SQSource {
 	return &source{this.name, schema, this.alias, this.desc}
 }

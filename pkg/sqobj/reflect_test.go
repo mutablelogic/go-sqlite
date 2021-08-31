@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/djthorpe/go-sqlite/pkg/lang"
 	sqobj "github.com/djthorpe/go-sqlite/pkg/sqobj"
 )
 
@@ -16,7 +17,7 @@ func Test_Reflect_000(t *testing.T) {
 		D time.Time `sqlite:"d"`
 		E []byte    `sqlite:"e"`
 	}
-	if q := sqobj.CreateTable("foo", &a); q == nil {
+	if q := sqobj.CreateTable(N("foo"), &a); q == nil {
 		t.Fatal("CreateTable failed")
 	} else if q.Query() != "CREATE TABLE foo (a INTEGER NOT NULL,b INTEGER,c FLOAT,d TIMESTAMP,e BLOB,PRIMARY KEY (a))" {
 		t.Error("Unexpected return, ", q.Query())
@@ -31,7 +32,7 @@ func Test_Reflect_001(t *testing.T) {
 		D time.Time `sqlite:"d,index:z"`
 		E []byte    `sqlite:"e"`
 	}
-	if q := sqobj.CreateIndexes("foo", &a); q == nil {
+	if q := sqobj.CreateIndexes(N("foo"), &a); q == nil {
 		t.Fatal("CreateIndexes failed")
 	} else {
 		for _, q := range q {

@@ -35,25 +35,48 @@ var (
 
 // CreateTable returns a CREATE TABLE statement for the given struct
 // or nil if the argument is not a pointer to a struct or has no fields which are exported
-func CreateTable(name string, v interface{}) SQTable {
+func CreateTable(source SQSource, v interface{}) SQTable {
 	if c := structCols(v); c == nil {
 		return nil
 	} else {
-		return N(name).CreateTable(c...)
+		return source.CreateTable(c...)
 	}
 }
 
 // CreateIndexes returns CREATE INDEX statements for the given struct
 // or nil if the argument is not a pointer to a struct or has no fields which are exported
-func CreateIndexes(name string, v interface{}) []SQIndexView {
+func CreateIndexes(source SQSource, v interface{}) []SQIndexView {
 	var result []SQIndexView
 	for _, index := range structIndexes(v) {
-		q := N(index.name).CreateIndex(name, index.cols...)
+		index_source := source.WithName(source.Name() + "_" + index.name)
+		q := index_source.CreateIndex(source.Name(), index.cols...)
 		if index.unique {
 			q = q.WithUnique()
 		}
 		result = append(result, q)
 	}
+	return result
+}
+
+func CreateTableAndIndexes(source SQSource, ifnotexists bool, v interface{}) []SQStatement {
+	result := []SQStatement{}
+
+	// Create table
+	t := CreateTable(source, v)
+	if ifnotexists {
+		t = t.IfNotExists()
+	}
+	result = append(result, t)
+
+	// Create indexes
+	for _, index := range CreateIndexes(source, v) {
+		if ifnotexists {
+			index = index.IfNotExists()
+		}
+		result = append(result, index)
+	}
+
+	// Return statements
 	return result
 }
 
@@ -65,6 +88,16 @@ func InsertRow(name string, v interface{}) SQInsert {
 		return nil
 	}
 	return N(name).Insert(namesForColumns(c)...)
+}
+
+// ReplaceRow returns an INSERT OR REPLACE statement for the given struct or nil if the
+// argument is not a pointer to a struct or has no fields which are exported
+func ReplaceRow(name string, v interface{}) SQInsert {
+	c := structCols(v)
+	if c == nil || len(c) == 0 {
+		return nil
+	}
+	return N(name).Replace(namesForColumns(c)...)
 }
 
 // InsertParams returns the parameters from a struct to use for an insert statement or

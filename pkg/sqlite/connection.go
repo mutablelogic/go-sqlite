@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	// Modules
@@ -16,6 +17,7 @@ import (
 // TYPES
 
 type connection struct {
+	sync.Mutex
 	tz  *time.Location
 	dsn string
 	ctx *driver.SQLiteTx
@@ -92,13 +94,16 @@ func (this *connection) String() string {
 // PUBLIC METHODS
 
 func (this *connection) Do(cb func(sqlite.SQTransaction) error) error {
+	this.Mutex.Lock()
+	defer this.Mutex.Unlock()
+
 	transaction := new(txn)
 	if this.ctx != nil {
-		return sqlite.ErrInternalAppError.With("Txn")
+		return sqlite.ErrInternalAppError.With("Already in a transaction")
 	} else if ctx, err := this.conn.Begin(); err != nil {
 		return err
 	} else if this.ctx = ctx.(*driver.SQLiteTx); this.ctx == nil {
-		return sqlite.ErrInternalAppError.With("Txn")
+		return sqlite.ErrInternalAppError.With("Invalid transaction object")
 	} else if err := transaction.Init(this.conn, true); err != nil {
 		return err
 	}

@@ -38,7 +38,7 @@ func (this *txn) Destroy() error {
 
 	// Check for opened connection
 	if this.conn == nil {
-		return sqlite.ErrInternalAppError
+		return sqlite.ErrInternalAppError.With("Destroy")
 	}
 
 	// Cycle through prepared statements to destroy

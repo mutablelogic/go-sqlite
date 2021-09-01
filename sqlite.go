@@ -116,6 +116,10 @@ type SQSource interface {
 
 	// Alter objects
 	AlterTable() SQAlter
+
+	// Update and delete data
+	Update(...string) SQUpdate
+	Delete(...interface{}) SQStatement
 }
 
 // SQTable defines a table of columns and indexes
@@ -127,6 +131,21 @@ type SQTable interface {
 	WithoutRowID() SQTable
 	WithIndex(...string) SQTable
 	WithUnique(...string) SQTable
+}
+
+// SQUpdate defines an update statement
+type SQUpdate interface {
+	SQStatement
+
+	// Modifiers
+	WithAbort() SQUpdate
+	WithFail() SQUpdate
+	WithIgnore() SQUpdate
+	WithReplace() SQUpdate
+	WithRollback() SQUpdate
+
+	// Where clause
+	Where(...interface{}) SQUpdate
 }
 
 // SQIndexView defines a create index or view statement

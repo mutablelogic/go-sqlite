@@ -18,7 +18,7 @@ func Test_Alter_000(t *testing.T) {
 		{N("foo").WithSchema("main").AlterTable().DropColumn(C("a")), `ALTER TABLE main.foo DROP COLUMN a`, ``},
 		{N("foo").WithSchema("main").AlterTable().AddColumn(C("a")), `ALTER TABLE main.foo ADD COLUMN a TEXT`, ``},
 		{N("foo").WithSchema("main").AlterTable().AddColumn(C("a").NotNull()), `ALTER TABLE main.foo ADD COLUMN a TEXT NOT NULL`, ``},
-		{N("foo").WithSchema("main").AlterTable().AddColumn(C("a").Primary()), `ALTER TABLE main.foo ADD COLUMN a TEXT NOT NULL PRIMARY KEY`, ``},
+		{N("foo").WithSchema("main").AlterTable().AddColumn(C("a").WithPrimary()), `ALTER TABLE main.foo ADD COLUMN a TEXT NOT NULL PRIMARY KEY`, ``},
 	}
 
 	for _, test := range tests {

@@ -42,7 +42,6 @@ func Test_CreateIndexView_001(t *testing.T) {
 	}{
 		{N("foo").CreateVirtualTable("bar"), `CREATE VIRTUAL TABLE foo USING bar`, ``},
 		{N("foo").WithSchema("main").CreateVirtualTable("bar"), `CREATE VIRTUAL TABLE main.foo USING bar`, ``},
-		{N("foo").WithSchema("main").CreateVirtualTable("bar").WithTemporary(), `CREATE VIRTUAL TABLE temp.foo USING bar`, ``},
 		{N("foo").CreateVirtualTable("bar").IfNotExists(), `CREATE VIRTUAL TABLE IF NOT EXISTS foo USING bar`, ``},
 		{N("foo").CreateVirtualTable("bar", "a", "b"), `CREATE VIRTUAL TABLE foo USING bar (a,b)`, ``},
 	}

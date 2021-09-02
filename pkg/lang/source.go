@@ -31,6 +31,14 @@ func (this *source) Name() string {
 	return this.name
 }
 
+func (this *source) Schema() string {
+	return this.schema
+}
+
+func (this *source) Alias() string {
+	return this.alias
+}
+
 func (this *source) WithName(name string) sqlite.SQSource {
 	return &source{name, this.schema, this.alias, this.desc}
 }
@@ -44,7 +52,7 @@ func (this *source) WithAlias(alias string) sqlite.SQSource {
 }
 
 func (this *source) WithType(decltype string) sqlite.SQColumn {
-	return &column{*this, decltype, false, false}
+	return &column{*this, decltype, false, false, false}
 }
 
 func (this *source) WithDesc() sqlite.SQSource {

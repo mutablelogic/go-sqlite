@@ -15,6 +15,7 @@ type createindex struct {
 	unique      bool
 	ifnotexists bool
 	columns     []string
+	auto        bool
 }
 
 type createvirtual struct {
@@ -29,7 +30,7 @@ type createvirtual struct {
 
 // Create a new index with name and defined columns
 func (this *source) CreateIndex(name string, columns ...string) sqlite.SQIndexView {
-	return &createindex{source{this.name, this.schema, "", false}, name, false, false, columns}
+	return &createindex{source{this.name, this.schema, "", false}, name, false, false, columns, false}
 }
 
 // Create a virtual table with module name name and arguments
@@ -40,16 +41,60 @@ func (this *source) CreateVirtualTable(module string, args ...string) sqlite.SQI
 ////////////////////////////////////////////////////////////////////////////////
 // PROPERTIES
 
+// Return whether the index is unique
+func (this *createindex) Unique() bool {
+	return this.unique
+}
+func (this *createvirtual) Unique() bool {
+	return false
+}
+
+// Return the table linked to the index, or module name
+func (this *createindex) Table() string {
+	return this.name
+}
+func (this *createvirtual) Table() string {
+	return this.module
+}
+
+// Return the columns of the table in this index, or module arguments
+func (this *createindex) Columns() []string {
+	result := make([]string, len(this.columns))
+	for i := range this.columns {
+		result[i] = this.columns[i]
+	}
+	return result
+}
+func (this *createvirtual) Columns() []string {
+	result := make([]string, len(this.args))
+	for i := range this.args {
+		result[i] = this.args[i]
+	}
+	return result
+}
+
+// Return whether the index is automatically generated
+func (this *createindex) Auto() bool {
+	return this.auto
+}
+func (this *createvirtual) Auto() bool {
+	return false
+}
+
 func (this *createindex) IfNotExists() sqlite.SQIndexView {
-	return &createindex{this.source, this.name, this.unique, true, this.columns}
+	return &createindex{this.source, this.name, this.unique, true, this.columns, this.auto}
 }
 
 func (this *createindex) WithUnique() sqlite.SQIndexView {
-	return &createindex{this.source, this.name, true, this.ifnotexists, this.columns}
+	return &createindex{this.source, this.name, true, this.ifnotexists, this.columns, this.auto}
 }
 
 func (this *createindex) WithTemporary() sqlite.SQIndexView {
 	return nil
+}
+
+func (this *createindex) WithAuto() sqlite.SQIndexView {
+	return &createindex{this.source, this.name, true, this.ifnotexists, this.columns, true}
 }
 
 func (this *createvirtual) IfNotExists() sqlite.SQIndexView {
@@ -64,6 +109,10 @@ func (this *createvirtual) WithTemporary() sqlite.SQIndexView {
 	return &createvirtual{source{this.name, "temp", "", false}, this.module, this.ifnotexists, this.args}
 }
 
+func (this *createvirtual) WithAuto() sqlite.SQIndexView {
+	return nil
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
@@ -76,7 +125,12 @@ func (this *createvirtual) String() string {
 }
 
 func (this *createindex) Query() string {
-	tokens := []string{"CREATE"}
+	tokens := []string{}
+	if this.auto {
+		tokens = append(tokens, "AUTO")
+	} else {
+		tokens = append(tokens, "CREATE")
+	}
 	if this.unique {
 		tokens = append(tokens, "UNIQUE INDEX")
 	} else {

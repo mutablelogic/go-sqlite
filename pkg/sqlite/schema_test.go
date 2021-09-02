@@ -64,3 +64,60 @@ func Test_Schema_003(t *testing.T) {
 		}
 	}
 }
+
+func Test_Schema_004(t *testing.T) {
+	db, err := sq.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	// Create a table
+	if _, err := db.Exec(N("foo").CreateTable(N("a").WithType("TEXT").WithPrimary())); err != nil {
+		t.Fatal(err)
+	}
+	// Create an index
+	if _, err := db.Exec(N("foo_index").CreateIndex("foo", "a")); err != nil {
+		t.Fatal(err)
+	}
+	// Create a unique index
+	if _, err := db.Exec(N("bar_index").CreateIndex("foo", "a").WithUnique()); err != nil {
+		t.Fatal(err)
+	}
+	// Get indexes for table foo
+	result := db.Indexes("foo")
+	n := 0
+	for _, index := range result {
+		t.Log(index)
+		if index.Auto() {
+			continue
+		}
+		n = n + 1
+		switch index.Name() {
+		case "foo_index":
+			if index.Unique() {
+				t.Errorf("Didn't expect unique")
+			}
+			if index.Table() != "foo" {
+				t.Errorf("Unexpected table name %q", index.Table())
+			}
+			if cols := index.Columns(); len(cols) != 1 || cols[0] != "a" {
+				t.Errorf("Unexpected table columns %q", cols)
+			}
+		case "bar_index":
+			if index.Unique() == false {
+				t.Errorf("Expected unique")
+			}
+			if index.Table() != "foo" {
+				t.Errorf("Unexpected table name %q", index.Table())
+			}
+			if cols := index.Columns(); len(cols) != 1 || cols[0] != "a" {
+				t.Errorf("Unexpected table columns %q", cols)
+			}
+		default:
+			t.Errorf("Unexpected index name: %q", index.Name())
+		}
+	}
+	if n != 2 {
+		t.Errorf("Expected 2 indexes, got %d", n)
+	}
+}

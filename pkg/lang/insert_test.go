@@ -8,7 +8,6 @@ import (
 )
 
 func Test_Insert_000(t *testing.T) {
-	// Check db.P and db.V (value)
 	tests := []struct {
 		In     Statement
 		String string
@@ -31,6 +30,30 @@ func Test_Insert_000(t *testing.T) {
 		if test.Query != "" {
 			if v := test.In.Query(); v != test.Query {
 				t.Errorf("db.V = %v, wanted %v", v, test.Query)
+			}
+		}
+	}
+}
+
+func Test_Insert_001(t *testing.T) {
+	tests := []struct {
+		In    Statement
+		Query string
+	}{
+		{N("foo").Insert("a").WithConflictDoNothing(), `INSERT INTO foo (a) VALUES (?) ON CONFLICT DO NOTHING`},
+		{N("foo").Insert("a").WithConflictDoNothing().WithConflictDoNothing("a"), `INSERT INTO foo (a) VALUES (?) ON CONFLICT DO NOTHING ON CONFLICT (a) DO NOTHING`},
+		{N("foo").Insert("a").WithConflictUpdate(), `INSERT INTO foo (a) VALUES (?) ON CONFLICT DO UPDATE SET a=excluded.a WHERE a<>excluded.a`},
+		{N("foo").Insert("a").WithConflictUpdate("b"), `INSERT INTO foo (a) VALUES (?) ON CONFLICT (b) DO UPDATE SET a=excluded.a WHERE a<>excluded.a`},
+		{N("foo").Insert("a").WithConflictUpdate("b", "c"), `INSERT INTO foo (a) VALUES (?) ON CONFLICT (b,c) DO UPDATE SET a=excluded.a WHERE a<>excluded.a`},
+		{N("foo").Insert("a", "b").WithConflictUpdate(), `INSERT INTO foo (a,b) VALUES (?,?) ON CONFLICT DO UPDATE SET a=excluded.a,b=excluded.b WHERE a<>excluded.a OR b<>excluded.b`},
+	}
+
+	for _, test := range tests {
+		if test.Query != "" {
+			if v := test.In.Query(); v != test.Query {
+				t.Errorf("db.V = %v, wanted %v", v, test.Query)
+			} else {
+				t.Log(v)
 			}
 		}
 	}

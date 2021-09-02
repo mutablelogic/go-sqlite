@@ -19,7 +19,7 @@ func Test_Reflect_000(t *testing.T) {
 	}
 	if q := sqobj.CreateTable(N("foo"), &a); q == nil {
 		t.Fatal("CreateTable failed")
-	} else if q.Query() != "CREATE TABLE foo (a INTEGER NOT NULL,b INTEGER,c FLOAT,d TIMESTAMP,e BLOB,PRIMARY KEY (a))" {
+	} else if q.Query() != "CREATE TABLE foo (a INTEGER NOT NULL PRIMARY KEY,b INTEGER,c FLOAT,d TIMESTAMP,e BLOB)" {
 		t.Error("Unexpected return, ", q.Query())
 	}
 }
@@ -59,5 +59,16 @@ func Test_Reflect_002(t *testing.T) {
 		t.Error(err)
 	} else {
 		t.Log(bound)
+	}
+}
+
+func Test_Reflect_003(t *testing.T) {
+	var a struct {
+		A int `sqlite:"a,autoincrement"`
+	}
+	if q := sqobj.CreateTable(N("foo"), &a); q == nil {
+		t.Fatal("CreateTable failed")
+	} else if q.Query() != "CREATE TABLE foo (a INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT)" {
+		t.Error("Unexpected return, ", q.Query())
 	}
 }

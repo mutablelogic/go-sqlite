@@ -36,11 +36,18 @@ var (
 // CreateTable returns a CREATE TABLE statement for the given struct
 // or nil if the argument is not a pointer to a struct or has no fields which are exported
 func CreateTable(source SQSource, v interface{}) SQTable {
-	if c := structCols(v); c == nil {
+	c, i, u := structCols(v)
+	if len(c) == 0 {
 		return nil
-	} else {
-		return source.CreateTable(c...)
 	}
+	s := source.CreateTable(c...)
+	for _, index := range i {
+		s = s.WithIndex(index)
+	}
+	for _, unique := range u {
+		s = s.WithUnique(unique)
+	}
+	return s
 }
 
 // CreateIndexes returns CREATE INDEX statements for the given struct
@@ -58,6 +65,8 @@ func CreateIndexes(source SQSource, v interface{}) []SQIndexView {
 	return result
 }
 
+// CreateTableAndIndexes returns statements for creating table and indexes
+// and returns them, with the CreateTable being first
 func CreateTableAndIndexes(source SQSource, ifnotexists bool, v interface{}) []SQStatement {
 	result := []SQStatement{}
 
@@ -83,7 +92,7 @@ func CreateTableAndIndexes(source SQSource, ifnotexists bool, v interface{}) []S
 // InsertRow returns an INSERT statement for the given struct or nil if the
 // argument is not a pointer to a struct or has no fields which are exported
 func InsertRow(name string, v interface{}) SQInsert {
-	c := structCols(v)
+	c, _, _ := structCols(v)
 	if c == nil || len(c) == 0 {
 		return nil
 	}
@@ -93,7 +102,7 @@ func InsertRow(name string, v interface{}) SQInsert {
 // ReplaceRow returns an INSERT OR REPLACE statement for the given struct or nil if the
 // argument is not a pointer to a struct or has no fields which are exported
 func ReplaceRow(name string, v interface{}) SQInsert {
-	c := structCols(v)
+	c, _, _ := structCols(v)
 	if c == nil || len(c) == 0 {
 		return nil
 	}
@@ -122,12 +131,14 @@ func InsertParams(v interface{}) ([]interface{}, error) {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func structCols(v interface{}) []SQColumn {
+func structCols(v interface{}) ([]SQColumn, []string, []string) {
 	fields := marshaler.NewEncoder(TagName).Reflect(v)
 	if fields == nil {
-		return nil
+		return nil, nil, nil
 	}
 	result := make([]SQColumn, 0, len(fields))
+	indexes := make([]string, 0, len(fields))
+	uniques := make([]string, 0, len(fields))
 	for _, field := range fields {
 		c := C(field.Name).WithType(decltype(field.Type))
 		for _, tag := range field.Tags {
@@ -136,13 +147,19 @@ func structCols(v interface{}) []SQColumn {
 			} else if isNotNull(tag) {
 				c = c.NotNull()
 			} else if isPrimary(tag) {
-				c = c.Primary()
+				c = c.WithPrimary()
+			} else if isUnique(tag) {
+				uniques = append(uniques, field.Name)
+			} else if isIndex(tag) {
+				indexes = append(indexes, field.Name)
+			} else if isAutoincrement(tag) {
+				c = c.WithAutoIncrement()
 			}
 		}
 		result = append(result, c)
 	}
 
-	return result
+	return result, indexes, uniques
 }
 
 func structIndexes(v interface{}) map[string]*index {
@@ -181,6 +198,21 @@ func isPrimary(tag string) bool {
 	return tag == "PRI" || tag == "PRIMARY" || tag == "PRIMARY KEY"
 }
 
+func isAutoincrement(tag string) bool {
+	tag = strings.TrimSpace(strings.ToUpper(tag))
+	return tag == "AUTOINCREMENT"
+}
+
+func isUnique(tag string) bool {
+	tag = strings.TrimSpace(strings.ToUpper(tag))
+	return tag == "UNIQUE"
+}
+
+func isIndex(tag string) bool {
+	tag = strings.TrimSpace(strings.ToUpper(tag))
+	return tag == "INDEX"
+}
+
 func decltype(t reflect.Type) string {
 	switch t.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -206,6 +238,16 @@ func namesForColumns(cols []SQColumn) []string {
 	result := make([]string, len(cols))
 	for i, col := range cols {
 		result[i] = col.Name()
+	}
+	return result
+}
+
+func primaryForColumns(cols []SQColumn) []string {
+	var result []string
+	for _, col := range cols {
+		if col.Primary() != "" {
+			result = append(result, col.Name())
+		}
 	}
 	return result
 }

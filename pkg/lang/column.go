@@ -11,9 +11,10 @@ import (
 
 type column struct {
 	source
-	decltype string
-	notnull  bool
-	primary  bool
+	decltype      string
+	notnull       bool
+	primary       bool
+	autoincrement bool
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -28,7 +29,7 @@ const (
 
 // C defines a column name
 func C(name string) sqlite.SQColumn {
-	return &column{source{name, "", "", false}, defaultColumnDecltype, false, false}
+	return &column{source{name, "", "", false}, defaultColumnDecltype, false, false, false}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -46,8 +47,18 @@ func (this *column) Nullable() bool {
 	return this.notnull == false
 }
 
+func (this *column) Primary() string {
+	if this.autoincrement {
+		return "PRIMARY KEY AUTOINCREMENT"
+	} else if this.primary {
+		return "PRIMARY KEY"
+	} else {
+		return ""
+	}
+}
+
 func (this *column) WithType(v string) sqlite.SQColumn {
-	return &column{this.source, v, this.notnull, this.primary}
+	return &column{this.source, v, this.notnull, this.primary, this.autoincrement}
 }
 
 func (this *column) WithAlias(v string) sqlite.SQSource {
@@ -55,11 +66,15 @@ func (this *column) WithAlias(v string) sqlite.SQSource {
 }
 
 func (this *column) NotNull() sqlite.SQColumn {
-	return &column{this.source, this.decltype, true, this.primary}
+	return &column{this.source, this.decltype, true, this.primary, this.autoincrement}
 }
 
-func (this *column) Primary() sqlite.SQColumn {
-	return &column{this.source, this.decltype, true, true}
+func (this *column) WithPrimary() sqlite.SQColumn {
+	return &column{this.source, this.decltype, true, true, this.autoincrement}
+}
+
+func (this *column) WithAutoIncrement() sqlite.SQColumn {
+	return &column{this.source, this.decltype, true, true, true}
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -202,7 +202,11 @@ func (this *sqobj) classFor(v interface{}) (*sqclass, error) {
 	if v == nil {
 		return nil, ErrBadParameter.With("unexpected nil value")
 	}
-	if class, exists := this.class[reflect.TypeOf(v)]; !exists {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Ptr {
+		rv = rv.Elem()
+	}
+	if class, exists := this.class[rv.Type()]; !exists {
 		return nil, ErrNotFound.With("class: ", reflect.TypeOf(v))
 	} else {
 		return class, nil

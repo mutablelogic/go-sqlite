@@ -118,9 +118,5 @@ func (this *sqclass) statement(key classKey) SQStatement {
 
 // return bound parameters
 func (this *sqclass) params(v interface{}) ([]interface{}, error) {
-	if reflect.TypeOf(v) != this.t {
-		return nil, ErrBadParameter.With(reflect.TypeOf(v))
-	} else {
-		return InsertParams(v)
-	}
+	return InsertParams(v)
 }

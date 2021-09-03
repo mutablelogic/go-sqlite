@@ -7,10 +7,13 @@ import (
 
 	// Modules
 	marshaler "github.com/djthorpe/go-marshaler"
+	sqlite "github.com/djthorpe/go-sqlite/pkg/sqlite"
+	multierror "github.com/hashicorp/go-multierror"
+
+	// Import namespaces
+	. "github.com/djthorpe/go-errors"
 	. "github.com/djthorpe/go-sqlite"
 	. "github.com/djthorpe/go-sqlite/pkg/lang"
-	sqlite "github.com/djthorpe/go-sqlite/pkg/sqlite"
-	"github.com/hashicorp/go-multierror"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -248,6 +251,14 @@ func primaryForColumns(cols []SQColumn) []string {
 		if col.Primary() != "" {
 			result = append(result, col.Name())
 		}
+	}
+	return result
+}
+
+func namesForFields(cols []*marshaler.Field) []string {
+	var result []string
+	for _, col := range cols {
+		result = append(result, col.Name)
 	}
 	return result
 }

@@ -6,6 +6,7 @@ import "strings"
 // TYPES
 
 type SQFlag uint
+type SQKey uint
 
 ///////////////////////////////////////////////////////////////////////////////
 // INTERFACES
@@ -22,6 +23,9 @@ type SQObjects interface {
 
 	// Write objects to database
 	Write(v ...interface{}) ([]SQResult, error)
+
+	// Delete objects from the database
+	Delete(v ...interface{}) ([]SQResult, error)
 }
 
 // SQClass is a class definition
@@ -30,6 +34,12 @@ type SQClass interface {
 
 	// Return a prototype object for this class
 	Proto() interface{}
+
+	// Get statements related to a key
+	Get(SQKey) []SQStatement
+
+	// Set statements, return a new key
+	Set(...SQStatement) SQKey
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -43,6 +53,15 @@ const (
 	SQLITE_FLAG_NONE SQFlag = 0
 	SQLITE_FLAG_MIN         = SQLITE_FLAG_DELETEIFEXISTS
 	SQLITE_FLAG_MAX         = SQLITE_FLAG_DELETEIFEXISTS
+)
+
+const (
+	SQKeyNone SQKey = iota
+	SQKeyCreate
+	SQKeyWrite
+	SQKeyDelete
+	SQKeyGetRowId
+	SQKeyMax
 )
 
 ///////////////////////////////////////////////////////////////////////////////

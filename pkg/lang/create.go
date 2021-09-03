@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	// Modules
 	sqlite "github.com/djthorpe/go-sqlite"
 )
 

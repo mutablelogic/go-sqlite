@@ -10,3 +10,5 @@ go.sum
 .vscode
 .DS_Store
 build
+.sqlite
+.sqlite-journal

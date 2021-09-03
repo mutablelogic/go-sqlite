@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"time"
 
-	// Modules
-	. "github.com/djthorpe/go-sqlite"
+	// Import namespaces
+	. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -52,6 +52,8 @@ func Test_Objects_002(t *testing.T) {
 	class, err := db.Register("doc", doc{})
 	if err != nil {
 		t.Fatal(err)
+	} else {
+		t.Log(class)
 	}
 	if err := db.Create(class, SQLITE_FLAG_DELETEIFEXISTS); err != nil {
 		t.Fatal(err)

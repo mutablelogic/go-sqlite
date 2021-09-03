@@ -106,7 +106,7 @@ func (this *sel) Query() string {
 			if i > 0 {
 				token += ","
 			}
-			token += fmt.Sprint(source)
+			token += source.Query()
 		}
 		tokens = append(tokens, token)
 	}

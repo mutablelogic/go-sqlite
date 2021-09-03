@@ -8,9 +8,11 @@ import (
 	"time"
 
 	// Modules
-	. "github.com/djthorpe/go-sqlite"
-	//. "github.com/djthorpe/go-sqlite/pkg/lang"
 	sqlite "github.com/djthorpe/go-sqlite/pkg/sqlite"
+
+	// Import namespaces
+	. "github.com/djthorpe/go-errors"
+	. "github.com/djthorpe/go-sqlite"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -128,8 +130,7 @@ func (this *sqobj) Create(class SQClass, flags SQFlag) error {
 	defer this.SetForeignKeyConstraints(true)
 
 	// Drop and create within a transaction
-	if err := this.Do(func(txn SQTransaction) error {
-
+	return this.Do(func(txn SQTransaction) error {
 		// Check for existence of table
 		if containsString(this.TablesEx(this.schema, false), class.Name()) && flags&SQLITE_FLAG_DELETEIFEXISTS != 0 {
 			// Drop indexes
@@ -147,7 +148,7 @@ func (this *sqobj) Create(class SQClass, flags SQFlag) error {
 		}
 
 		// Create table and indexes
-		for _, create := range CreateTableAndIndexes(class, true, class.Proto()) {
+		for _, create := range class.Get(SQKeyCreate) {
 			if _, err := txn.Exec(create); err != nil {
 				return err
 			}
@@ -155,17 +156,7 @@ func (this *sqobj) Create(class SQClass, flags SQFlag) error {
 
 		// Return success
 		return nil
-	}); err != nil {
-		return err
-	}
-
-	// Prepare SQL statements outside of transaction
-	if err := class.(*sqclass).prepare(this); err != nil {
-		return err
-	}
-
-	// Return success
-	return nil
+	})
 }
 
 // Write objects to database in a single transaction and return the results from writing
@@ -178,19 +169,96 @@ func (this *sqobj) Write(v ...interface{}) ([]SQResult, error) {
 			if err != nil {
 				return err
 			}
-			if params, err := class.params(v); err != nil {
+			params, err := class.params(v)
+			if err != nil {
 				return err
-			} else if r, err := txn.Exec(class.statement(classKeyWrite), params...); err != nil {
-				return err
-			} else {
-				result = append(result, r)
 			}
+
+			// Insert or update, return number of affected rows
+			r, err := txn.Exec(class.Get(SQKeyWrite)[0], params...)
+			if err != nil {
+				return err
+			}
+
+			// Blank out the rowid if no update was made
+			if r.RowsAffected == 0 {
+				r.LastInsertId = 0
+			}
+
+			// Re-fetch the row to obtain the rowid if primary key is used
+			if len(class.primary) > 0 {
+				params, err := class.primaryvalues(v)
+				if err != nil {
+					return err
+				}
+				rs, err := txn.Query(class.Get(SQKeyGetRowId)[0], params...)
+				if err != nil {
+					return err
+				}
+				defer rs.Close()
+				if rowid := rs.NextArray(); rowid != nil {
+					r.LastInsertId = rowid[0].(int64)
+				}
+			}
+
+			// Append r
+			result = append(result, r)
 		}
 		// Return success
 		return nil
 	}); err != nil {
 		return nil, err
 	}
+	// Return success
+	return result, nil
+}
+
+// Delete objects from database in a single transaction and return the results from deletion
+// on error rollback occurs
+func (this *sqobj) Delete(v ...interface{}) ([]SQResult, error) {
+	result := make([]SQResult, 0, len(v))
+	if err := this.Do(func(txn SQTransaction) error {
+		for _, v := range v {
+			class, err := this.classFor(v)
+			if err != nil {
+				return err
+			}
+			params, err := class.primaryvalues(v)
+			if err != nil {
+				return err
+			}
+			if len(params) == 0 {
+				return ErrBadParameter.Withf("No primary key for class %q", class.Name())
+			}
+
+			// Fetch the rowid for this row
+			rs, err := txn.Query(class.Get(SQKeyGetRowId)[0], params...)
+			if err != nil {
+				return err
+			}
+			defer rs.Close()
+			var r SQResult
+			if row := rs.NextArray(); row != nil {
+				r.LastInsertId = row[0].(int64)
+			}
+			// If we have a rowid then delete the row
+			if r.LastInsertId > 0 {
+				r_, err := txn.Exec(class.Get(SQKeyDelete)[0], params...)
+				if err != nil {
+					return err
+				} else {
+					r.RowsAffected = r_.RowsAffected
+				}
+			}
+			// Append r
+			result = append(result, r)
+		}
+		// Return success
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
 	// Return success
 	return result, nil
 }

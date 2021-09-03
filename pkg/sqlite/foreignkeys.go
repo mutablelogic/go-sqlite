@@ -3,8 +3,8 @@ package sqlite
 import (
 	"fmt"
 
-	// Modules
-	. "github.com/djthorpe/go-sqlite"
+	// Import namespaces
+	. "github.com/djthorpe/go-errors"
 	. "github.com/djthorpe/go-sqlite/pkg/lang"
 )
 

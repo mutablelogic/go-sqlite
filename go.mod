@@ -3,6 +3,7 @@ module github.com/djthorpe/go-sqlite
 go 1.17
 
 require (
+	github.com/djthorpe/go-errors v1.0.2
 	github.com/djthorpe/go-marshaler v0.0.4
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/mattn/go-sqlite3 v1.14.8

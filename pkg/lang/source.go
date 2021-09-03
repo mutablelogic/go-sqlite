@@ -86,5 +86,5 @@ func (this *source) String() string {
 }
 
 func (this *source) Query() string {
-	return "SELECT * FROM " + this.String()
+	return this.String()
 }

@@ -36,7 +36,7 @@ func C(name string) sqlite.SQColumn {
 // PROPERTIES
 
 func (this *column) Name() string {
-	return this.source.String()
+	return this.source.Name()
 }
 
 func (this *column) Type() string {
@@ -81,7 +81,7 @@ func (this *column) WithAutoIncrement() sqlite.SQColumn {
 // STRINGIFY
 
 func (this *column) String() string {
-	tokens := []string{this.Name()}
+	tokens := []string{sqlite.QuoteIdentifier(this.Name())}
 	if this.decltype != "" {
 		tokens = append(tokens, sqlite.QuoteDeclType(this.decltype))
 	} else {

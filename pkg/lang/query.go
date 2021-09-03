@@ -29,11 +29,13 @@ func Q(v ...interface{}) sqlite.SQStatement {
 			result = append(result, "NULL")
 		} else if v_, ok := v.(string); ok {
 			result = append(result, v_)
+		} else if v_, ok := v.(sqlite.SQExpr); ok {
+			result = append(result, fmt.Sprint(v_))
 		} else {
 			result = append(result, fmt.Sprint(V(v)))
 		}
 	}
-	return &q{strings.Join(result, " ")}
+	return &q{strings.Join(result, "")}
 }
 
 ///////////////////////////////////////////////////////////////////////////////

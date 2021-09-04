@@ -40,6 +40,7 @@ type sqcolumn struct {
 	Index   bool
 	Unique  bool
 	Foreign bool
+	Auto    bool
 }
 
 type sqindex struct {
@@ -67,11 +68,7 @@ func NewClass(name, schema string, proto interface{}) *sqclass {
 	this.SQSource = N(name).WithSchema(schema)
 
 	// Set type - must be a struct
-	v := reflect.ValueOf(proto)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-	if v.Kind() != reflect.Struct {
+	if v := valueOf(proto); !v.IsValid() {
 		return nil
 	} else {
 		this.t = v.Type()
@@ -94,6 +91,7 @@ func NewClass(name, schema string, proto interface{}) *sqclass {
 				c.SQColumn = c.SQColumn.NotNull().WithPrimary()
 			} else if isAutoincrement(tag) {
 				c.SQColumn = c.SQColumn.WithAutoIncrement().WithPrimary().NotNull()
+				c.Auto = true
 			} else if isUnique(tag) {
 				c.Unique = true
 			} else if isIndex(tag) {
@@ -124,22 +122,6 @@ func NewClass(name, schema string, proto interface{}) *sqclass {
 		}
 	}
 
-	// Create statments for create,insert and delete
-	this.addStatement(SQKeyCreate, this.sqCreate())
-	this.addStatement(SQKeyWrite, this.sqInsert())
-	this.addStatement(SQKeyRead, this.sqSelect())
-
-	// If we have primary keys, other operations are possible
-	if len(this.PrimaryColumnNames()) > 0 {
-		this.addStatement(SQKeyDelete, this.sqDelete())
-		this.addStatement(SQKeyGetRowId, this.sqGetRowId())
-	}
-
-	// Create index statements
-	for _, index := range this.indexes {
-		this.addStatement(SQKeyCreate, this.sqIndex(index))
-	}
-
 	// Return success
 	return this
 }
@@ -164,14 +146,17 @@ func (this *sqclass) String() string {
 ///////////////////////////////////////////////////////////////////////////////
 // PROPERTIES
 
+// Return the type for the class
 func (this *sqclass) Type() reflect.Type {
 	return this.t
 }
 
+// Return a new empty object (pointer to element)
 func (this *sqclass) Proto() interface{} {
 	return reflect.New(this.t).Interface()
 }
 
+// Get SQL prepared statements
 func (this *sqclass) Get(k SQKey) []SQStatement {
 	this.RWMutex.RLock()
 	defer this.RWMutex.RUnlock()
@@ -183,6 +168,7 @@ func (this *sqclass) Get(k SQKey) []SQStatement {
 	}
 }
 
+// Set SQL statements
 func (this *sqclass) Set(v ...SQStatement) SQKey {
 	this.RWMutex.Lock()
 	defer this.RWMutex.Unlock()
@@ -274,75 +260,62 @@ func (this *sqclass) WithForeignKey(class SQClass, columns ...string) error {
 	return nil
 }
 
+// NewIterator creates a read iterator for a resultset
 func (this *sqclass) NewIterator(rs SQRows) SQIterator {
-	return NewIterator(this.Proto(), rs)
+	return NewIterator(this, rs)
+}
+
+// Values returns the parameters for an insert statement
+// Sets values in autoincrement fields to NULL if the value in
+// the autoincrement field is a zero value.
+func (this *sqclass) Values(v interface{}) ([]interface{}, error) {
+	var errs error
+
+	// Check parameter
+	rv := valueOf(v)
+	if !rv.IsValid() || rv.Type() != this.t {
+		return nil, ErrBadParameter.Withf("Value: %q", rv.Type())
+	}
+
+	// Iterate over columns
+	result := make([]interface{}, 0, len(this.columns))
+	for _, col := range this.columns {
+		value := rv.Field(col.Field.Index)
+		if col.Auto && value.IsZero() {
+			result = append(result, nil)
+		} else if v, err := sqlite.BoundValue(value); err != nil {
+			err = multierror.Append(errs, err)
+		} else {
+			result = append(result, v)
+		}
+	}
+
+	// Return result
+	return result, errs
+}
+
+// Object returns a new object from a select statement row
+func (this *sqclass) Object(v []interface{}) (interface{}, error) {
+	var errs error
+
+	// Make an object
+	proto := reflect.New(this.t)
+
+	// Iterate over columns
+	for i, col := range this.columns {
+		if value, err := sqlite.UnboundValue(v[i], col.Field.Type); err != nil {
+			errs = multierror.Append(errs, err)
+		} else {
+			proto.Elem().Field(col.Field.Index).Set(value)
+		}
+	}
+
+	// Return result
+	return proto.Interface(), errs
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS - STATEMENTS
-
-func (this *sqclass) sqCreate() SQTable {
-	st := this.CreateTable(this.Columns()...).IfNotExists()
-	for _, column := range this.columns {
-		if column.Unique {
-			st = st.WithUnique(column.Field.Name)
-		} else if column.Index {
-			st = st.WithIndex(column.Field.Name)
-		}
-	}
-	return st
-}
-
-func (this *sqclass) sqIndex(index *sqindex) SQStatement {
-	st := N(this.Name()+"_"+index.name).
-		WithSchema(this.Schema()).
-		CreateIndex(this.Name(), index.cols...).IfNotExists()
-	if index.unique {
-		st = st.WithUnique()
-	}
-	return st
-}
-
-func (this *sqclass) sqInsert() SQStatement {
-	st := this.Insert(this.ColumnNames()...)
-
-	// Add conflict for any primary key field
-	st = st.WithConflictUpdate(this.PrimaryColumnNames()...)
-
-	// Add conflict for any unique index
-	for _, index := range this.indexes {
-		if index.unique {
-			st = st.WithConflictUpdate(index.cols...)
-		}
-	}
-
-	// Return success
-	return st
-}
-
-func (this *sqclass) sqDelete() SQStatement {
-	expr := []interface{}{}
-	for _, name := range this.PrimaryColumnNames() {
-		expr = append(expr, Q(N(name), "=", P))
-	}
-	return this.Delete(expr...)
-}
-
-func (this *sqclass) sqGetRowId() SQStatement {
-	expr := []interface{}{}
-	for _, name := range this.PrimaryColumnNames() {
-		expr = append(expr, Q(N(name), "=", P))
-	}
-	return S(this.SQSource).To(N("rowid")).Where(expr...)
-}
-
-func (this *sqclass) sqSelect() SQStatement {
-	return S(this.SQSource).To(this.ColumnSources()...)
-}
-
-func (this *sqclass) addStatement(key SQKey, st SQStatement) {
-	this.s[key] = append(this.s[key], st)
-}
 
 func (this *sqclass) newkey() SQKey {
 	k := SQKey(rand.Uint32())
@@ -353,12 +326,6 @@ func (this *sqclass) newkey() SQKey {
 	} else {
 		return k
 	}
-}
-
-// return bound parameters
-func (this *sqclass) params(v interface{}) ([]interface{}, error) {
-	// TODO: Needs reworking
-	return InsertParams(v)
 }
 
 // return primary key parameters or nil on error

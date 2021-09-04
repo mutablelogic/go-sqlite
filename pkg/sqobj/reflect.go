@@ -296,3 +296,16 @@ func toArrayKeys(v map[string]bool) []string {
 	}
 	return result
 }
+
+// valueOf returns a struct value or nil if not valid
+func valueOf(v interface{}) reflect.Value {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() == reflect.Ptr {
+		rv = rv.Elem()
+	}
+	if rv.Kind() == reflect.Struct {
+		return rv
+	} else {
+		return reflect.ValueOf(nil)
+	}
+}

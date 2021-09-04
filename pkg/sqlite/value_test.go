@@ -52,3 +52,65 @@ func Test_Value_001(t *testing.T) {
 		}
 	}
 }
+func Test_Value_002(t *testing.T) {
+	// Convert nil to zero value
+	if out, err := sqlite.UnboundValue(nil, reflect.TypeOf(int(0))); err != nil {
+		t.Error("Unexpected error:", err)
+	} else if out.Int() != int64(0) {
+		t.Errorf("Expected %v, got %v", int(0), out)
+	}
+	if out, err := sqlite.UnboundValue(nil, reflect.TypeOf(false)); err != nil {
+		t.Error("Unexpected error:", err)
+	} else if out.Bool() != false {
+		t.Errorf("Expected %v, got %v", false, out)
+	}
+	if out, err := sqlite.UnboundValue(nil, reflect.TypeOf("")); err != nil {
+		t.Error("Unexpected error:", err)
+	} else if out.String() != "" {
+		t.Errorf("Expected %q, got %q", "", out)
+	}
+	if out, err := sqlite.UnboundValue(nil, reflect.TypeOf(time.Time{})); err != nil {
+		t.Error("Unexpected error:", err)
+	} else if out.Interface().(time.Time).IsZero() == false {
+		t.Errorf("Expected %v, got %v", time.Time{}, out)
+	}
+	// Convert to int
+	if out, err := sqlite.UnboundValue(int64(100), reflect.TypeOf(int(0))); err != nil {
+		t.Error("Unexpected error:", err)
+	} else if out.Kind() != reflect.Int {
+		t.Error("Unexpected kind:", out.Kind())
+	} else {
+		t.Log(out.Kind(), out)
+	}
+	// Convert to uint
+	if out, err := sqlite.UnboundValue(int64(100), reflect.TypeOf(uint(0))); err != nil {
+		t.Error("Unexpected error:", err)
+	} else if out.Kind() != reflect.Uint {
+		t.Error("Unexpected kind:", out.Kind())
+	} else {
+		t.Log(out.Kind(), out)
+	}
+	// Convert to bool
+	if out, err := sqlite.UnboundValue(int64(1), reflect.TypeOf(false)); err != nil {
+		t.Error("Unexpected error:", err)
+	} else if out.Kind() != reflect.Bool {
+		t.Error("Unexpected kind:", out.Kind())
+	} else if out.Bool() != true {
+		t.Error("Unexpected value:", out)
+	}
+	if out, err := sqlite.UnboundValue(int64(0), reflect.TypeOf(false)); err != nil {
+		t.Error("Unexpected error:", err)
+	} else if out.Kind() != reflect.Bool {
+		t.Error("Unexpected kind:", out.Kind())
+	} else if out.Bool() != false {
+		t.Error("Unexpected value:", out)
+	}
+	// Convert to string
+	if out, err := sqlite.UnboundValue("test", reflect.TypeOf("")); err != nil {
+		t.Error("Unexpected error:", err)
+	} else if out.Kind() != reflect.String {
+		t.Error("Unexpected kind:", out.Kind())
+	} else if out.String() != "test" {
+		t.Error("Unexpected value:", out)
+	}
+}

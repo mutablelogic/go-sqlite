@@ -129,6 +129,13 @@ func (this *sqobj) Create(class SQClass, flags SQFlag) error {
 	}
 	defer this.SetForeignKeyConstraints(true)
 
+	// Create unprepared version of statements
+	if class, ok := class.(*sqclass); !ok {
+		return ErrBadParameter.With("Invalid class")
+	} else if err := class.addStatements(flags); err != nil {
+		return err
+	}
+
 	// Drop and create within a transaction
 	return this.Do(func(txn SQTransaction) error {
 		// Check for existence of table
@@ -175,7 +182,7 @@ func (this *sqobj) WriteWithHook(fn SQWriteHook, v ...interface{}) ([]SQResult, 
 			if err != nil {
 				return err
 			}
-			params, err := class.params(v_)
+			params, err := class.Values(v_)
 			if err != nil {
 				return err
 			}
@@ -299,15 +306,10 @@ func (this *sqobj) Read(class SQClass) (SQIterator, error) {
 // PRIVATE METHODS
 
 func (this *sqobj) classFor(v interface{}) (*sqclass, error) {
-	if v == nil {
-		return nil, ErrBadParameter.With("unexpected nil value")
-	}
-	rv := reflect.ValueOf(v)
-	if rv.Kind() == reflect.Ptr {
-		rv = rv.Elem()
-	}
-	if class, exists := this.class[rv.Type()]; !exists {
-		return nil, ErrNotFound.With("class: ", reflect.TypeOf(v))
+	if rv := valueOf(v); !rv.IsValid() {
+		return nil, ErrBadParameter.With("classFor: ", rv)
+	} else if class, exists := this.class[rv.Type()]; !exists {
+		return nil, ErrNotFound.With("classFor: ", reflect.TypeOf(v))
 	} else {
 		return class, nil
 	}

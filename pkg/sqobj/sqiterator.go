@@ -1,8 +1,6 @@
 package sqobj
 
 import (
-	"fmt"
-
 	// Import Namespaces
 	. "github.com/djthorpe/go-sqlite"
 )
@@ -11,16 +9,16 @@ import (
 // TYPES
 
 type sqiterator struct {
-	proto interface{}
+	class *sqclass
 	rs    SQRows
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func NewIterator(proto interface{}, rs SQRows) *sqiterator {
+func NewIterator(class *sqclass, rs SQRows) *sqiterator {
 	this := new(sqiterator)
-	this.proto = proto
+	this.class = class
 	this.rs = rs
 	return this
 }
@@ -29,15 +27,16 @@ func NewIterator(proto interface{}, rs SQRows) *sqiterator {
 // PUBLIC METHODS
 
 func (this *sqiterator) Next() interface{} {
-	if this.proto == nil || this.rs == nil {
+	if this.rs == nil {
 		return nil
 	}
 	if params := this.rs.NextArray(); params == nil {
 		this.rs = nil
 		return nil
+	} else if obj, err := this.class.Object(params); err != nil {
+		panic(err)
 	} else {
-		fmt.Println("TODO:", params)
-		return this.proto
+		return obj
 	}
 }
 

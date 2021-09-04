@@ -15,6 +15,7 @@ import (
 var (
 	timeType = reflect.TypeOf(time.Time{})
 	blobType = reflect.TypeOf([]byte{})
+	intType  = reflect.TypeOf(int64(0))
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -66,4 +67,30 @@ func BoundValue(v reflect.Value) (interface{}, error) {
 		}
 	}
 	return nil, ErrBadParameter.With("Unsupported bind type: ", reflect.TypeOf(v))
+}
+
+// Unbound value returns a value of type t from an arbitary value
+// which needs to be uint, int, float, string, bool, []byte, or *time.Time
+// if v is nil then zero value is assigned
+func UnboundValue(v interface{}, t reflect.Type) (reflect.Value, error) {
+	if v == nil {
+		return reflect.Zero(t), nil
+	}
+	// Do simple cases first
+	rv := reflect.ValueOf(v)
+	if rv.CanConvert(t) {
+		return rv.Convert(t), nil
+	}
+	// More complex cases
+	switch t.Kind() {
+	case reflect.Bool:
+		if rv.CanConvert(intType) {
+			if rv.Convert(intType).Int() == 0 {
+				return reflect.ValueOf(false), nil
+			} else {
+				return reflect.ValueOf(true), nil
+			}
+		}
+	}
+	return rv, ErrBadParameter.Withf("Unable to convert %q to %q", rv.Kind(), t.Kind())
 }

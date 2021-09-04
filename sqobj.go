@@ -65,13 +65,14 @@ type SQIterator interface {
 // CONSTANTS
 
 const (
-	// Delete existing database objects if they already exist
-	SQLITE_FLAG_DELETEIFEXISTS SQFlag = 1 << iota
+	// Create flags
+	SQLITE_FLAG_DELETEIFEXISTS SQFlag = 1 << iota // Delete existing database objects if they already exist
+	SQLITE_FLAG_UPDATEONINSERT                    // Update existing object if a unique constraint fails
 
 	// Other constants
 	SQLITE_FLAG_NONE SQFlag = 0
 	SQLITE_FLAG_MIN         = SQLITE_FLAG_DELETEIFEXISTS
-	SQLITE_FLAG_MAX         = SQLITE_FLAG_DELETEIFEXISTS
+	SQLITE_FLAG_MAX         = SQLITE_FLAG_UPDATEONINSERT
 )
 
 const (

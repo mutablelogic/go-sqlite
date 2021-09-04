@@ -211,6 +211,11 @@ func isUnique(tag string) bool {
 	return tag == "UNIQUE"
 }
 
+func isForeign(tag string) bool {
+	tag = strings.TrimSpace(strings.ToUpper(tag))
+	return tag == "FOREIGN"
+}
+
 func isIndex(tag string) bool {
 	tag = strings.TrimSpace(strings.ToUpper(tag))
 	return tag == "INDEX"
@@ -238,9 +243,21 @@ func decltype(t reflect.Type) string {
 }
 
 func namesForColumns(cols []SQColumn) []string {
-	result := make([]string, len(cols))
-	for i, col := range cols {
-		result[i] = col.Name()
+	result := make([]string, 0, len(cols))
+	for _, col := range cols {
+		if name := col.Name(); name != "" {
+			result = append(result, name)
+		}
+	}
+	return result
+}
+
+func sourcesForColumns(cols []SQColumn) []SQSource {
+	result := make([]SQSource, 0, len(cols))
+	for _, col := range cols {
+		if name := col.Name(); name != "" {
+			result = append(result, N(name))
+		}
 	}
 	return result
 }
@@ -256,9 +273,26 @@ func primaryForColumns(cols []SQColumn) []string {
 }
 
 func namesForFields(cols []*marshaler.Field) []string {
-	var result []string
+	result := map[string]bool{}
 	for _, col := range cols {
-		result = append(result, col.Name)
+		result[col.Name] = true
+	}
+	return toArrayKeys(result)
+}
+
+func arrayContains(v []string, elem string) bool {
+	for _, v := range v {
+		if v == elem {
+			return true
+		}
+	}
+	return false
+}
+
+func toArrayKeys(v map[string]bool) []string {
+	result := make([]string, 0, len(v))
+	for k, _ := range v {
+		result = append(result, k)
 	}
 	return result
 }

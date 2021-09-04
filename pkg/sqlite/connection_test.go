@@ -4,9 +4,12 @@ import (
 	"errors"
 	"testing"
 
-	sq "github.com/djthorpe/go-sqlite"
-	. "github.com/djthorpe/go-sqlite/pkg/lang"
 	sqlite "github.com/djthorpe/go-sqlite/pkg/sqlite"
+
+	// Imports
+	. "github.com/djthorpe/go-errors"
+	. "github.com/djthorpe/go-sqlite"
+	. "github.com/djthorpe/go-sqlite/pkg/lang"
 )
 
 func Test_Conn_002(t *testing.T) {
@@ -82,21 +85,21 @@ func Test_Conn_005(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	if err := db.Do(func(txn sq.SQTransaction) error {
+	if err := db.Do(func(txn SQTransaction) error {
 		_, err := txn.Exec(Q("CREATE TABLE foo (id INTEGER PRIMARY KEY, name TEXT)"))
 		return err
 	}); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := db.Do(func(txn sq.SQTransaction) error {
+	if err := db.Do(func(txn SQTransaction) error {
 		for i := 0; i < 5; i++ {
 			if _, err := txn.Exec(Q("INSERT INTO foo DEFAULT VALUES")); err != nil {
 				return err
 			}
 		}
-		return sq.ErrNotImplemented
-	}); err != nil && errors.Is(err, sq.ErrNotImplemented) == false {
+		return ErrNotImplemented
+	}); err != nil && errors.Is(err, ErrNotImplemented) == false {
 		t.Fatal(err)
 	}
 }

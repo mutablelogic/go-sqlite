@@ -1,6 +1,7 @@
 package sqobj_test
 
 import (
+	"fmt"
 	"testing"
 
 	. "github.com/djthorpe/go-sqlite"
@@ -57,25 +58,36 @@ func Test_Objects_002(t *testing.T) {
 	}
 	if err := db.Create(class, SQLITE_FLAG_DELETEIFEXISTS); err != nil {
 		t.Fatal(err)
+	} else if err := db.Create(class, SQLITE_FLAG_DELETEIFEXISTS); err != nil {
+		t.Fatal(err)
+	} else {
+		t.Log("CREATE:", class.Get(SQKeyCreate))
+		t.Log("WRITE:", class.Get(SQKeyWrite))
+		t.Log("READ:", class.Get(SQKeyRead))
 	}
 
-	// Write three documents - separate documents with autoincrementing primary key
-	if result, err := db.Write(doc{}, doc{}, doc{}); err != nil {
-		t.Error(err)
-	} else {
-		t.Log(result)
+	// Write three values
+	for i := 0; i < 3; i++ {
+		if r, err := db.Write(doc{B: fmt.Sprintf("Test %d", i)}); err != nil {
+			t.Fatal(err)
+		} else if r[0].RowsAffected != 1 {
+			t.Error("Unexpected rows affected:", r[0].RowsAffected)
+		} else {
+			t.Log("WRITE:", i, " lastinsertid=", r[0].LastInsertId)
+		}
 	}
 
-	// Write a single document then update it
-	v := doc{100, "b"}
-	if result, err := db.Write(v); err != nil {
-		t.Error(err)
-	} else {
-		t.Log(result)
+	// Read three values
+	rs, err := db.Read(class)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if result, err := db.Write(v); err != nil {
-		t.Error(err)
-	} else {
-		t.Log(result)
+	defer rs.Close()
+	for {
+		obj, ok := rs.Next().(*doc)
+		if !ok {
+			break
+		}
+		fmt.Println(obj)
 	}
 }

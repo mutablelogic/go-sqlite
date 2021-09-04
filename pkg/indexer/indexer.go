@@ -14,10 +14,10 @@ import (
 	"time"
 
 	// Modules
+	notify "github.com/rjeczalik/notify"
 
 	// Import namepaces
 	. "github.com/djthorpe/go-errors"
-	"github.com/rjeczalik/notify"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -73,7 +73,7 @@ func NewIndexer(name, path string) (*Indexer, error) {
 		return nil, ErrBadParameter.With("invalid path: ", strconv.Quote(path))
 	} else if abspath, err := filepath.Abs(path); err != nil {
 		return nil, err
-	} else if reIndexName.MatchString(name) == false {
+	} else if !reIndexName.MatchString(name) {
 		return nil, ErrBadParameter.With("invalid index name: ", strconv.Quote(name))
 	} else {
 		this.name = name
@@ -202,11 +202,16 @@ FOR_LOOP:
 			if this.State() != IndexerStateRunning {
 				continue FOR_LOOP
 			}
-			// Get file information and process the event
-			if evttype := toEventType(evt.Event()); evttype != EVENT_TYPE_NONE {
-				info, _ := os.Stat(evt.Path())
+			// Get file information
+			info, _ := os.Stat(evt.Path())
+			if evttype := toEventType(evt.Event(), info); evttype != EVENT_TYPE_NONE {
 				if err := this.process(evttype, evt.Path(), info, out, false); err != nil {
-					fmt.Println(evt.Path(), err)
+					select {
+					case out <- NewError(this.name, err):
+						// No-op
+					default:
+						// No-op
+					}
 				}
 			}
 		case <-d.C:
@@ -257,7 +262,7 @@ func (this *Indexer) walk(ctx context.Context, out chan<- IndexerEvent) error {
 		}
 		// Process files which can be read
 		if info, err := file.Info(); err == nil {
-			this.process(EVENT_TYPE_ADDED, path, info, out, true)
+			this.process(EVENT_TYPE_ADDED|EVENT_TYPE_CHANGED, path, info, out, true)
 		}
 		// Return any context error
 		return ctx.Err()
@@ -282,7 +287,7 @@ func (this *Indexer) process(e EventType, path string, info fs.FileInfo, out cha
 	}
 
 	// Deal with exclusions
-	if e == EVENT_TYPE_ADDED || e == EVENT_TYPE_CHANGED {
+	if e&EVENT_TYPE_ADDED > 0 {
 		// Check for path exclusions
 		for exclusion := range this.expath {
 			if strings.HasPrefix(relpath, exclusion) {
@@ -315,17 +320,26 @@ func (this *Indexer) process(e EventType, path string, info fs.FileInfo, out cha
 }
 
 // Translate notify types to internal types
-func toEventType(e notify.Event) EventType {
+func toEventType(e notify.Event, info fs.FileInfo) EventType {
 	switch e {
 	case notify.Create:
-		return EVENT_TYPE_ADDED
+		if info != nil {
+			return EVENT_TYPE_ADDED
+		}
 	case notify.Remove:
 		return EVENT_TYPE_REMOVED
 	case notify.Rename:
-		return EVENT_TYPE_RENAMED
+		if info != nil {
+			return EVENT_TYPE_ADDED | EVENT_TYPE_RENAMED
+		} else {
+			return EVENT_TYPE_REMOVED | EVENT_TYPE_RENAMED
+		}
 	case notify.Write:
-		return EVENT_TYPE_CHANGED
-	default:
-		return EVENT_TYPE_NONE
+		if info != nil {
+			return EVENT_TYPE_ADDED | EVENT_TYPE_CHANGED
+		}
 	}
+
+	// Ignore unhandled cases
+	return EVENT_TYPE_NONE
 }

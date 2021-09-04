@@ -34,8 +34,12 @@ func (this *foreignkey) OnDeleteCascade() sqlite.SQForeignKey {
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (this *foreignkey) Query(column string) string {
-	tokens := []string{"FOREIGN KEY (" + sqlite.QuoteIdentifier(column) + ")", "REFERENCES", fmt.Sprint(this.source)}
+func (this *foreignkey) String() string {
+	return this.Query("<col>", "<col>")
+}
+
+func (this *foreignkey) Query(columns ...string) string {
+	tokens := []string{"FOREIGN KEY (" + sqlite.QuoteIdentifiers(columns...) + ")", "REFERENCES", fmt.Sprint(this.source)}
 
 	// Add columns
 	if len(this.columns) > 0 {

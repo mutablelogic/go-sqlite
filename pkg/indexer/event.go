@@ -14,6 +14,7 @@ type IndexerEvent interface {
 	Type() EventType
 	FileInfo() fs.FileInfo
 	Path() string
+	Err() error
 }
 
 type event struct {
@@ -21,6 +22,7 @@ type event struct {
 	name string
 	path string
 	info fs.FileInfo
+	err  error
 }
 
 type EventType int
@@ -50,6 +52,13 @@ func NewEvent(t EventType, name, path string, info fs.FileInfo) *event {
 	}
 }
 
+func NewError(name string, err error) *event {
+	return &event{
+		name: name,
+		err:  err,
+	}
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // EVENT IMPLEMENTATION
 
@@ -73,12 +82,16 @@ func (e *event) Path() string {
 	return e.path
 }
 
+func (e *event) Err() error {
+	return e.err
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
 func (e *event) String() string {
 	str := "<indexer.event"
-	if t := e.EventType; t != EVENT_TYPE_NONE {
+	if t := e.Type(); t != EVENT_TYPE_NONE {
 		str += " type=" + e.EventType.String()
 	}
 	if name := e.Name(); name != "" {
@@ -87,9 +100,10 @@ func (e *event) String() string {
 	if path := e.Value(); path != nil {
 		str += fmt.Sprintf(" path=%q", path)
 	}
-	if e.info == nil {
-		str += " info=<nil>"
-	} else {
+	if err := e.Err(); err != nil {
+		str += fmt.Sprint(" err=", err)
+	}
+	if e.info != nil {
 		str += " info={FileInfo}"
 	}
 	return str + ">"

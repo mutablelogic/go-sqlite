@@ -57,8 +57,9 @@ func Test_Create_001(t *testing.T) {
 		String string
 		Query  string
 	}{
-		{N("foo").CreateTable(N("a").WithType("TEXT")).WithForeignKey("a", N("bar").ForeignKey()), `CREATE TABLE foo (a TEXT,FOREIGN KEY (a) REFERENCES bar)`, ``},
-		{N("foo").CreateTable(N("a").WithType("TEXT")).WithForeignKey("a", N("bar").ForeignKey("x", "y")), `CREATE TABLE foo (a TEXT,FOREIGN KEY (a) REFERENCES bar (x,y))`, ``},
+		{N("foo").CreateTable(N("a").WithType("TEXT")).WithForeignKey(N("bar").ForeignKey(), "a"), `CREATE TABLE foo (a TEXT,FOREIGN KEY (a) REFERENCES bar)`, ``},
+		{N("foo").CreateTable(N("a").WithType("TEXT")).WithForeignKey(N("bar").ForeignKey("x", "y"), "a"), `CREATE TABLE foo (a TEXT,FOREIGN KEY (a) REFERENCES bar (x,y))`, ``},
+		{N("foo").CreateTable(N("a").WithType("TEXT")).WithForeignKey(N("bar").ForeignKey(), "a"), `CREATE TABLE foo (a TEXT,FOREIGN KEY (a) REFERENCES bar)`, ``},
 	}
 
 	for _, test := range tests {

@@ -144,7 +144,7 @@ type SQTable interface {
 	WithoutRowID() SQTable
 	WithIndex(...string) SQTable
 	WithUnique(...string) SQTable
-	WithForeignKey(string, SQForeignKey) SQTable
+	WithForeignKey(SQForeignKey, ...string) SQTable
 }
 
 // SQUpdate defines an update statement
@@ -223,8 +223,6 @@ type SQAlter interface {
 
 // SQForeignKey represents a foreign key constraint
 type SQForeignKey interface {
-	Query(string) string
-
 	// Modifiers
 	OnDeleteCascade() SQForeignKey
 }

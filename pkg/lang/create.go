@@ -53,9 +53,9 @@ func (this *createtable) WithIndex(columns ...string) sqlite.SQTable {
 	return &createtable{this.source, this.temporary, this.ifnotexists, this.withoutrowid, this.unique, append(this.index, sqlite.QuoteIdentifiers(columns...)), this.foreignkeys, this.columns}
 }
 
-func (this *createtable) WithForeignKey(column string, key sqlite.SQForeignKey) sqlite.SQTable {
+func (this *createtable) WithForeignKey(key sqlite.SQForeignKey, columns ...string) sqlite.SQTable {
 	return &createtable{this.source, this.temporary, this.ifnotexists, this.withoutrowid, this.unique, this.index,
-		append(this.foreignkeys, key.Query(column)), this.columns}
+		append(this.foreignkeys, key.(*foreignkey).Query(columns...)), this.columns}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

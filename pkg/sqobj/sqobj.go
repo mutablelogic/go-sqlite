@@ -160,16 +160,22 @@ func (this *sqobj) Create(class SQClass, flags SQFlag) error {
 }
 
 // Write objects to database in a single transaction and return the results from writing
-// on error rollback occurs
 func (this *sqobj) Write(v ...interface{}) ([]SQResult, error) {
+	return this.WriteWithHook(nil, v...)
+}
+
+// WriteHook inserts or updates objects to database in a single transaction and
+// return the results from writing. On error rollback occurs. Call hook after each
+// write with next object, or nil if this was the last write
+func (this *sqobj) WriteWithHook(fn SQWriteHook, v ...interface{}) ([]SQResult, error) {
 	result := make([]SQResult, 0, len(v))
 	if err := this.Do(func(txn SQTransaction) error {
-		for _, v := range v {
-			class, err := this.classFor(v)
+		for i, v_ := range v {
+			class, err := this.classFor(v_)
 			if err != nil {
 				return err
 			}
-			params, err := class.params(v)
+			params, err := class.params(v_)
 			if err != nil {
 				return err
 			}
@@ -186,8 +192,8 @@ func (this *sqobj) Write(v ...interface{}) ([]SQResult, error) {
 			}
 
 			// Re-fetch the row to obtain the rowid if primary key is used
-			if len(class.primary) > 0 {
-				params, err := class.primaryvalues(v)
+			if len(class.PrimaryColumnNames()) > 0 {
+				params, err := class.primaryvalues(v_)
 				if err != nil {
 					return err
 				}
@@ -198,6 +204,19 @@ func (this *sqobj) Write(v ...interface{}) ([]SQResult, error) {
 				defer rs.Close()
 				if rowid := rs.NextArray(); rowid != nil {
 					r.LastInsertId = rowid[0].(int64)
+				}
+			}
+
+			// Call hook on the next object
+			if fn != nil {
+				if i+1 < len(v) {
+					if err := fn(r, v[i+1]); err != nil {
+						return err
+					}
+				} else {
+					if err := fn(r, nil); err != nil {
+						return err
+					}
 				}
 			}
 
@@ -261,6 +280,19 @@ func (this *sqobj) Delete(v ...interface{}) ([]SQResult, error) {
 
 	// Return success
 	return result, nil
+}
+
+func (this *sqobj) Read(class SQClass) (SQIterator, error) {
+	this.Mutex.Lock()
+	defer this.Mutex.Unlock()
+
+	if class, ok := class.(*sqclass); !ok {
+		return nil, ErrBadParameter.Withf("Invalid class %q", class.Name())
+	} else if rs, err := this.Query(class.Get(SQKeyRead)[0]); err != nil {
+		return nil, err
+	} else {
+		return class.NewIterator(rs), nil
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////

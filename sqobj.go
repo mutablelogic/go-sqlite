@@ -7,6 +7,7 @@ import "strings"
 
 type SQFlag uint
 type SQKey uint
+type SQWriteHook func(SQResult, interface{}) error
 
 ///////////////////////////////////////////////////////////////////////////////
 // INTERFACES
@@ -24,6 +25,12 @@ type SQObjects interface {
 	// Write objects to database
 	Write(v ...interface{}) ([]SQResult, error)
 
+	// Read objects from database
+	Read(SQClass) (SQIterator, error)
+
+	// Write objects to database, call hook after each write
+	WriteWithHook(SQWriteHook, ...interface{}) ([]SQResult, error)
+
 	// Delete objects from the database
 	Delete(v ...interface{}) ([]SQResult, error)
 }
@@ -31,6 +38,9 @@ type SQObjects interface {
 // SQClass is a class definition
 type SQClass interface {
 	SQSource
+
+	// Set a foreign key reference to class
+	WithForeignKey(SQClass, ...string) error
 
 	// Return a prototype object for this class
 	Proto() interface{}
@@ -40,6 +50,15 @@ type SQClass interface {
 
 	// Set statements, return a new key
 	Set(...SQStatement) SQKey
+}
+
+// SQIterator is an iterator for a Read operation
+type SQIterator interface {
+	// Next returns the next object in the iterator, or nil if there are no more
+	Next() interface{}
+
+	// Close releases any resources associated with the iterator
+	Close() error
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -60,6 +79,7 @@ const (
 	SQKeyCreate
 	SQKeyWrite
 	SQKeyDelete
+	SQKeyRead
 	SQKeyGetRowId
 	SQKeyMax
 )

@@ -30,7 +30,7 @@ func (this *sqiterator) Next() interface{} {
 	if this.rs == nil {
 		return nil
 	}
-	if params := this.rs.NextArray(); params == nil {
+	if params := this.rs.Next(); params == nil {
 		this.rs = nil
 		return nil
 	} else if obj, err := this.class.Object(params); err != nil {

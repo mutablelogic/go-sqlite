@@ -58,6 +58,9 @@ func (this *altertable) Query() string {
 	switch this.token {
 	case "ADD":
 		tokens = append(tokens, "ADD COLUMN", fmt.Sprint(this.col))
+		if pri := this.col.Primary(); pri != "" {
+			tokens = append(tokens, pri)
+		}
 	case "DROP":
 		tokens = append(tokens, "DROP COLUMN", this.col.Name())
 	}

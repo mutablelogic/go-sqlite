@@ -1,8 +1,10 @@
 package lang
 
 import (
+	"fmt"
 	"strings"
 
+	// Modules
 	sqlite "github.com/djthorpe/go-sqlite"
 )
 
@@ -15,6 +17,7 @@ type column struct {
 	notnull       bool
 	primary       bool
 	autoincrement bool
+	def           sqlite.SQExpr
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -29,7 +32,7 @@ const (
 
 // C defines a column name
 func C(name string) sqlite.SQColumn {
-	return &column{source{name, "", "", false}, defaultColumnDecltype, false, false, false}
+	return &column{source{name, "", "", false}, defaultColumnDecltype, false, false, false, nil}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -58,7 +61,7 @@ func (this *column) Primary() string {
 }
 
 func (this *column) WithType(v string) sqlite.SQColumn {
-	return &column{this.source, v, this.notnull, this.primary, this.autoincrement}
+	return &column{this.source, v, this.notnull, this.primary, this.autoincrement, this.def}
 }
 
 func (this *column) WithAlias(v string) sqlite.SQSource {
@@ -66,19 +69,31 @@ func (this *column) WithAlias(v string) sqlite.SQSource {
 }
 
 func (this *column) NotNull() sqlite.SQColumn {
-	return &column{this.source, this.decltype, true, this.primary, this.autoincrement}
+	return &column{this.source, this.decltype, true, this.primary, this.autoincrement, this.def}
 }
 
 func (this *column) WithPrimary() sqlite.SQColumn {
-	return &column{this.source, this.decltype, true, true, this.autoincrement}
+	return &column{this.source, this.decltype, true, true, this.autoincrement, this.def}
 }
 
 func (this *column) WithAutoIncrement() sqlite.SQColumn {
-	return &column{this.source, this.decltype, true, true, true}
+	return &column{this.source, this.decltype, true, true, true, this.def}
+}
+
+func (this *column) WithDefault(v interface{}) sqlite.SQColumn {
+	return &column{this.source, this.decltype, true, true, this.autoincrement, V(v)}
+}
+
+func (this *column) WithDefaultNow() sqlite.SQColumn {
+	return &column{this.source, this.decltype, true, true, this.autoincrement, V("CURRENT_TIMESTAMP")}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
+
+func (this *column) Query() string {
+	return this.String()
+}
 
 func (this *column) String() string {
 	tokens := []string{sqlite.QuoteIdentifier(this.Name())}
@@ -89,6 +104,9 @@ func (this *column) String() string {
 	}
 	if this.notnull {
 		tokens = append(tokens, "NOT NULL")
+	}
+	if this.def != nil {
+		tokens = append(tokens, "DEFAULT", fmt.Sprint(this.def))
 	}
 	return strings.Join(tokens, " ")
 }

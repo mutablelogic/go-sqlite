@@ -35,27 +35,21 @@ type SQObjects interface {
 	Delete(v ...interface{}) ([]SQResult, error)
 }
 
-// SQClass is a class definition
+// SQClass is a class definition, which can be a table or view
 type SQClass interface {
 	SQSource
 
 	// Set a foreign key reference to class
-	WithForeignKey(SQClass, ...string) error
-
-	// Return a prototype object for this class
-	Proto() interface{}
-
-	// Get statements related to a key
-	Get(SQKey) []SQStatement
-
-	// Set statements, return a new key
-	Set(...SQStatement) SQKey
+	//WithForeignKey(SQClass, ...string) error
 }
 
 // SQIterator is an iterator for a Read operation
 type SQIterator interface {
 	// Next returns the next object in the iterator, or nil if there are no more
 	Next() interface{}
+
+	// RowId returns the last read row, should be called after Next()
+	RowId() int64
 
 	// Close releases any resources associated with the iterator
 	Close() error

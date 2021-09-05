@@ -1,7 +1,6 @@
 package sqobj
 
 import (
-
 	// Modules
 
 	// Import Namespaces
@@ -11,6 +10,16 @@ import (
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS - STATEMENTS
+
+func sqSelect(class *sqclass) SQStatement {
+	cols := make([]SQSource, len(class.col))
+	for i, col := range class.col {
+		cols[i] = col.Col.WithAlias(col.Name)
+	}
+	return S(class.SQSource).To(cols...)
+}
+
+/*
 
 func (this *sqclass) addStatements(flags SQFlag) error {
 	this.RWMutex.Lock()
@@ -105,3 +114,4 @@ func (this *sqclass) sqGetRowId() SQStatement {
 func (this *sqclass) sqSelect() SQStatement {
 	return S(this.SQSource).To(this.ColumnSources()...)
 }
+*/

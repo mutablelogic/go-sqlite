@@ -239,11 +239,13 @@ type SQColumn interface {
 	Primary() string
 
 	// Modifiers
+	NotNull() SQColumn
 	WithType(string) SQColumn
 	WithAlias(string) SQSource
 	WithPrimary() SQColumn
 	WithAutoIncrement() SQColumn
-	NotNull() SQColumn
+	WithDefault(v interface{}) SQColumn
+	WithDefaultNow() SQColumn
 }
 
 // SQExpr defines any expression

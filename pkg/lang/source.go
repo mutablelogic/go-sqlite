@@ -52,7 +52,7 @@ func (this *source) WithAlias(alias string) sqlite.SQSource {
 }
 
 func (this *source) WithType(decltype string) sqlite.SQColumn {
-	return &column{*this, decltype, false, false, false}
+	return &column{*this, decltype, false, false, false, nil}
 }
 
 func (this *source) WithDesc() sqlite.SQSource {

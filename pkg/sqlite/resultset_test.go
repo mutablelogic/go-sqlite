@@ -7,8 +7,11 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/djthorpe/go-sqlite/pkg/lang"
+	// Modules
 	sqlite "github.com/djthorpe/go-sqlite/pkg/sqlite"
+
+	// Import into namespace
+	. "github.com/djthorpe/go-sqlite/pkg/lang"
 )
 
 func Test_Resultset_001(t *testing.T) {
@@ -44,7 +47,7 @@ func Test_Resultset_001(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i <= n; i++ {
-		row := rows.NextArray()
+		row := rows.Next()
 		if i == n && row == nil {
 			break
 		} else if len(row) != 1 {
@@ -90,7 +93,7 @@ func Test_Resultset_002(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i <= n; i++ {
-		row := rows.NextArray()
+		row := rows.Next()
 		if i == n && row == nil {
 			break
 		} else if len(row) != 1 {
@@ -136,7 +139,7 @@ func Test_Resultset_003(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i <= n; i++ {
-		row := rows.NextArray()
+		row := rows.Next()
 		if i == n && row == nil {
 			break
 		} else if len(row) != 1 {
@@ -182,7 +185,7 @@ func Test_Resultset_004(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i <= n; i++ {
-		row := rows.NextArray()
+		row := rows.Next()
 		if i == n && row == nil {
 			break
 		} else if len(row) != 1 {
@@ -228,7 +231,7 @@ func Test_Resultset_005(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i <= n; i++ {
-		row := rows.NextArray()
+		row := rows.Next()
 		if i == n && row == nil {
 			break
 		} else if len(row) != 1 {
@@ -274,7 +277,7 @@ func Test_Resultset_006(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i <= n; i++ {
-		row := rows.NextArray()
+		row := rows.Next()
 		if i == n && row == nil {
 			break
 		} else if len(row) != 1 {
@@ -321,7 +324,7 @@ func Test_Resultset_007(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i := 0; i <= n; i++ {
-		row := rows.NextArray()
+		row := rows.Next()
 		if i == n && row == nil {
 			break
 		} else if len(row) != 1 {

@@ -19,6 +19,7 @@ var (
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Schemas returns all attached schemas, except "temp"
 func (this *connection) Schemas() []string {
 	// Perform the query
 	rs, err := this.Query(Q("PRAGMA database_list"))
@@ -41,6 +42,12 @@ func (this *connection) Schemas() []string {
 	return schemas
 }
 
+// Filename returns the filename for a schema
+func (this *connection) Filename(schema string) string {
+	return this.conn.GetFilename(schema)
+}
+
+// Tables returns all known tables in main schema
 func (this *connection) Tables() []string {
 	return this.TablesEx("", false)
 }
@@ -81,7 +88,7 @@ func (this *connection) TablesEx(schema string, temp bool) []string {
 	// Collate the results
 	names := make([]string, 0, 10)
 	for {
-		values := rows.NextArray()
+		values := rows.Next()
 		if values == nil {
 			break
 		} else if len(values) != 1 {
@@ -134,7 +141,7 @@ func (this *connection) Modules(prefix ...string) []string {
 	// Collate results
 	var result []string
 	for {
-		row := rs.NextArray()
+		row := rs.Next()
 		if len(row) == 0 {
 			break
 		}

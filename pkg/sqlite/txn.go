@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	sql "database/sql/driver"
-	"reflect"
 
 	// Modules
 	multierror "github.com/hashicorp/go-multierror"
@@ -84,8 +83,8 @@ func (this *txn) Query(q SQStatement, args ...interface{}) (SQRows, error) {
 		return nil, ErrBadParameter
 	}
 
-	// Convert arguments
-	values, err := to_values(args)
+	// Bound parameters
+	values, err := BoundValues(args)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +112,7 @@ func (this *txn) Exec(q SQStatement, args ...interface{}) (SQResult, error) {
 	}
 
 	// Convert arguments
-	values, err := to_values(args)
+	values, err := BoundValues(args)
 	if err != nil {
 		return SQResult{}, err
 	}
@@ -149,20 +148,4 @@ func (this *txn) Prepare(v SQStatement) (SQStatement, error) {
 	} else {
 		return &prepared{v, stmt.(*driver.SQLiteStmt)}, nil
 	}
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-// to_values converts all values to supported types or returns error
-func to_values(args []interface{}) ([]sql.Value, error) {
-	result := make([]sql.Value, len(args))
-	for i, a := range args {
-		if v, err := BoundValue(reflect.ValueOf(a)); err != nil {
-			return nil, err
-		} else {
-			result[i] = v
-		}
-	}
-	return result, nil
 }

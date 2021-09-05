@@ -17,7 +17,7 @@ func (this *connection) ForeignKeyConstraints() (bool, error) {
 		return false, err
 	}
 	defer rows.Close()
-	value := rows.NextArray()
+	value := rows.Next()
 	if len(value) != 1 {
 		return false, ErrNotImplemented.With("ForeignKeyConstraints")
 	}

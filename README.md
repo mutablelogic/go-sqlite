@@ -37,7 +37,6 @@ func main() {
   }
   defer db.Close()
 }
-
 ```
 
 Use `db.Close()` to release database resources.
@@ -46,7 +45,7 @@ Use `db.Close()` to release database resources.
 
 Statements are executed using the `db.Exec` method on a query. In order to create
 a query from a string, use the `Q()` method (see below for information on building
-SQL statements).
+SQL statements). You can include bound parameters after the query:
 
 For example,
 
@@ -94,13 +93,13 @@ func main() {
   }
   defer db.Close()
 
-  results,err := db.Select(Q("SELECT a,b FROM test"))
+  rs,err := db.Select(Q("SELECT a,b FROM test WHERE a=?"),"foo")
   if err != nil {
     // ...
   }
-  defer results.Close()
+  defer rs.Close()
   for {
-    row := results.NextArray()
+    row := rs.Next()
     if row == nil {
       break
     }
@@ -139,6 +138,44 @@ func main() {
     // Return success, commit transaction
     return nil
   })
+}
+```
+
+## Supported Column Types
+
+The following types are supported, and expect the declared column types:
+
+| Scalar Type | Column Type           |
+| ------------| ----------------------| 
+| int64       | INTEGER               |
+| float64     | FLOAT                 |
+| string      | TEXT                  |
+| bool        | BOOL                  |
+| time.Time   | TIMESTAMP or DATETIME |
+| []byte      | BLOB                  |
+
+If you pass other integer and unsigned integer types into the `Exec` and `Query` functions then they are converted to one of the above types. You can also define methods `MarshalSQ` and `UnmarshalSQ` in order to convert your custom types into
+scalar types. For example, the following methods convert between supported scalar types:
+
+```go
+type CustomParam struct {
+	A, B string
+}
+
+func (c CustomParam) MarshalSQ() (interface{}, error) {
+	if data, err := json.Marshal(c); err != nil {
+		return nil, err
+	} else {
+		return string(data), err
+	}
+}
+
+func (c *CustomParam) UnmarshalSQ(v interface{}) error {
+	if data, ok := v.(string); ok {
+		return json.Unmarshal([]byte(data), c)
+	} else {
+		return fmt.Errorf("Invalid type: %T", v)
+	}
 }
 ```
 

@@ -12,6 +12,8 @@ var (
 	sqLiteDriver        = &driver.SQLiteDriver{}
 	sqLiteVersion, _, _ = driver.Version()
 	sqLiteMemory        = ":memory:"
+	sqLiteDefaultSchema = "main"
+	sqLiteTempSchema    = "temp"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

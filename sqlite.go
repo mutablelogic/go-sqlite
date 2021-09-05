@@ -15,6 +15,10 @@ type SQConnection interface {
 	// Schemas returns a list of all the schemas in the database
 	Schemas() []string
 
+	// Filename returns a filename for a schema, returns empty
+	// string if in-memory database
+	Filename(string) string
+
 	// Table returns a list of non-temporary tables in the default schema
 	Tables() []string
 
@@ -69,14 +73,11 @@ type SQTransaction interface {
 
 // SQRows increments over returned rows from a query
 type SQRows interface {
-	// Return next row, returns io.EOF when all rows consumed
-	Next(v interface{}) error
+	// Return next row, returns nil when all rows consumed
+	Next() []interface{}
 
 	// Return next map of values, or nil if no more rows
 	NextMap() map[string]interface{}
-
-	// Return next array of values, or nil if no more rows
-	NextArray() []interface{}
 
 	// Close the rows, and free up any resources
 	Close() error

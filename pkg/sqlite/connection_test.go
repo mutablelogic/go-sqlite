@@ -4,9 +4,10 @@ import (
 	"errors"
 	"testing"
 
+	// Modules
 	sqlite "github.com/djthorpe/go-sqlite/pkg/sqlite"
 
-	// Imports
+	// Import into namespace
 	. "github.com/djthorpe/go-errors"
 	. "github.com/djthorpe/go-sqlite"
 	. "github.com/djthorpe/go-sqlite/pkg/lang"

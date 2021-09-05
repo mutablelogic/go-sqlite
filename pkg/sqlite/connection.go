@@ -3,7 +3,6 @@ package sqlite
 import (
 	"fmt"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
@@ -86,9 +85,11 @@ func (this *connection) Close() error {
 
 func (this *connection) String() string {
 	str := "<sqlite.connection"
+	str += fmt.Sprintf(" ver=%q", Version())
 	str += fmt.Sprintf(" dsn=%q", this.dsn)
-	if schemas := this.Schemas(); len(schemas) > 0 {
-		str += fmt.Sprintf(" schemas=%q", strings.Join(schemas, ","))
+	str += fmt.Sprintf(" schemas=%q", this.Schemas())
+	for _, schema := range this.Schemas() {
+		str += fmt.Sprintf(" %s=%q", schema, this.Filename(schema))
 	}
 	return str + ">"
 }

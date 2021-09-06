@@ -181,7 +181,9 @@ func (c *CustomParam) UnmarshalSQ(v interface{}) error {
 
 ## Attaching databases by schema name
 
-You can load additional databases to a database by schema name. Use `Attach` and `Detach` to attach and detach databases.
+You can load additional databases to a database by schema name. Use `Attach` and `Detach` to attach and detach databases. For example,
+
+
 
 ## Database reflection
 

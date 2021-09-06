@@ -9,14 +9,54 @@ import (
 )
 
 ///////////////////////////////////////////////////////////////////////////////
+// TYPES
+
+type sqpreparefunc func(*sqclass, SQFlag) SQStatement
+
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+var (
+	statements = map[SQKey]sqpreparefunc{
+		SQKeySelect: sqSelect,
+		SQKeyInsert: sqInsert,
+		SQKeyDelete: sqDelete,
+	}
+)
+
+///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS - STATEMENTS
 
-func sqSelect(class *sqclass) SQStatement {
-	cols := make([]SQSource, len(class.col))
+func sqSelect(class *sqclass, _ SQFlag) SQStatement {
+	cols := make([]SQSource, len(class.col)+1)
+	// first row is the rowid
+	cols[0] = N("rowid")
 	for i, col := range class.col {
-		cols[i] = col.Col.WithAlias(col.Name)
+		cols[i+1] = col.Col.WithAlias("")
 	}
 	return S(class.SQSource).To(cols...)
+}
+
+func sqInsert(class *sqclass, _ SQFlag) SQStatement {
+	cols := make([]string, len(class.col))
+	for i, col := range class.col {
+		cols[i] = col.Col.Name()
+	}
+	return class.SQSource.Insert(cols...)
+}
+
+func sqDelete(class *sqclass, _ SQFlag) SQStatement {
+	cols := make([]interface{}, 0, len(class.col))
+	for _, col := range class.col {
+		if col.Primary {
+			cols = append(cols, Q(N(col.Name), "=", P))
+		}
+	}
+	if len(cols) > 0 {
+		return class.SQSource.Delete(cols...)
+	} else {
+		return nil
+	}
 }
 
 /*

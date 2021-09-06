@@ -16,11 +16,8 @@ type SQWriteHook func(SQResult, interface{}) error
 type SQObjects interface {
 	SQConnection
 
-	// Register a new named table based on prototype
-	Register(string, interface{}) (SQClass, error)
-
-	// Create schema for a class (and drop existing data as necessary)
-	Create(SQClass, SQFlag) error
+	// Create classes with named database and modification flags
+	Create(string, SQFlag, ...SQClass) error
 
 	// Write objects to database
 	Write(v ...interface{}) ([]SQResult, error)
@@ -37,10 +34,28 @@ type SQObjects interface {
 
 // SQClass is a class definition, which can be a table or view
 type SQClass interface {
-	SQSource
+	// Create class in the named database with modification flags
+	Create(SQConnection, string, SQFlag) error
 
-	// Set a foreign key reference to class
-	//WithForeignKey(SQClass, ...string) error
+	// Read all objects from the class and return the iterator
+	// TODO: Need sort, filter, limit, offset
+	Read(SQConnection) (SQIterator, error)
+
+	// Insert objects, return rowids
+	Insert(SQConnection, ...interface{}) ([]SQResult, error)
+
+	// Update objects by primary key, return rowids
+	Update(SQConnection, ...interface{}) ([]SQResult, error)
+
+	// Upsert objects by primary key, return rowids
+	Upsert(SQConnection, ...interface{}) ([]SQResult, error)
+
+	// Delete objects from the database by primary key
+	Delete(SQConnection, ...interface{}) ([]SQResult, error)
+
+	// Set a foreign key reference to parent class and columns. Panic
+	// on error, and return same class
+	ForeignKey(SQClass, ...string) SQClass
 }
 
 // SQIterator is an iterator for a Read operation
@@ -71,10 +86,10 @@ const (
 
 const (
 	SQKeyNone SQKey = iota
-	SQKeyCreate
+	SQKeyInsert
+	SQKeySelect
 	SQKeyWrite
 	SQKeyDelete
-	SQKeyRead
 	SQKeyGetRowId
 	SQKeyMax
 )

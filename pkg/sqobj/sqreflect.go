@@ -24,6 +24,7 @@ type SQReflect struct {
 	col    []*sqcolumn
 	colmap map[string]*sqcolumn
 	idxmap map[string]*sqindex
+	fk     []*sqforeignkey
 }
 
 type sqcolumn struct {
@@ -40,6 +41,11 @@ type sqindex struct {
 	name   string
 	unique bool
 	cols   []string
+}
+
+type sqforeignkey struct {
+	SQForeignKey
+	cols []string
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -125,7 +131,12 @@ func (this *SQReflect) String() string {
 	str := "<sqreflect"
 	str += fmt.Sprintf(" type=%q", this.t)
 	str += fmt.Sprintf(" columns=%v", this.col)
-	str += fmt.Sprintf(" indexes=%v", this.idxmap)
+	if len(this.idxmap) > 0 {
+		str += fmt.Sprintf(" indexes=%v", this.idxmap)
+	}
+	if len(this.fk) > 0 {
+		str += fmt.Sprintf(" foreignkeys=%v", this.fk)
+	}
 	return str + ">"
 }
 
@@ -146,6 +157,14 @@ func (this *sqcolumn) String() string {
 	}
 	if this.Foreign {
 		str += " foreign"
+	}
+	return str + ">"
+}
+
+func (this *sqforeignkey) String() string {
+	str := "<foreignkey " + fmt.Sprint(this.SQForeignKey)
+	if len(this.cols) > 0 {
+		str += fmt.Sprintf(" cols=%q", this.cols)
 	}
 	return str + ">"
 }
@@ -187,6 +206,28 @@ func (this *SQReflect) Index(source SQSource, name string) SQIndexView {
 	return st
 }
 
+// WithForeignKey defines a foreign key to a parent class.
+func (this *SQReflect) WithForeignKey(parent SQSource, parentcols ...string) error {
+	// Get foreign key columns
+	cols := this.columnNamesForTag(tagForeign)
+
+	// Return error if no foreign key columns defined
+	if len(cols) == 0 {
+		return ErrBadParameter.Withf("WithForeignKey: No defined foreign keys")
+	}
+
+	// Return error if number of columns does not match
+	if len(parentcols) > 0 && len(cols) != len(parentcols) {
+		return ErrBadParameter.Withf("WithForeignKey: Expected %d columns defined", len(cols))
+	}
+
+	// Append foreign key columns
+	this.fk = append(this.fk, &sqforeignkey{parent.ForeignKey(parentcols...).OnDeleteCascade(), cols})
+
+	// Return success
+	return nil
+}
+
 // Return table and index definitions for a given source table
 // adding IF NOT EXISTS to the table and indexes
 func (this *SQReflect) Table(source SQSource, ifnotexists bool) []SQStatement {
@@ -210,6 +251,13 @@ func (this *SQReflect) Table(source SQSource, ifnotexists bool) []SQStatement {
 			table = table.WithIndex(column.Field.Name)
 		}
 	}
+
+	// Add foreign keys
+	for _, fk := range this.fk {
+		table = table.WithForeignKey(fk.SQForeignKey, fk.cols...)
+	}
+
+	// Append table to result
 	result[0] = table
 
 	// Append index statements
@@ -230,6 +278,37 @@ func (this *SQReflect) Table(source SQSource, ifnotexists bool) []SQStatement {
 
 ///////////////////////////////////////////////////////////////////////////////
 // STATIC METHODS
+
+func (this *SQReflect) columnNamesForTag(tag string) []string {
+	result := make([]string, 0, len(this.col))
+	for _, col := range this.col {
+		switch tag {
+		case tagPrimary:
+			if col.Primary {
+				result = append(result, col.Field.Name)
+			}
+		case tagAutoincrement:
+			if col.Auto {
+				result = append(result, col.Field.Name)
+			}
+		case tagUnique:
+			if col.Unique {
+				result = append(result, col.Field.Name)
+			}
+		case tagForeign:
+			if col.Foreign {
+				result = append(result, col.Field.Name)
+			}
+		case tagIndex:
+			if col.Index {
+				result = append(result, col.Field.Name)
+			}
+		default:
+			return nil
+		}
+	}
+	return result
+}
 
 // ValueOf returns a struct value or nil if not valid
 func ValueOf(v interface{}) reflect.Value {

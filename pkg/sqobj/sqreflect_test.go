@@ -123,3 +123,19 @@ func Test_Reflect_006(t *testing.T) {
 	}
 	t.Logf("%q", r.Table(N("test").WithSchema("main"), true))
 }
+
+type TestStructE struct {
+	A int `sqlite:"a,foreign"`
+}
+
+func Test_Reflect_007(t *testing.T) {
+	r, err := NewReflect(TestStructE{})
+	if err != nil {
+		t.Error(err)
+	}
+	if err := r.WithForeignKey(N("parent"), "b"); err != nil {
+		t.Error(err)
+	}
+	t.Log(r)
+	t.Logf("%q", r.Table(N("test").WithSchema("main"), true))
+}

@@ -4,6 +4,12 @@ import (
 	"fmt"
 	"path/filepath"
 	"time"
+
+	// Modules
+	"github.com/djthorpe/go-sqlite/pkg/sqobj"
+
+	// Import namespaces
+	. "github.com/djthorpe/go-sqlite/pkg/lang"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -26,6 +32,15 @@ type FileMark struct {
 	Mark      bool      `sqlite:"mark,not null"`
 	IndexTime time.Time `sqlite:"idxtime"`
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+var (
+	// Register classes
+	cFile     = sqobj.MustRegisterClass(N("file"), &File{})
+	cFileMark = sqobj.MustRegisterClass(N("mark"), &FileMark{}).ForeignKey(cFile)
+)
 
 /*
 type Doc struct {

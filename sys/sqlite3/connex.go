@@ -107,6 +107,9 @@ type AuthorizerHookFunc func(SQAction, [4]string) SQAuth
 // SQL statements.
 type ExecFunc func(row, cols []string) bool
 
+// Transaction type
+type SQTransaction string
+
 // callback tracks ConnEx objects against userInfo data
 type callback struct {
 	sync.RWMutex
@@ -122,6 +125,12 @@ const (
 
 var (
 	cb = callback{fn: make(map[uintptr]*ConnEx)}
+)
+
+const (
+	SQLITE_TXN_DEFAULT   SQTransaction = "DEFERRED"
+	SQLITE_TXN_IMMEDIATE SQTransaction = "IMMEDIATE"
+	SQLITE_TXN_EXCLUSIVE SQTransaction = "EXCLUSIVE"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -304,6 +313,18 @@ func (c *ConnEx) Exec(q string, fn ExecFunc) error {
 
 	// Return any errors
 	return result
+}
+
+func (c *ConnEx) Begin(t SQTransaction) error {
+	return c.Exec("BEGIN "+string(t)+" TRANSACTION", nil)
+}
+
+func (c *ConnEx) Commit() error {
+	return c.Exec("COMMIT TRANSACTION", nil)
+}
+
+func (c *ConnEx) Rollback() error {
+	return c.Exec("ROLLBACK TRANSACTION", nil)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

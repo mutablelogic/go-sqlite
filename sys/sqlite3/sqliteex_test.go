@@ -125,3 +125,43 @@ func Test_SQLiteEx_003(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+func Test_SQLiteEx_004(t *testing.T) {
+	tmpdir, err := os.MkdirTemp("", "sqlite")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpdir)
+	db, err := sqlite3.OpenPathEx(filepath.Join(tmpdir, "test.sqlite"), sqlite3.SQLITE_OPEN_CREATE, "")
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+
+	// Add commit and rollback hooks
+	if err := db.SetCommitHook(func() bool {
+		t.Log("Commit hook called")
+		return true
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetRollbackHook(func() {
+		t.Log("Rollback hook called")
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Do a begin and commit
+	if err := db.Begin(sqlite3.SQLITE_TXN_NONE); err != nil {
+		t.Error(err)
+	} else if err := db.Commit(); err != nil {
+		t.Error(err)
+	}
+
+	// Do a begin and rollback
+	if err := db.Begin(sqlite3.SQLITE_TXN_NONE); err != nil {
+		t.Error(err)
+	} else if err := db.Rollback(); err != nil {
+		t.Error(err)
+	}
+}

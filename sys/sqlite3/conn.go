@@ -4,18 +4,17 @@ package sqlite3
 #cgo pkg-config: sqlite3
 #include <sqlite3.h>
 #include <stdlib.h>
-#include <stdio.h>
-
-extern void go_config_logger(void* userInfo, int code, char* msg);
-static inline int _sqlite3_config_logging(int enable) {
-	if(enable) {
-		return sqlite3_config(SQLITE_CONFIG_LOG, go_config_logger, NULL);
-	} else {
-		return sqlite3_config(SQLITE_CONFIG_LOG, NULL, NULL);
-	}
-}
 */
 import "C"
+
+// -- extern void go_config_logger(void* userInfo, int code, char* msg);
+// -- static inline int _sqlite3_config_logging(int enable) {
+// --	if(enable) {
+// --		return sqlite3_config(SQLITE_CONFIG_LOG, go_config_logger, NULL);
+// --	} else {
+// --		return sqlite3_config(SQLITE_CONFIG_LOG, NULL, NULL);
+// --	}
+// -- }
 
 import (
 	"fmt"
@@ -98,9 +97,10 @@ func OpenPath(path string, flags OpenFlags, vfs string) (*Conn, error) {
 	var cVfs, cName *C.char
 	var c *C.sqlite3
 
-	initFn.Do(func() {
-		C._sqlite3_config_logging(1)
-	})
+	// TODO: Look into logging later
+	//initFn.Do(func() {
+	//	C._sqlite3_config_logging(1)
+	//})
 
 	// Check for thread safety
 	if C.sqlite3_threadsafe() == 0 {
@@ -267,7 +267,7 @@ func (c *Conn) Interrupt() {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-//export go_config_logger
-func go_config_logger(p unsafe.Pointer, code C.int, message *C.char) {
-	fmt.Println(SQError(code), C.GoString(message))
-}
+// export go_config_logger
+// func go_config_logger(p unsafe.Pointer, code C.int, message *C.char) {
+// 	fmt.Println(SQError(code), C.GoString(message))
+// }

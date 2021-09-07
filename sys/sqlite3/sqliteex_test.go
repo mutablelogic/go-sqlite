@@ -91,9 +91,9 @@ func Test_SQLiteEx_002(t *testing.T) {
 	// Run long running query, expect interrupted error
 	if st, err := db.Prepare(longRunningQuery); err != nil {
 		t.Error(err)
-	} else if r, err := st.Exec(9999999999); err != nil {
+	} else if r, err := st.Exec(9999999999); err != nil && err != sqlite3.SQLITE_INTERRUPT {
 		t.Error("Error returned:", err)
-	} else {
+	} else if r != nil {
 		t.Log(r)
 		for {
 			row := r.Next()
@@ -152,14 +152,14 @@ func Test_SQLiteEx_004(t *testing.T) {
 	}
 
 	// Do a begin and commit
-	if err := db.Begin(sqlite3.SQLITE_TXN_NONE); err != nil {
+	if err := db.Begin(sqlite3.SQLITE_TXN_DEFAULT); err != nil {
 		t.Error(err)
 	} else if err := db.Commit(); err != nil {
 		t.Error(err)
 	}
 
 	// Do a begin and rollback
-	if err := db.Begin(sqlite3.SQLITE_TXN_NONE); err != nil {
+	if err := db.Begin(sqlite3.SQLITE_TXN_DEFAULT); err != nil {
 		t.Error(err)
 	} else if err := db.Rollback(); err != nil {
 		t.Error(err)

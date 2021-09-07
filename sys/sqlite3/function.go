@@ -9,10 +9,12 @@ extern void go_func_callback(sqlite3_context*, int, sqlite3_value**);
 extern void go_step_callback(sqlite3_context*, int, sqlite3_value**);
 extern void go_final_callback(sqlite3_context*);
 extern void go_destroy_callback(void*);
-static int _sqlite3_create_function_v2_scalar(sqlite3 *db,const char *name,int nargs,int flags,void* userInfo) {
+
+static inline int _sqlite3_create_function_v2_scalar(sqlite3 *db,const char *name,int nargs,int flags,void* userInfo) {
 	return sqlite3_create_function_v2(db,name,nargs,flags,userInfo,go_func_callback,NULL,NULL,go_destroy_callback);
 }
-static int _sqlite3_create_function_v2_aggregate(sqlite3 *db,const char *name,int nargs,int flags,void* userInfo) {
+
+static inline int _sqlite3_create_function_v2_aggregate(sqlite3 *db,const char *name,int nargs,int flags,void* userInfo) {
 	return sqlite3_create_function_v2(db,name,nargs,flags,userInfo,NULL,go_step_callback,go_final_callback,go_destroy_callback);
 }
 */
@@ -28,17 +30,13 @@ import (
 // TYPES
 
 type (
-	Context        C.sqlite3_context
-	Value          C.sqlite3_value
-	ScalarStepFunc func(*Context, []*Value)
-	FinalFunc      func(*Context)
+	StepFunc  func(*Context, []*Value)
+	FinalFunc func(*Context)
 )
 
 type function struct {
-	Conn  *ConnEx
-	Name  string
-	Func  ScalarStepFunc
-	Step  ScalarStepFunc
+	Func  StepFunc
+	Step  StepFunc
 	Final FinalFunc
 }
 
@@ -55,10 +53,9 @@ var (
 // PUBLIC METHODS
 
 // Create a custom function
-func (c *ConnEx) CreateScalarFunction(name string, nargs int, deterministic bool, fn ScalarStepFunc) error {
-	var cName *C.char
-
+func (c *ConnEx) CreateScalarFunction(name string, nargs int, deterministic bool, fn StepFunc) error {
 	// Convert name to C string
+	var cName *C.char
 	cName = C.CString(name)
 	defer C.free(unsafe.Pointer(cName))
 
@@ -69,7 +66,7 @@ func (c *ConnEx) CreateScalarFunction(name string, nargs int, deterministic bool
 	}
 
 	// Set function
-	userInfo := setMapFunc(function{Conn: c, Name: name, Func: fn})
+	userInfo := setMapFunc(function{Func: fn})
 
 	// Call create
 	if err := SQError(C._sqlite3_create_function_v2_scalar((*C.sqlite3)(c.Conn), cName, C.int(nargs), flags, unsafe.Pointer(uintptr(userInfo)))); err != SQLITE_OK {
@@ -79,6 +76,8 @@ func (c *ConnEx) CreateScalarFunction(name string, nargs int, deterministic bool
 	// Return success
 	return nil
 }
+
+// TODO: CreateAggregateFunction
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS

@@ -6,46 +6,11 @@ package sqlite3
 #include <stdlib.h>
 */
 import "C"
+
 import (
 	"reflect"
 	"unsafe"
 )
-
-///////////////////////////////////////////////////////////////////////////////
-// TYPES
-
-type ColumnType int
-
-///////////////////////////////////////////////////////////////////////////////
-// GLOBALS
-
-const (
-	SQLITE_INTEGER ColumnType = C.SQLITE_INTEGER
-	SQLITE_FLOAT   ColumnType = C.SQLITE_FLOAT
-	SQLITE_TEXT    ColumnType = C.SQLITE_TEXT
-	SQLITE_BLOB    ColumnType = C.SQLITE_BLOB
-	SQLITE_NULL    ColumnType = C.SQLITE_NULL
-)
-
-///////////////////////////////////////////////////////////////////////////////
-// STRINGIFY
-
-func (t ColumnType) String() string {
-	switch t {
-	case SQLITE_INTEGER:
-		return "SQLITE_INTEGER"
-	case SQLITE_FLOAT:
-		return "SQLITE_FLOAT"
-	case SQLITE_TEXT:
-		return "SQLITE_TEXT"
-	case SQLITE_BLOB:
-		return "SQLITE_BLOB"
-	case SQLITE_NULL:
-		return "SQLITE_NULL"
-	default:
-		return "[?? Invalid ColumnType value]"
-	}
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 // METHODS
@@ -86,8 +51,8 @@ func (s *Statement) ColumnTableName(index int) string {
 }
 
 // Return type
-func (s *Statement) ColumnType(index int) ColumnType {
-	return ColumnType(C.sqlite3_column_type((*C.sqlite3_stmt)(s), C.int(index)))
+func (s *Statement) ColumnType(index int) Type {
+	return Type(C.sqlite3_column_type((*C.sqlite3_stmt)(s), C.int(index)))
 }
 
 // Return declared type
@@ -112,6 +77,8 @@ func (s *Statement) ColumnDouble(index int) float64 {
 
 // Return string
 func (s *Statement) ColumnText(index int) string {
+	// TODO: This might make many copies of the data?
+	// Look into this
 	if len := s.ColumnBytes(index); len == 0 {
 		return ""
 	} else {
@@ -121,7 +88,8 @@ func (s *Statement) ColumnText(index int) string {
 
 // Return blob
 func (s *Statement) ColumnBlob(index int) []byte {
-	var data reflect.SliceHeader
+	// TODO: This might make many copies of the data?
+	// Look into this
 
 	// Allocate a blob
 	p := C.sqlite3_column_blob((*C.sqlite3_stmt)(s), C.int(index))
@@ -136,6 +104,7 @@ func (s *Statement) ColumnBlob(index int) []byte {
 	}
 
 	// Set up slice
+	var data reflect.SliceHeader
 	data.Data = uintptr(p)
 	data.Len = len
 	data.Cap = len

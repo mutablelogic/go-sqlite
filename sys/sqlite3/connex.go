@@ -6,39 +6,38 @@ package sqlite3
 #include <stdlib.h>
 
 extern int go_busy_handler(void* userInfo, int n);
-static int _sqlite3_busy_handler(sqlite3* db, uintptr_t userInfo) {
+static inline int _sqlite3_busy_handler(sqlite3* db, uintptr_t userInfo) {
 	return sqlite3_busy_handler(db, go_busy_handler, (void* )(userInfo));
 }
 
 extern int go_progress_handler(void* userInfo);
-static void _sqlite3_progress_handler(sqlite3* db, int n, uintptr_t userInfo) {
+static inline void _sqlite3_progress_handler(sqlite3* db, int n, uintptr_t userInfo) {
 	sqlite3_progress_handler(db, n, go_progress_handler, (void* )(userInfo));
 }
 
 extern int go_commit_hook(void* userInfo);
-static void _sqlite3_commit_hook(sqlite3* db, uintptr_t userInfo) {
+static inline void _sqlite3_commit_hook(sqlite3* db, uintptr_t userInfo) {
 	sqlite3_commit_hook(db, go_commit_hook, (void* )(userInfo));
 }
 
 extern void go_rollback_hook(void* userInfo);
-static void _sqlite3_rollback_hook(sqlite3* db, uintptr_t userInfo) {
+static inline void _sqlite3_rollback_hook(sqlite3* db, uintptr_t userInfo) {
 	sqlite3_rollback_hook(db, go_rollback_hook, (void* )(userInfo));
 }
 
 extern void go_update_hook(void* userInfo, int op, char* db, char* tbl, sqlite3_int64 row);
-static void _sqlite3_update_hook(sqlite3* db, uintptr_t userInfo) {
-	sqlite3_update_hook(db, go_update_hook, (void* )(userInfo));
+static inline void _sqlite3_update_hook(sqlite3* db, uintptr_t userInfo) {
+	sqlite3_update_hook(db, (void (*)(void* , int, char const*,char const*, sqlite3_int64))(go_update_hook), (void* )(userInfo));
 }
 
-
 extern int go_authorizer_hook(void* userInfo, int op, char* a1, char* a2, char* a3, char* a4);
-static void _sqlite3_set_authorizer(sqlite3* db, uintptr_t userInfo) {
-	sqlite3_set_authorizer(db, go_authorizer_hook, (void*)(userInfo));
+static inline void _sqlite3_set_authorizer(sqlite3* db, uintptr_t userInfo) {
+	sqlite3_set_authorizer(db, (int (*)(void*, int, const char*, const char*, const char*, const char*))(go_authorizer_hook), (void*)(userInfo));
 }
 
 extern int go_exec_handler(void* userInfo, int nargs, char** row, char** cols);
-static int _sqlite3_exec(sqlite3* db, char* q, uintptr_t userInfo, char** errmsg) {
-	sqlite3_exec(db, (const char* )(q), go_exec_handler, (void* )(userInfo), errmsg);
+static inline int _sqlite3_exec(sqlite3* db, char* q, uintptr_t userInfo, char** errmsg) {
+	return sqlite3_exec(db, (const char* )(q), go_exec_handler, (void* )(userInfo), errmsg);
 }
 
 */

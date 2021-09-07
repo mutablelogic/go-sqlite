@@ -74,12 +74,12 @@ func (r *Results) ColumnNames() []string {
 }
 
 // Return column types for the next row to be fetched
-func (r *Results) ColumnTypes() []ColumnType {
+func (r *Results) ColumnTypes() []Type {
 	if r.st == nil {
 		return nil
 	}
 	len := r.st.ColumnCount()
-	result := make([]ColumnType, len)
+	result := make([]Type, len)
 	for i := 0; i < len; i++ {
 		result[i] = r.st.ColumnType(i)
 	}

@@ -5,13 +5,15 @@ package sqlite3
 #include <sqlite3.h>
 #include <stdlib.h>
 
-static int _sqlite3_bind_text(sqlite3_stmt* stmt, int index, char* p, int n) {
+// TODO: Check whether we should be using SQLITE_TRANSIENT or something
+// more efficient?
+static inline int _sqlite3_bind_text(sqlite3_stmt* stmt, int index, char* p, int n) {
 	return sqlite3_bind_text(stmt, index, p, n, SQLITE_TRANSIENT);
 }
-static int _sqlite3_bind_blob(sqlite3_stmt* stmt, int index, void* p, int n) {
+static inline int _sqlite3_bind_blob(sqlite3_stmt* stmt, int index, void* p, int n) {
 	return sqlite3_bind_blob(stmt, index, p, n, SQLITE_TRANSIENT);
 }
-static int _sqlite3_bind_pointer(sqlite3_stmt* stmt, int index, void* p,char* t) {
+static inline int _sqlite3_bind_pointer(sqlite3_stmt* stmt, int index, void* p,char* t) {
 	return sqlite3_bind_pointer(stmt, index, p, t, NULL);
 }
 */
@@ -22,11 +24,25 @@ import (
 	"unsafe"
 )
 
+const (
+	// sqliteNamedPrefix removes these prefixes from the named parameter
+	// for matching
+	sqliteNamedPrefix = "? : @ $"
+)
+
 ///////////////////////////////////////////////////////////////////////////////
 // METHODS
 
+// Bind int, uint, float, bool, string, []byte, or nil to a statement with a
+// named parameter, return any errors
+// TODO: Also accept time.Time, maybe custom types with Marshal and Unmarshal
+//func (s *Statement) BindNamedInterface(name string, value interface{}) error {
+//
+//}
+
 // Bind int, uint, float, bool, string, []byte, or nil to a statement,
 // return any errors
+// TODO: Also accept time.Time, maybe custom types with Marshal and Unmarshal
 func (s *Statement) BindInterface(index int, value interface{}) error {
 	if value == nil {
 		return s.BindNull(index)
@@ -117,6 +133,7 @@ func (s *Statement) BindText(index int, v string) error {
 	defer C.free(unsafe.Pointer(cText))
 
 	// Bind
+	// TODO: See how many copies of string are made
 	if err := SQError(C._sqlite3_bind_text((*C.sqlite3_stmt)(s), C.int(index), cText, cTextLen)); err != SQLITE_OK {
 		return err
 	} else {
@@ -130,6 +147,7 @@ func (s *Statement) BindBlob(index int, v []byte) error {
 	if v != nil {
 		p = unsafe.Pointer(&v[0])
 	}
+	// TODO: See how many copies of data are made
 	if err := SQError(C._sqlite3_bind_blob((*C.sqlite3_stmt)(s), C.int(index), p, C.int(len(v)))); err != SQLITE_OK {
 		return err
 	} else {

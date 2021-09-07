@@ -25,6 +25,15 @@ func (s *Statement) String() string {
 	if sql := s.SQL(); sql != "" {
 		str += fmt.Sprintf(" sql=%q", sql)
 	}
+	if s.IsBusy() {
+		str += " busy"
+	}
+	if s.IsExplain() {
+		str += " explain"
+	}
+	if s.IsReadonly() {
+		str += " readonly"
+	}
 	if num_params := s.NumParams(); num_params > 0 {
 		str += fmt.Sprint(" num_params=", num_params)
 		params := make([]string, num_params)
@@ -85,6 +94,21 @@ func (s *Statement) Reset() error {
 	} else {
 		return nil
 	}
+}
+
+// IsBusy returns true if in middle of execution
+func (s *Statement) IsBusy() bool {
+	return intToBool(int(C.sqlite3_stmt_busy((*C.sqlite3_stmt)(s))))
+}
+
+// IsExplain returns true if the  statement S is an EXPLAIN statement or an EXPLAIN QUERY PLAN
+func (s *Statement) IsExplain() bool {
+	return intToBool(int(C.sqlite3_stmt_isexplain((*C.sqlite3_stmt)(s))))
+}
+
+// IsReadonly returns true if the statement makes no direct changes to the content of the database file.
+func (s *Statement) IsReadonly() bool {
+	return intToBool(int(C.sqlite3_stmt_readonly((*C.sqlite3_stmt)(s))))
 }
 
 // Finalize prepared statement

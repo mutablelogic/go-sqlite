@@ -56,6 +56,12 @@ const (
 	defaultFlags  = SQLITE_OPEN_CREATE
 )
 
+func init() {
+	if err := SQError(C.sqlite3_initialize()); err != SQLITE_OK {
+		panic(err)
+	}
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 

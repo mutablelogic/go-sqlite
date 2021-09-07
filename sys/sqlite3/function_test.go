@@ -24,12 +24,14 @@ func Test_Func_001(t *testing.T) {
 
 	db.SetBusyTimeout(time.Second)
 
+	// Create a function which sleeps
 	if err := db.CreateScalarFunction("sleepy", 0, true, func(ctx *sqlite3.Context, args []*sqlite3.Value) {
 		sqlite3.Sleep(time.Second * 5)
 	}); err != nil {
 		t.Error(err)
 	}
 
+	// Execute sleepy function
 	if st, err := db.Prepare(fmt.Sprint("SELECT SLEEPY()")); err != nil {
 		t.Error(err)
 	} else if r, err := st.Exec(); err != nil {
@@ -44,5 +46,4 @@ func Test_Func_001(t *testing.T) {
 			t.Log(row)
 		}
 	}
-
 }

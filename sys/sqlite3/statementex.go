@@ -37,8 +37,8 @@ func (c *ConnEx) Prepare(q string) (*StatementEx, error) {
 		q = strings.TrimSpace(extra)
 	}
 	runtime.SetFinalizer(s, func(s *StatementEx) {
-		print("FINALIZER")
-		s.Close()
+		print("TODO: IN STATEMENT FINALIZER\n")
+		//s.Close()
 	})
 	return s, nil
 }

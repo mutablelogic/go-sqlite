@@ -22,9 +22,6 @@ type Statement C.sqlite3_stmt
 
 func (s *Statement) String() string {
 	str := "<statement"
-	if sql := s.SQL(); sql != "" {
-		str += fmt.Sprintf(" sql=%q", sql)
-	}
 	if s.IsBusy() {
 		str += " busy"
 	}
@@ -53,11 +50,14 @@ func (s *Statement) String() string {
 		}
 		str += fmt.Sprintf(" cols=%q", cols)
 	}
+	if sql := s.SQL(); sql != "" {
+		str += fmt.Sprintf(" sql=%q", sql)
+	}
 	return str + ">"
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// METHODS
+// PUBLIC METHODS
 
 // Return next prepared statement, or first is nil
 func (c *Conn) NextStatement(s *Statement) *Statement {

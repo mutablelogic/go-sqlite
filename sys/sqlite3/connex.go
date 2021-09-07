@@ -5,29 +5,29 @@ package sqlite3
 #include <sqlite3.h>
 #include <stdlib.h>
 
-extern int go_busy_handler(void* userInfo,int n);
+extern int go_busy_handler(void* userInfo, int n);
 static int _sqlite3_busy_handler(sqlite3* db, uintptr_t userInfo) {
-	return sqlite3_busy_handler(db,go_busy_handler,(void*)(userInfo));
+	return sqlite3_busy_handler(db, go_busy_handler, (void* )(userInfo));
 }
 
 extern int go_progress_handler(void* userInfo);
 static void _sqlite3_progress_handler(sqlite3* db, int n, uintptr_t userInfo) {
-	sqlite3_progress_handler(db, n, go_progress_handler, (void*)(userInfo));
+	sqlite3_progress_handler(db, n, go_progress_handler, (void* )(userInfo));
 }
 
 extern int go_commit_hook(void* userInfo);
 static void _sqlite3_commit_hook(sqlite3* db, uintptr_t userInfo) {
-	sqlite3_commit_hook(db, go_commit_hook, (void*)(userInfo));
+	sqlite3_commit_hook(db, go_commit_hook, (void* )(userInfo));
 }
 
 extern void go_rollback_hook(void* userInfo);
 static void _sqlite3_rollback_hook(sqlite3* db, uintptr_t userInfo) {
-	sqlite3_rollback_hook(db, go_rollback_hook, (void*)(userInfo));
+	sqlite3_rollback_hook(db, go_rollback_hook, (void* )(userInfo));
 }
 
 extern void go_update_hook(void* userInfo, int op, char* db, char* tbl, sqlite3_int64 row);
 static void _sqlite3_update_hook(sqlite3* db, uintptr_t userInfo) {
-	sqlite3_update_hook(db, go_update_hook, (void*)(userInfo));
+	sqlite3_update_hook(db, go_update_hook, (void* )(userInfo));
 }
 
 
@@ -36,10 +36,16 @@ static void _sqlite3_set_authorizer(sqlite3* db, uintptr_t userInfo) {
 	sqlite3_set_authorizer(db, go_authorizer_hook, (void*)(userInfo));
 }
 
+extern int go_exec_handler(void* userInfo, int nargs, char** row, char** cols);
+static int _sqlite3_exec(sqlite3* db, char* q, uintptr_t userInfo, char** errmsg) {
+	sqlite3_exec(db, (const char* )(q), go_exec_handler, (void* )(userInfo), errmsg);
+}
+
 */
 import "C"
 
 import (
+	"errors"
 	"sync"
 	"time"
 	"unsafe"
@@ -53,12 +59,18 @@ import (
 
 type ConnEx struct {
 	*Conn
+
+	// Callback functions
 	BusyHandlerFunc
 	ProgressHandlerFunc
 	CommitHookFunc
 	RollbackHookFunc
 	UpdateHookFunc
 	AuthorizerHookFunc
+	ExecFunc
+
+	// Locks
+	xmu sync.Mutex // Mutex for calling Exec - only one per connection
 }
 
 // BusyHandlerFunc is invoked with the number of times that the busy handler has been invoked previously
@@ -88,6 +100,12 @@ type UpdateHookFunc func(SQAction, string, string, int64)
 // the arguments are dependent on the action required, and the return value should be
 // SQLITE_ALLOW, SQLITE_DENY or SQLITE_IGNORE
 type AuthorizerHookFunc func(SQAction, [4]string) SQAuth
+
+// ExecFunc is invoked during an Exec call with row text values and column names.
+// If an sqlite3_exec() callback returns non-zero, the sqlite3_exec() routine returns
+// SQLITE_ABORT without invoking the callback again and without running any subsequent
+// SQL statements.
+type ExecFunc func(row, cols []string) bool
 
 // callback tracks ConnEx objects against userInfo data
 type callback struct {
@@ -255,6 +273,39 @@ func (c *ConnEx) SetAuthorizerHook(fn AuthorizerHookFunc) error {
 	return nil
 }
 
+// Exec runs statements without preparing or accepting bind arguments. If you
+// call with fn as nil then the statement is executed without a callback.
+func (c *ConnEx) Exec(q string, fn ExecFunc) error {
+	c.xmu.Lock()
+	defer c.xmu.Unlock()
+
+	// Set exec callback
+	c.ExecFunc = fn
+	defer func() {
+		c.ExecFunc = nil
+	}()
+
+	// Populate CStrings
+	var cErrmsg, cQuery *C.char
+	cQuery = C.CString(q)
+	defer C.free(unsafe.Pointer(cQuery))
+	defer C.free(unsafe.Pointer(cErrmsg))
+
+	// Call exec
+	var result error
+	if err := SQError(C._sqlite3_exec((*C.sqlite3)(c.Conn), cQuery, C.uintptr_t(c.userInfo()), &cErrmsg)); err != SQLITE_OK {
+		result = multierror.Append(result, err)
+	}
+
+	// Check errmsg
+	if cErrmsg != nil {
+		result = multierror.Append(result, errors.New(C.GoString(cErrmsg)))
+	}
+
+	// Return any errors
+	return result
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
@@ -335,4 +386,23 @@ func go_authorizer_hook(userInfo unsafe.Pointer, op C.int, a1, a2, a3, a4 *C.cha
 	} else {
 		return C.int(0)
 	}
+}
+
+//export go_exec_handler
+func go_exec_handler(userInfo unsafe.Pointer, nargs C.int, row, cols **C.char) C.int {
+	if c := cb.get(uintptr(userInfo)); c != nil && c.ExecFunc != nil {
+		return C.int(boolToInt(c.ExecFunc(go_string_slice(int(nargs), row), go_string_slice(int(nargs), cols))))
+	} else {
+		return C.int(0)
+	}
+}
+
+// Return []string from char**
+func go_string_slice(len int, arr **C.char) []string {
+	result := make([]string, len)
+	cStrings := (*[1 << 28]*C.char)(unsafe.Pointer(arr))[:len:len]
+	for i := range result {
+		result[i] = C.GoString(cStrings[i])
+	}
+	return result
 }

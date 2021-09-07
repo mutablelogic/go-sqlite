@@ -1,5 +1,7 @@
 package sqlite3
 
+import "fmt"
+
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
@@ -18,7 +20,7 @@ func (r *Results) String() string {
 		str += " " + r.st.String()
 	}
 	if r.err != nil && r.err != SQLITE_ROW {
-		str += " err=" + r.err.Error()
+		str += fmt.Sprintf(" err=%q", r.err.Error())
 	}
 	return str + ">"
 }

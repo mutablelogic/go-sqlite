@@ -18,11 +18,58 @@ static int _sqlite3_bind_pointer(sqlite3_stmt* stmt, int index, void* p,char* t)
 import "C"
 
 import (
+	"math"
 	"unsafe"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // METHODS
+
+// Bind int, uint, float, bool, string, []byte, or nil to a statement,
+// return any errors
+func (s *Statement) BindInterface(index int, value interface{}) error {
+	if value == nil {
+		return s.BindNull(index)
+	}
+	switch v := value.(type) {
+	case int:
+		return s.BindInt64(index, int64(v))
+	case int8:
+		return s.BindInt64(index, int64(v))
+	case int16:
+		return s.BindInt64(index, int64(v))
+	case int32:
+		return s.BindInt64(index, int64(v))
+	case int64:
+		return s.BindInt64(index, int64(v))
+	case uint:
+		return s.BindInt64(index, int64(v))
+	case uint8:
+		return s.BindInt64(index, int64(v))
+	case uint16:
+		return s.BindInt64(index, int64(v))
+	case uint32:
+		return s.BindInt64(index, int64(v))
+	case uint64:
+		if v > math.MaxInt64 {
+			return SQLITE_RANGE
+		} else {
+			return s.BindInt64(index, int64(v))
+		}
+	case float32:
+		return s.BindDouble(index, float64(v))
+	case float64:
+		return s.BindDouble(index, float64(v))
+	case bool:
+		return s.BindInt32(index, int32(boolToInt(v)))
+	case string:
+		return s.BindText(index, v)
+	case []byte:
+		return s.BindBlob(index, v)
+	default:
+		return SQLITE_MISMATCH
+	}
+}
 
 // Bind null
 func (s *Statement) BindNull(index int) error {
@@ -43,7 +90,7 @@ func (s *Statement) BindInt32(index int, v int32) error {
 }
 
 // Bind int64
-func (s *Statement) BindInt64(index int, v int) error {
+func (s *Statement) BindInt64(index int, v int64) error {
 	if err := SQError(C.sqlite3_bind_int64((*C.sqlite3_stmt)(s), C.int(index), C.sqlite3_int64(v))); err != SQLITE_OK {
 		return err
 	} else {

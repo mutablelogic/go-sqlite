@@ -104,3 +104,24 @@ func Test_SQLiteEx_002(t *testing.T) {
 		}
 	}
 }
+
+func Test_SQLiteEx_003(t *testing.T) {
+	tmpdir, err := os.MkdirTemp("", "sqlite")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpdir)
+	db, err := sqlite3.OpenPathEx(filepath.Join(tmpdir, "test.sqlite"), sqlite3.SQLITE_OPEN_CREATE, "")
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+
+	// Run a PRAGMA operation
+	if err := db.Exec("PRAGMA module_list; PRAGMA compile_options;", func(row, cols []string) bool {
+		t.Logf("row=%q cols=%q", row, cols)
+		return false
+	}); err != nil {
+		t.Error(err)
+	}
+}

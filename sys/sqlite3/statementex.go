@@ -43,6 +43,7 @@ func (c *ConnEx) Prepare(q string) (*StatementEx, error) {
 	return s, nil
 }
 
+// Release resources for statements
 func (s *StatementEx) Close() error {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
@@ -58,6 +59,38 @@ func (s *StatementEx) Close() error {
 	// Release resources
 	s.st = nil
 	s.cur = 0
+
+	// Return any errors
+	return result
+}
+
+// Bind parameters to statement
+func (s *StatementEx) Bind(v ...interface{}) error {
+	s.Mutex.Lock()
+	defer s.Mutex.Unlock()
+
+	// Return error of SQLITE_DONE if no more statements to execute
+	if s.cur >= len(s.st) {
+		return SQLITE_DONE
+	}
+	// Bind can only occur is statement is not busy
+	st := s.st[s.cur]
+	if st.IsBusy() {
+		return SQLITE_BUSY
+	}
+
+	// Reset bind parameters
+	if err := st.ClearBindings(); err != nil {
+		return err
+	}
+
+	// Bind parameters
+	var result error
+	for i, v := range v {
+		if err := st.BindInterface(i+1, v); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
 
 	// Return any errors
 	return result

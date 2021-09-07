@@ -35,10 +35,14 @@ const (
 
 // Bind int, uint, float, bool, string, []byte, or nil to a statement with a
 // named parameter, return any errors
-// TODO: Also accept time.Time, maybe custom types with Marshal and Unmarshal
-//func (s *Statement) BindNamedInterface(name string, value interface{}) error {
-//
-//}
+func (s *Statement) BindNamedInterface(name string, value interface{}) error {
+	// Get index of named parameter
+	if index := s.ParamIndex(name); index < 1 {
+		return SQLITE_RANGE
+	} else {
+		return s.BindInterface(index, value)
+	}
+}
 
 // Bind int, uint, float, bool, string, []byte, or nil to a statement,
 // return any errors

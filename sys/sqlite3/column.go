@@ -77,8 +77,7 @@ func (s *Statement) ColumnDouble(index int) float64 {
 
 // Return string
 func (s *Statement) ColumnText(index int) string {
-	// TODO: This might make many copies of the data?
-	// Look into this
+	// TODO: This might make many copies of the data? Look into this
 	if len := s.ColumnBytes(index); len == 0 {
 		return ""
 	} else {
@@ -88,8 +87,7 @@ func (s *Statement) ColumnText(index int) string {
 
 // Return blob
 func (s *Statement) ColumnBlob(index int) []byte {
-	// TODO: This might make many copies of the data?
-	// Look into this
+	// TODO: This might make many copies of the data? Look into this
 
 	// Allocate a blob
 	p := C.sqlite3_column_blob((*C.sqlite3_stmt)(s), C.int(index))

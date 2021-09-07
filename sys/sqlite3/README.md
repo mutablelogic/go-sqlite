@@ -77,7 +77,8 @@ Four methods will execute a query:
   * `func (*ConnEx) Commit() error` will commit a transaction;
   * `func (*ConnEx) Rollback() error` will rollback a transaction.
 
-The following methods return and set information about the connection:
+The following methods return and set information about the connection. These can be
+used for both `*Conn` and `*ConnEx` types:  
 
   * `func (*Conn) Filename(string) string` returns the filename for an attached
     database;
@@ -86,9 +87,70 @@ The following methods return and set information about the connection:
   * `func (*Conn) Autocommit() bool ` returns false if the connection is in a transaction;
   * `func (*Conn) LastInsertId() int64` returns the `RowId` of the last row inserted;
   * `func (*Conn) Changes() int64` returns the number of rows affected by the last query;
-  * `func (*Conn) Interrupt()` interrupts any running queries.
 
-## Statements
+Finally,
+
+  * `func (*Conn) Interrupt()` interrupts any running queries for the connection.
+
+When errors are returned from any methods, their error message is 
+[documented here](https://www.sqlite.org/rescode.html). The result codes can
+be printed or cast to an integer or other numeric type as necessary.
+
+## Statements & Bindings
+
+In order to execute a query or set of queries, they first need to be prepared.
+The method `func (*ConnEx) Prepare(q string) (*StatementEx, error)` returns
+a prepared statement. It is your responsibility to call `func (*ConnEx) Close() error`
+on the statement when you are finished with it. For example,
+
+```go
+package main
+
+import (
+    "github.com/djthorpe/go-sqlite/sys/sqlite3"
+)
+
+func main() {
+    path := "..."
+    db, err := sqlite3.OpenPathEx(path, sqlite3.SQLITE_OPEN_CREATE, "")
+    // ...
+    stmt, err := db.Prepare("SELECT * FROM table")
+    if err != nil {
+        // ...
+    }
+    defer stmt.Close()
+    // ...
+}
+```
+
+You can then either:
+
+  * Set bound parameters using `func (*StatementEx) Bind(...interface{}) error`
+    or `func (*StatementEx) BindNamed(map[string]interface{}) error` to bind
+    parameters to the statement, and then call `func (*StatementEx) Exec() (*Results, error)`
+    with no arguments to execute the statement;
+  * Call `func (*StatementEx) Exec(...interface{}) (*Results, error)` with bound parameters
+    directly.
+
+Any parameters which are not bound are assumed to be NULL.
+
+### Supported Types
+
+The following types are supported for binding parameters:
+
+| go          | sqlite                |
+| ----------- | ----------------------| 
+| `nil`       | NULL                  |
+| `intN`      | INTEGER               |
+| `uintN`     | INTEGER               |
+| `floatN`    | FLOAT                 |
+| `string`    | TEXT                  |
+| `bool`      | INTEGER               |
+| `[]byte`    | BLOB                  |
+
+It might be extended to time.Time and custom types (using marshalling) later.
+
+### Named Parameters
 
 TODO
 
@@ -102,8 +164,14 @@ TODO
 
 ## Commit, Update and Rollback Hooks
 
+TODO
 
 ## Status and Limits
 
+TODO
+
 ## Miscellaneous
+
+TODO
+
 

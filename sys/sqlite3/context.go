@@ -4,10 +4,26 @@ package sqlite3
 #cgo pkg-config: sqlite3
 #include <sqlite3.h>
 #include <stdlib.h>
+
+// TODO: See if SQLITE_TRANSIENT is appropriate in these three methods
+
+void _sqlite3_result_text(sqlite3_context* ctx, const char *str, int len) {
+	sqlite3_result_text(ctx, str, len, SQLITE_TRANSIENT);
+}
+
+void _sqlite3_result_blob(sqlite3_context* ctx, void* data, int len) {
+	sqlite3_result_blob(ctx, data, len, SQLITE_TRANSIENT);
+}
+
+void _sqlite3_result_blob64(sqlite3_context* ctx, void* data, sqlite3_uint64 len) {
+	sqlite3_result_blob64(ctx, data, len, SQLITE_TRANSIENT);
+}
+
 */
 import "C"
 import (
 	"math"
+	"reflect"
 	"unsafe"
 )
 
@@ -82,12 +98,17 @@ func (ctx *Context) ResultInt64(v int64) {
 
 // Set result as a text value
 func (ctx *Context) ResultText(v string) {
-	// TODO
+	h := (*reflect.StringHeader)(unsafe.Pointer(&v))
+	C._sqlite3_result_text((*C.sqlite3_context)(ctx), (*C.char)(unsafe.Pointer(h.Data)), C.int(h.Len))
 }
 
 // Set result as a blob
-func (ctx *Context) ResultBlob([]byte) {
-	// TODO
+func (ctx *Context) ResultBlob(data []byte) {
+	if len(data) > math.MaxInt32 {
+		C._sqlite3_result_blob64((*C.sqlite3_context)(ctx), unsafe.Pointer(&data[0]), C.sqlite3_uint64(len(data)))
+	} else {
+		C._sqlite3_result_blob((*C.sqlite3_context)(ctx), unsafe.Pointer(&data[0]), C.int(len(data)))
+	}
 }
 
 // Set result as a interface value, return any errors from casting

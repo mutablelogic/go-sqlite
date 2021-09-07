@@ -64,40 +64,9 @@ func (s *StatementEx) Close() error {
 	return result
 }
 
-// Bind parameters to statement
-func (s *StatementEx) Bind(v ...interface{}) error {
-	s.Mutex.Lock()
-	defer s.Mutex.Unlock()
-
-	// Return error of SQLITE_DONE if no more statements to execute
-	if s.cur >= len(s.st) {
-		return SQLITE_DONE
-	}
-	// Bind can only occur is statement is not busy
-	st := s.st[s.cur]
-	if st.IsBusy() {
-		return SQLITE_BUSY
-	}
-
-	// Reset bind parameters
-	if err := st.ClearBindings(); err != nil {
-		return err
-	}
-
-	// Bind parameters
-	var result error
-	for i, v := range v {
-		if err := st.BindInterface(i+1, v); err != nil {
-			result = multierror.Append(result, err)
-		}
-	}
-
-	// Return any errors
-	return result
-}
-
 // Execute a prepared statement, move cursor to next statement
-func (s *StatementEx) Exec() (*Results, error) {
+// when called with arguments, this calls Bind() first
+func (s *StatementEx) Exec(v ...interface{}) (*Results, error) {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
 
@@ -110,6 +79,14 @@ func (s *StatementEx) Exec() (*Results, error) {
 	st := s.st[s.cur]
 	s.cur++
 
+	// Bind parameters
+	if len(v) > 0 {
+		if err := st.Bind(v...); err != nil {
+			return nil, err
+		}
+	}
+
+	// Perform the step
 	if err := st.Step(); errors.Is(err, SQLITE_DONE) || errors.Is(err, SQLITE_ROW) {
 		return results(st, err), nil
 	} else {

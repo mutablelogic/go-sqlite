@@ -10,6 +10,8 @@ import "C"
 import (
 	"fmt"
 	"unsafe"
+
+	multierror "github.com/hashicorp/go-multierror"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -80,6 +82,31 @@ func (c *Conn) Prepare(query string) (*Statement, string, error) {
 	}
 	// Return prepared statement and extra string
 	return (*Statement)(cStatement), C.GoString(cExtra), nil
+}
+
+// Bind parameters
+func (s *Statement) Bind(v ...interface{}) error {
+
+	// Check state
+	if s.IsBusy() {
+		return SQLITE_BUSY
+	}
+
+	// Reset bind parameters
+	if err := s.ClearBindings(); err != nil {
+		return err
+	}
+
+	// Bind parameters
+	var result error
+	for i, v := range v {
+		if err := s.BindInterface(i+1, v); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+
+	// Return any errors
+	return result
 }
 
 // Return connection object from statement

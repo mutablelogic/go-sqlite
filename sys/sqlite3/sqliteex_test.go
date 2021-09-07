@@ -16,7 +16,7 @@ const (
 		VALUES(0)
 		UNION ALL
 		SELECT i FROM r
-		LIMIT 1000000
+		LIMIT ?
 	  ) SELECT i FROM r WHERE i = 1;`
 )
 
@@ -91,7 +91,7 @@ func Test_SQLiteEx_002(t *testing.T) {
 	// Run long running query, expect interrupted error
 	if st, err := db.Prepare(longRunningQuery); err != nil {
 		t.Error(err)
-	} else if r, err := st.Exec(); err != nil {
+	} else if r, err := st.Exec(9999999999); err != nil {
 		t.Error("Error returned:", err)
 	} else {
 		t.Log(r)

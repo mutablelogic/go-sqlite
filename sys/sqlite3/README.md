@@ -6,7 +6,12 @@ about the internals of sqlite is a good exercise in itself.
 
 The bindings do not add a lot of functionality beyond replicating the API
 in a more golang pattern. They are bindings afterall. It is assumed that
-a separate package would be used to provide a more useful API.
+a separate package would be used to provide a more useful API, including
+connection pooling, transaction and execution management, and so forth.
+
+This package is part of a wider project, `github.com/djthorpe/go-sqlite`.
+Please see the [module documentation](https://github.com/djthorpe/go-sqlite/blob/master/README.md)
+for more information.
 
 ## Building
 
@@ -16,7 +21,8 @@ file called `sqlite.pc` to be present (and an existing set of header
 files and libraries to be available to link against, of course).
 
 In order to locate the __pkgconfig__ file in a non-standard location, use
-the `PKG_CONFIG_PATH` environment variable. For example, to run the tests:
+the `PKG_CONFIG_PATH` environment variable. For example, I have installed
+sqlite using `brew install sqlite` and this is how I run the tests:
 
 ```bash
 [bash] git clone git@github.com:djthorpe/go-sqlite.git
@@ -25,7 +31,17 @@ the `PKG_CONFIG_PATH` environment variable. For example, to run the tests:
 [bash] PKG_CONFIG_PATH="/usr/local/opt/sqlite/lib/pkgconfig" go test -v ./sys/sqlite3
 ```
 
-There are some examples in the `cmd` folder of the main repository.
+There are some examples in the `cmd` folder of the main repository on how to use
+the bindings, and various pseudo examples in this document.
+
+## Contributing & Distribution
+
+Please do file feature requests and bugs [here](https://github.com/djthorpe/go-sqlite/issues).
+The license is Apache 2 so feel free to redistribute. Redistributions in either source
+code or binary form must reproduce the copyright notice, and please link back to this
+repository for more information:
+
+> Copyright (c) 2021, David Thorpe, All rights reserved.
 
 ## Connection
 
@@ -338,14 +354,24 @@ perfomed.
 
 TODO
 
+## Authentication and Authorization Hook
+
+TODO
+
+## Blob IO Interface
+
+TODO
+
+## Backup Interface
+
+TODO 
+
 ## Status and Limits
 
 TODO
 
 ## Miscellaneous
 
-TODO
 Status Counters
 Limits
-Blobs
-Backups
+Shared Cache Mode

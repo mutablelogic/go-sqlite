@@ -39,11 +39,11 @@ func (c *Conn) OpenBlob(schema, table, column string, rowid int64, flags OpenFla
 	// Set cString
 	var cSchema, cColumn, cTable *C.char
 	cSchema = C.CString(schema)
-	cTable = C.CString(column)
+	cTable = C.CString(table)
 	cColumn = C.CString(column)
-	defer C.free(unsafe.Pointer(cSchema))
-	defer C.free(unsafe.Pointer(cTable))
 	defer C.free(unsafe.Pointer(cColumn))
+	defer C.free(unsafe.Pointer(cTable))
+	defer C.free(unsafe.Pointer(cSchema))
 
 	// Set flags - only SQLITE_OPEN_READWRITE is used
 	if flags&OpenFlags(SQLITE_OPEN_READWRITE) != 0 {
@@ -85,7 +85,10 @@ func (b *Blob) Bytes() int {
 }
 
 // ReadAt reads data from a blob, starting at a specific byte offset within the blob
-func (b *Blob) ReadAt(data []byte, offset int) error {
+func (b *Blob) ReadAt(data []byte, offset int64) error {
+	if int64(C.int(offset)) != offset {
+		return SQLITE_RANGE
+	}
 	if err := SQError(C.sqlite3_blob_read((*C.sqlite3_blob)(b), unsafe.Pointer(&data[0]), C.int(len(data)), C.int(offset))); err != SQLITE_OK {
 		return err
 	} else {
@@ -94,7 +97,10 @@ func (b *Blob) ReadAt(data []byte, offset int) error {
 }
 
 // WriteAt writes data into a blob, starting at a specific byte offset within the blob
-func (b *Blob) WriteAt(data []byte, offset int) error {
+func (b *Blob) WriteAt(data []byte, offset int64) error {
+	if int64(C.int(offset)) != offset {
+		return SQLITE_RANGE
+	}
 	if err := SQError(C.sqlite3_blob_write((*C.sqlite3_blob)(b), unsafe.Pointer(&data[0]), C.int(len(data)), C.int(offset))); err != SQLITE_OK {
 		return err
 	} else {

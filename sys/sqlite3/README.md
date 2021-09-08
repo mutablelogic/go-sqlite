@@ -296,7 +296,43 @@ These allocate new arrays on each call so you should use them sparingly.
 
 ## User-Defined Functions
 
-TODO
+You can [define scalar and aggregate user-defined functions](https://www.sqlite.org/appfunc.html)
+(and override existing ones) for use in statement execution:
+
+  * A __scalar function__ takes zero or more argument values and returns a single value or an error;
+  * An __aggregate function__ is called for every result within the grouping and then returns a single value or an error.
+
+The types for the function calls in go are:
+
+  * Scalar function `type StepFunc func(*Context, []*Value)`
+  * Aggregate function to collate each result `type StepFunc func(*Context, []*Value)`
+  * Aggregate function to finalize `type FinalFunc func(*Context)`
+
+To register a user-defined function use the following methods:
+
+  * `func (*ConnEx) CreateScalarFunction(string,int,bool,StepFunc) error` where the first argument is
+    the name of the function, the second is the number of arguments accepted
+    (or -1 for variable number of arguments), the third flag indicates that the function
+    returns the same value for the same input arguments, and the fourth argument is the callback.
+  * `func (*ConnEx) CreateAggregateFunction(string,int,bool,StepFunc,FinalFunc) error` has the same
+    arguments as above, but the fourth and fifth arguments are the step and final callbacks.
+
+You can register multiple calls for the same function name. See the [documentation](https://www.sqlite.org/appfunc.html)
+for more information.
+
+### Values
+
+Values are passed to the step function callbacks and include arguments to the function. See the
+[documentation](https://www.sqlite.org/c3ref/value.html) for more information. In addition
+the method `func (*Value) Interface() interface{}` can be used to convert the value to a go type.
+
+### Context
+
+The `*Context` is passed to all the user-defined function callbacks. The context is used to store
+the return value and errors. See the [documentation](https://www.sqlite.org/c3ref/context.html)
+for more information. In addition, the method `func (*Context) ResultInterface(v interface{}) error`
+can be called to set a go value, and returns an error if the conversion could not be
+perfomed.
 
 ## Commit, Update and Rollback Hooks
 
@@ -309,5 +345,7 @@ TODO
 ## Miscellaneous
 
 TODO
-
-
+Status Counters
+Limits
+Blobs
+Backups

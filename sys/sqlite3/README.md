@@ -412,7 +412,17 @@ interfaces for more information on `Read`, `Write`, `Seek`, `ReadAt` and `WriteA
 
 ## Backup Interface
 
-TODO 
+The backup API is documented [here](https://www.sqlite.org/c3ref/backup_finish.html):
+
+  * Call `func (*Conn) Backup(dest *Conn, destSchema, srcSchema string) (*Backup, error)` on the
+    source database with an opened destination database. If your database handle is a `*ConnEx`
+    handle use `dest.Conn` as your argument;
+  * Call `func (*Backup) Step(n int) error` to copy up to `n` pages from the source database to 
+    the destination until the error returned is `SQLITE_DONE`;
+  * Call `func (*Backup) Finish() error` to finalize the backup process.
+
+The methods `func (*Backup) Remaining() int` and `func (*Backup) PageCount() int` can be used to
+determine progress through the backup process.
 
 ## Status and Limits
 
@@ -420,6 +430,7 @@ TODO
 
 ## Miscellaneous
 
-Status Counters
-Limits
 Shared Cache Mode
+Keywords
+SQL Completion
+Version

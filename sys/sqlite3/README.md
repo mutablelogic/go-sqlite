@@ -65,12 +65,16 @@ busy timeout or set a custom busy handler using the `SetBusyTimeout` and
 to set a callback for progress during long running queries, which allows
 for cancellation mid-query.
 
-Four methods will execute a query:
+Five methods will execute a query:
 
-  * `func (*ConnEx) Exec(string,func (row,cols []string) bool) error` will execute
-    one or more SQL queries (separated by semi-colon) without bound parameters, 
-    and call a function with the results. Return `true` from this method to abort
-    any subsequent results being returned;
+  * `func (*ConnEx) Exec(string, func (row, cols []string) bool) error` will execute
+    one or more SQL queries (separated by a semi-colon) without bound parameters, 
+    and invoke a function callback with the results. Return `true` from this 
+    callback to abort any subsequent results being returned;
+  * `func (*ConnEx) ExecEx(string, func (row, cols []string) bool,...interface{}) error` will execute
+    one or more SQL queries (separated by a semi-colon) with bound parameters, 
+    and invoke a function callback with the results. Return `true` from this 
+    callback to abort any subsequent results being returned;
   * `func (*ConnEx) Begin(SQTransaction) error` will start a transaction. Include
     an argument `sqlite3.SQLITE_TXN_DEFAULT`, `sqlite3.SQLITE_TXN_IMMEDIATE` or
     `sqlite3.SQLITE_TXN_EXCLUSIVE` to set the transaction type;
@@ -126,37 +130,169 @@ func main() {
 You can then either:
 
   * Set bound parameters using `func (*StatementEx) Bind(...interface{}) error`
-    or `func (*StatementEx) BindNamed(map[string]interface{}) error` to bind
+    or `func (*StatementEx) BindNamed(...interface{}) error` to bind
     parameters to the statement, and then call `func (*StatementEx) Exec() (*Results, error)`
     with no arguments to execute the statement;
-  * Call `func (*StatementEx) Exec(...interface{}) (*Results, error)` with bound parameters
+  * Or, call `func (*StatementEx) Exec(...interface{}) (*Results, error)` with bound parameters
     directly.
 
-Any parameters which are not bound are assumed to be NULL.
+Any parameters which are not bound are assumed to be NULL. If your prepared statement has
+multiple queries, then you can call `Exec` repeatedly until no more results are returned.
+For example,
 
-### Supported Types
+```go
+package main
 
-The following types are supported for binding parameters:
+import (
+    "github.com/djthorpe/go-sqlite/sys/sqlite3"
+)
 
-| go          | sqlite                |
-| ----------- | ----------------------| 
-| `nil`       | NULL                  |
-| `intN`      | INTEGER               |
-| `uintN`     | INTEGER               |
-| `floatN`    | FLOAT                 |
-| `string`    | TEXT                  |
-| `bool`      | INTEGER               |
-| `[]byte`    | BLOB                  |
+func main() {
+    path := "..."
+    db, err := sqlite3.OpenPathEx(path, sqlite3.SQLITE_OPEN_CREATE, "")
+    // ...
+    stmt, err := db.Prepare("SELECT * FROM table")
+    if err != nil {
+        // ...
+    }
+    defer stmt.Close()
+    for {
+        r, err := stmt.Exec()
+        if err != nil {
+            // Handle error
+        } else if r == nil {
+            // No more result queries to execute
+            break
+        } else {
+            // Read results from query
+        }
+    }
+}
+```
 
-It might be extended to time.Time and custom types (using marshalling) later.
+### Binding Values To Prepared Statements
 
-### Named Parameters
+[Bound values](https://www.sqlite.org/c3ref/bind_blob.html) are arguments
+in calls to the following methods:
 
-TODO
+  * `func (*StatementEx) Bind(...interface{}) error` to bind parameters in numerical order;
+  * `func (*StatementEx) BindNamed(...interface{}) error` to bind parameters with name, value 
+    pairs;
+  * `func (*StatementEx) Exec(...interface{}) (*Results, error)` to bind parameters in numerical 
+    order and execute the statement. If no argumet is given, previously bound parameters are used;
+  * `func (*ConnEx) ExecEx(string, func (row, cols []string) bool,...interface{}) error` to 
+    execute a query directly with parameters in numerical order.
+
+Each value is translated into an sqlite type as per the following table, where N can be
+8 or 16 (in the case of integers) or 32 or 64 (in the case of integers and floats):
+
+| go             | sqlite                |
+| -------------- | ----------------------| 
+| `nil`          | NULL                  |
+| `int`,`intN`   | INTEGER               |
+| `uint`,`uintN` | INTEGER               |
+| `floatN`       | FLOAT                 |
+| `string`       | TEXT                  |
+| `bool`         | INTEGER               |
+| `[]byte`       | BLOB                  |
+
+> It might be extended to time.Time and custom types (using marshalling) later.
+
+In the SQL statement text input literals may be replaced by a parameter that matches one of `?`, `?N`, `:V`, `@V` or `$V`
+where N is an integer and V is an alpha-numeric string. For example,
+
+```go
+package main
+
+import (
+    "github.com/djthorpe/go-sqlite/sys/sqlite3"
+)
+
+func main() {
+    path := "..."
+    db, err := sqlite3.OpenPathEx(path, sqlite3.SQLITE_OPEN_CREATE, "")
+    // ...
+    stmt, err := db.Prepare("SELECT * FROM table WHERE a=:A AND b=:B")
+    if err != nil {
+        // ...
+    }
+    defer stmt.Close()
+
+    for {
+        if err := stmt.BindNamed(":A", 100, ":B", 200); err != nil {
+            // Handle error
+        }
+        r, err := stmt.Exec()
+        if err != nil {
+            // Handle error
+        } else if r == nil {
+            // No more result queries to execute
+        } else if err := ReadResults(r); err != nil {
+            // Handle error
+        }
+    }
+}
+```
 
 ## Results
 
-TODO
+Results are returned from the `Exec` method after a statement is executed. If there are no results,
+then a call to `func (*Results) Next() ([]interface{},error)` will return `nil` in place of an
+array of values. You should repeatedly call the `Next` method until this occurs. For example,
+
+```go
+func ReadResults(r *Results) error {
+    for {
+        row, err := r.Next()
+        if err != nil {
+            return err
+        } else if row == nil {
+            return nil
+        }
+        // Handle row
+        // ...
+    }
+}
+```
+
+When `Next` is invoked without arguments, the values returned are interpreted as the above table
+but in reverse. For example, a `NULL` value is returned as `nil`. `INTEGER` values are returned
+as `int64` and `FLOAT` values are returned as `float64`. If you invoke `Next` with a slice of
+`reflect.Type` then the values returned are converted to the types specified in the slice. For
+example,
+
+
+```go
+func ReadResults(r *Results) error {
+    cast := []reflect.Type{ reflect.TypeOf(bool), reflect.TypeOf(uint) }
+    for {
+        row, err := r.Next(cast...)
+        if err != nil {
+            return err
+        } else if row == nil {
+            return nil
+        }
+        // Handle row which has bool as first element and uint as second element
+        // ...
+    }
+}
+```
+
+If a value cannot be cast by a call to `Next`, then an error is returned.
+
+> Will be extended to time.Time and custom types (using unmarshalling) later.
+
+Reflection on the results can be used through the following method calls:
+
+  * `func (*Results) ColumnNames() []string` returns column names for the results
+  * `func (*Results) ColumnCount() int` returns column count
+  * `func (*Results) ColumnTypes() []Type` returns column types for the results
+  * `func (*Results) ColumnDeclTypes() []string` returns column decltypes for the results
+  * `func (*Results) ColumnDatabaseNames() []string` returns the source database schema name for the results
+  * `func (*Results) ColumnTableNames() []string` returns the source table name for the results
+  * `func (*Results) ColumnOriginNames() []string` returns the origin for the results
+
+These allocate new arrays on each call so you should use them sparingly.
 
 ## User-Defined Functions
 

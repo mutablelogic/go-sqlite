@@ -61,6 +61,15 @@ func (b *BlobEx) Close() error {
 	return err
 }
 
+// Reopen moves the blob handle to a new rowid
+func (b *BlobEx) Reopen(rowid int64) error {
+	if err := b.Blob.Reopen(rowid); err != nil {
+		return err
+	}
+	b.cur, b.size = 0, int64(b.Blob.Bytes())
+	return nil
+}
+
 // io.Reader interface
 func (b *BlobEx) Read(data []byte) (int, error) {
 	if b.Blob == nil || b.cur >= b.size {

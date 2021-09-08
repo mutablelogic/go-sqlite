@@ -358,9 +358,26 @@ TODO
 
 TODO
 
-## Blob IO Interface
+## Binary Object (Blob IO) Interface
 
-TODO
+In addition to the standard interface which inserts, updates and deletes binary objects atomically,
+it's possible to read and write data to binary objects incrementally.
+The [documentation is here](https://www.sqlite.org/c3ref/blob.html).
+
+In order to create a blob, use the SQL method `INSERT INTO table VALUES ZEROBLOB(?)` for example
+with a size parameter. Then use the last inserted rowid to read and write to the blob.
+
+  * Use `func (*Conn) OpenBlob(schema, table, column string, rowid int64, flags OpenFlags) (*Blob, error)`
+    to return a handle to a blob;
+  * Use `func (*Conn) OpenBlobEx(schema, table, column string, rowid int64, flags OpenFlags) (*BlobEx, error)`
+    to return a handle to a blob which provides an `io.Reader` and `io.Writer` interface;
+  * Use `func (*Blob) Close() error` to close the blob on either a `*Blob` or `*BlobEx` handle;
+  * The method `func (*Blob) Bytes() int` returns the size of the blob;
+  * The method `func (*Blob) Reopen(int64) error` opens a new row with the existing blob handle.
+
+See the documentation for the [`io.Reader`](https://golang.org/pkg/io/#Reader) and
+[`io.Writer`](https://golang.org/pkg/io/#Writer)
+interfaces for more information on `Read`, `Write`, `Seek`, `ReadAt` and `WriteAt` methods.
 
 ## Backup Interface
 

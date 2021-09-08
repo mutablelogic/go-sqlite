@@ -428,17 +428,17 @@ determine progress through the backup process. For example,
 func BackupMainSchema(src, dest *ConnEx, n int) error {
 	backup, err := src.OpenBackup(dest.Conn, "", "")
 	if err != nil {
-        return err
+		return err
 	}
 	defer backup.Finish()
 	for {
 		if err := backup.Step(n); err == sqlite3.SQLITE_DONE {
-            return nil
+			return nil
 		} else if err != nil {
 			return err
 		} else {
-            float64 pct = float64(backup.Remaining()) * 100.0 / float64(backup.PageCount())
-            fmt.Printf("%d%% remaining\n", pct)
+			float64 pct = float64(backup.Remaining()) * 100.0 / float64(backup.PageCount())
+			fmt.Printf("%d%% remaining\n", pct)
 		}
 	}
 }
@@ -446,11 +446,43 @@ func BackupMainSchema(src, dest *ConnEx, n int) error {
 
 ## Status and Limits
 
-TODO
+The methods `func (*Conn) GetLimit(key SQLimit) int` and `func (*Conn) SetLimit(key SQLimit, v int) int`
+can be used to query and set the limits on the database. See the [documentation](https://www.sqlite.org/c3ref/limit.html)
+key parameters. Both methods return the previous value of the limit. The following example enumerates all the limit values:
+
+```go
+func PrintLimits(c *ConnEx) {
+	for i := sqlite3.SQLITE_LIMIT_MIN; i <= sqlite3.SQLITE_LIMIT_MAX; i++ {
+        fmt.Println("Limit %v => %d", i, c.GetLimit(i))
+	}
+}
+```
+
+Runtime counters and memory usage can also be enumerated:
+
+```go
+func PrintCounters(c *ConnEx) {
+	for i := sqlite3.SQLITE_DBSTATUS_MIN; i <= sqlite3.SQLITE_DBSTATUS_MAX; i++ {
+		if cur, max, err := c.GetStatus(i); err == nil {
+            fmt.Printf("Status %v => %d/%d\n", i, cur, max)
+        }
+    }
+    cur, max := sqlite3.GetMemoryUsed()
+    fmt.Printf("Memory Used => %d/%d\n", i, cur, max)
+```
+
+Calling `func ResetStatus(StatusType) error` and `func ResetMemoryUsed()` resets
+the highest instantaneous value (`max`) back to the current value for the given
+counter.
 
 ## Miscellaneous
 
-Shared Cache Mode
-Keywords
-SQL Completion
-Version
+Some miscellaneous methods:
+
+ * The method `func Version() (string, int, string)` returns the version of the SQLite library in use,
+   as a string, an encoded integer and [as a source string](https://www.sqlite.org/c3ref/libversion.html);
+ * The method `func IsComplete(string) bool` returns true if the given string argument is a complete
+   SQL statement (with trailing semi-colon);
+ * The methods `func KeywordCount() int`, `func KeywordName(int) string` and `func KeywordCheck(string) bool`
+   can be used for enumerating reserved keywords and checking an indentifier against the list of reserved keywords.
+

@@ -45,6 +45,7 @@ import "C"
 
 import (
 	"errors"
+	"reflect"
 	"sync"
 	"time"
 	"unsafe"
@@ -101,7 +102,7 @@ type UpdateHookFunc func(SQAction, string, string, int64)
 type AuthorizerHookFunc func(SQAction, [4]string) SQAuth
 
 // ExecFunc is invoked during an Exec call with row text values and column names.
-// If an sqlite3_exec() callback returns non-zero, the sqlite3_exec() routine returns
+// If an sqlite3_exec() callback returns true, the sqlite3_exec() routine returns
 // SQLITE_ABORT without invoking the callback again and without running any subsequent
 // SQL statements.
 type ExecFunc func(row, cols []string) bool
@@ -282,7 +283,8 @@ func (c *ConnEx) SetAuthorizerHook(fn AuthorizerHookFunc) error {
 }
 
 // Exec runs statements without preparing or accepting bind arguments. If you
-// call with fn as nil then the statement is executed without a callback.
+// call with fn as nil then the statement is executed without a callback, otherwise
+// return true from the callback to abort the transaction.
 func (c *ConnEx) Exec(q string, fn ExecFunc) error {
 	c.xmu.Lock()
 	defer c.xmu.Unlock()
@@ -308,10 +310,63 @@ func (c *ConnEx) Exec(q string, fn ExecFunc) error {
 	// Check errmsg
 	if cErrmsg != nil {
 		result = multierror.Append(result, errors.New(C.GoString(cErrmsg)))
+		C.sqlite3_free(unsafe.Pointer(cErrmsg))
 	}
 
 	// Return any errors
 	return result
+}
+
+// ExecEx runs statements without preparing. If you call with fn as nil then the
+// statement is executed without a callback, otherwise callback is invoked for
+// each row of data returned, otherwise return true from the callback to abort the
+// transaction.
+func (c *ConnEx) ExecEx(q string, fn ExecFunc, v ...interface{}) error {
+	c.xmu.Lock()
+	defer c.xmu.Unlock()
+
+	// Prepare statements
+	st, err := c.Prepare(q)
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+
+	// Execute loop
+	for {
+		r, err := st.Exec(v...)
+		if err != nil {
+			return err
+		} else if r == nil {
+			break
+		}
+
+		// Cast row values to string
+		t := make([]reflect.Type, r.ColumnCount())
+		n := r.ColumnNames()
+		v := make([]string, r.ColumnCount())
+		for i := range t {
+			t[i] = typeText
+		}
+
+		// Result loop
+		for {
+			row, err := r.Next(t...)
+			if err != nil {
+				return err
+			} else if row == nil {
+				break
+			} else if fn != nil {
+				if fn(stringSliceFromInterface(row, v), n) {
+					// Set abort transaction on next iteration
+					r.err = SQLITE_ABORT
+				}
+			}
+		}
+	}
+
+	// Return success
+	return nil
 }
 
 func (c *ConnEx) Begin(t SQTransaction) error {
@@ -353,6 +408,22 @@ func (c *callback) get(r uintptr) *ConnEx {
 // return userInfo data for the connection
 func (c *ConnEx) userInfo() uintptr {
 	return uintptr(unsafe.Pointer(c))
+}
+
+// return a slice of strings from a slice of interfaces
+// where all elements in the interface slice are strings
+// use pre-allocated string slice to avoid allocations
+func stringSliceFromInterface(v []interface{}, result []string) []string {
+	if v == nil {
+		return nil
+	}
+	result = result[:len(v)]
+	for i, v := range v {
+		if v, ok := v.(string); ok {
+			result[i] = v
+		}
+	}
+	return result
 }
 
 ///////////////////////////////////////////////////////////////////////////////

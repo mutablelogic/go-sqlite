@@ -63,25 +63,31 @@ func (s *Statement) String() string {
 
 // Return next prepared statement, or first is nil
 func (c *Conn) NextStatement(s *Statement) *Statement {
-	return (*Statement)(C.sqlite3_next_stmt((*C.sqlite3)(c), (*C.sqlite3_stmt)(s)))
+	if s := C.sqlite3_next_stmt((*C.sqlite3)(c), (*C.sqlite3_stmt)(s)); s == nil {
+		return nil
+	} else {
+		return (*Statement)(s)
+	}
 }
 
 // Prepare query
 func (c *Conn) Prepare(query string) (*Statement, string, error) {
 	var cQuery, cExtra *C.char
-	var cStatement *C.sqlite3_stmt
+	var s *C.sqlite3_stmt
 
 	// Populate CStrings
 	if query != "" {
 		cQuery = C.CString(query)
 		defer C.free(unsafe.Pointer(cQuery))
 	}
+
 	// Prepare statement
-	if err := SQError(C.sqlite3_prepare_v2((*C.sqlite3)(c), cQuery, -1, &cStatement, &cExtra)); err != SQLITE_OK {
+	if err := SQError(C.sqlite3_prepare_v2((*C.sqlite3)(c), cQuery, -1, &s, &cExtra)); err != SQLITE_OK {
 		return nil, "", err
 	}
+
 	// Return prepared statement and extra string
-	return (*Statement)(cStatement), C.GoString(cExtra), nil
+	return (*Statement)(s), C.GoString(cExtra), nil
 }
 
 // Bind parameters

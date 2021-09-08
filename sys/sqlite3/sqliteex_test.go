@@ -40,11 +40,14 @@ func Test_SQLiteEx_001(t *testing.T) {
 		} else {
 			t.Log(r)
 			for {
-				row := r.Next()
-				if row == nil {
+				if row, err := r.Next(); err != nil {
+					t.Error(err)
 					break
+				} else if row == nil {
+					break
+				} else {
+					t.Log(row)
 				}
-				t.Log(row)
 			}
 		}
 	}
@@ -96,8 +99,11 @@ func Test_SQLiteEx_002(t *testing.T) {
 	} else if r != nil {
 		t.Log(r)
 		for {
-			row := r.Next()
-			if row == nil {
+			row, err := r.Next()
+			if err != nil {
+				t.Error(err)
+				break
+			} else if row == nil {
 				break
 			}
 			t.Log(row)

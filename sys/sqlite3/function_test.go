@@ -39,8 +39,11 @@ func Test_Func_001(t *testing.T) {
 	} else {
 		t.Log(r)
 		for {
-			row := r.Next()
-			if row == nil {
+			row, err := r.Next()
+			if err != nil {
+				t.Error(err)
+				break
+			} else if row == nil {
 				break
 			}
 			t.Log(row)

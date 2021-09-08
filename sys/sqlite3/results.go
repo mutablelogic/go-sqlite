@@ -1,6 +1,11 @@
 package sqlite3
 
-import "fmt"
+import (
+	"fmt"
+	"reflect"
+
+	"github.com/hashicorp/go-multierror"
+)
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
@@ -10,6 +15,14 @@ type Results struct {
 	err  error
 	cols []interface{}
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+var (
+	typeText = reflect.TypeOf("")
+	typeBlob = reflect.TypeOf([]byte{})
+)
 
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
@@ -37,27 +50,56 @@ func results(st *Statement, err error) *Results {
 	return r
 }
 
-// Return next row of values, or nil if there are
-// no more rows. If there is an error, this method will currently
-// panic.
-func (r *Results) Next() []interface{} {
+// Return next row of values, or nil if there are no more rows.
+// If arguments t are provided, then the values will be
+// cast to the types in t if that is possible, or else an error
+// will occur
+func (r *Results) Next(t ...reflect.Type) ([]interface{}, error) {
+	var result error
+
+	// If no more results, return nil,nil
 	if r.err == SQLITE_DONE {
-		r.st.Finalize()
+		r.st.Reset()
 		r.st = nil
 		r.cols = nil
-		return nil
-	} else if r.err == SQLITE_ROW {
-		len := r.st.DataCount()
-		r.cols = r.cols[:len]
-		for i := 0; i < len; i++ {
-			r.cols[i] = r.value(i)
-		}
-		r.err = r.st.Step()
-		return r.cols
-	} else {
-		// Not yet handling other errors
-		panic(r.err)
+		return nil, nil
 	}
+
+	// Check for SQLITE_ROW result, abort result if error occurred
+	if r.err != SQLITE_ROW {
+		r.st.Reset()
+		r.st = nil
+		r.cols = nil
+		return nil, r.err
+	}
+
+	// Adjust size of columns
+	n := r.st.DataCount()
+	r.cols = r.cols[:n]
+
+	// Cast values into columns. If type t is defined also cast
+	// value to type t
+	for i := 0; i < n; i++ {
+		if len(t) > i {
+			if v, err := r.castvalue(i, t[i]); err != nil {
+				result = multierror.Append(result, err)
+			} else {
+				r.cols[i] = v
+			}
+		} else {
+			if v, err := r.value(i); err != nil {
+				result = multierror.Append(result, err)
+			} else {
+				r.cols[i] = v
+			}
+		}
+	}
+
+	// Call step to next row
+	r.err = r.st.Step()
+
+	// Return result
+	return r.cols, nil
 }
 
 // Return column names for the next row to be fetched
@@ -71,6 +113,11 @@ func (r *Results) ColumnNames() []string {
 		result[i] = r.st.ColumnName(i)
 	}
 	return result
+}
+
+// Return column count
+func (r *Results) ColumnCount() int {
+	return r.st.ColumnCount()
 }
 
 // Return column types for the next row to be fetched
@@ -141,20 +188,67 @@ func (r *Results) ColumnOriginNames() []string {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func (r *Results) value(index int) interface{} {
+func (r *Results) value(index int) (interface{}, error) {
 	switch r.st.ColumnType(index) {
 	case SQLITE_INTEGER:
-		return r.st.ColumnInt64(index)
+		return r.st.ColumnInt64(index), nil
 	case SQLITE_FLOAT:
-		return r.st.ColumnDouble(index)
+		return r.st.ColumnDouble(index), nil
 	case SQLITE_TEXT:
-		return r.st.ColumnText(index)
+		return r.st.ColumnText(index), nil
 	case SQLITE_BLOB:
-		return r.st.ColumnBlob(index)
+		return r.st.ColumnBlob(index), nil
 	case SQLITE_NULL:
-		return nil
+		return nil, nil
 	default:
-		panic("Invalid type" + r.st.ColumnType(index).String())
+		return nil, fmt.Errorf("Unsupported column type %d", r.st.ColumnType(index))
 	}
-	return 0
+}
+
+func (r *Results) castvalue(index int, t reflect.Type) (interface{}, error) {
+	st := r.st.ColumnType(index)
+
+	// Check for null
+	if st == SQLITE_NULL {
+		return nil, nil
+	}
+
+	// Do simple cases first
+	switch t.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		rv := reflect.ValueOf(r.st.ColumnInt64(index))
+		if rv.CanConvert(t) {
+			return rv.Convert(t).Interface(), nil
+		}
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		rv := reflect.ValueOf(r.st.ColumnInt64(index))
+		if rv.CanConvert(t) {
+			return rv.Convert(t).Interface(), nil
+		}
+	case reflect.Bool:
+		if r.st.ColumnInt64(index) == 0 {
+			return false, nil
+		} else {
+			return true, nil
+		}
+	case reflect.String:
+		return r.st.ColumnText(index), nil
+	case reflect.Float32, reflect.Float64:
+		rv := reflect.ValueOf(r.st.ColumnDouble(index))
+		if rv.CanConvert(t) {
+			return rv.Convert(t).Interface(), nil
+		}
+	}
+	// Do types
+	switch t {
+	case typeBlob:
+		if st == SQLITE_BLOB {
+			return r.st.ColumnBlob(index), nil
+		} else if st == SQLITE_TEXT {
+			return []byte(r.st.ColumnText(index)), nil
+		}
+	}
+
+	// No conversion possible
+	return nil, fmt.Errorf("Cannot convert %q to %q", r.st.ColumnType(index), t)
 }

@@ -70,14 +70,17 @@ func (s *StatementEx) Exec(v ...interface{}) (*Results, error) {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
 
-	// Return error of SQLITE_DONE if no more statements to execute
+	// Return nil result and nil error if no more statements to execute
 	if s.cur >= len(s.st) {
-		return nil, SQLITE_DONE
+		return nil, nil
 	}
 
 	// Step to next statement
 	st := s.st[s.cur]
 	s.cur++
+	if err := st.Reset(); err != nil {
+		return nil, err
+	}
 
 	// Bind parameters
 	if len(v) > 0 {

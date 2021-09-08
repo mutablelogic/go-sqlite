@@ -352,11 +352,42 @@ perfomed.
 
 ## Commit, Update and Rollback Hooks
 
-TODO
+The `func (*ConnEx) SetCommitHook(CommitHookFunc)`, `func (*ConnEx) SetUpdateHook(UpdateHookFunc)` 
+and `func (*ConnEx) SetRollbackHook(RollbackHookFunc)` 
+methods can be used to register callbacks. The signatures for these callback methods are:
+
+  * `type CommitHookFunc func() bool` is invoked on commit. When it returns false, the 
+    COMMIT operation is allowed to continue normally or else the COMMIT is converted into 
+    a ROLLBACK;
+  * `type RollbackHookFunc func()` is invoked whenever a transaction is rolled back;
+  * `type UpdateHookFunc func(SQAction, string, string, int64)` is invoked whenever a row 
+    is updated, inserted or deleted. SQAction will be one of SQLITE_INSERT, SQLITE_DELETE
+    or SQLITE_UPDATE. The other arguments are database name, table name and the rowid of 
+    the updated row.
+
+You can pass `nil` to the methods to unregister a callback. More documentation is available
+on [commit and rollback hooks](https://www.sqlite.org/c3ref/commit_hook.html) and on
+[update hooks](https://www.sqlite.org/c3ref/update_hook.html).
 
 ## Authentication and Authorization Hook
 
-TODO
+The `func (*ConnEx) SetAuthorizerHook(AuthorizerHookFunc)` method can be used to 
+register an authentication and authorization callback. The signature for this callback
+is `type AuthorizerHookFunc func(SQAction, [4]string) SQAuth` and is invoked as 
+SQL statements are being compiled by sqlite3_prepare.
+
+The arguments are dependent on the action required, and are [listed here](https://www.sqlite.org/c3ref/c_alter_table.html)
+with the 3rd and 4th parameters translated to the corresponding zero'th and first argument,
+with the third argument as the name of the database and the fourth argument as the name of 
+the inner-most trigger or view that is responsible for the access attempt
+
+The return value from the callback should be one of the following:
+
+ * 	`SQLITE_ALLOW` Operation requested is ok
+ *  `SQLITE_DENY` Abort the SQL statement with an error
+ *  `SQLITE_IGNORE` Don't allow access, but don't generate an error
+
+More documentation is available on [authorization hooks](https://www.sqlite.org/c3ref/set_authorizer.html).
 
 ## Binary Object (Blob IO) Interface
 

@@ -57,6 +57,12 @@ type SQWriter interface {
 	// Write is called to add a row to the table with the named columns
 	Write(name, schema string, cols []string, row []interface{}) error
 
+	// Reset the counter
+	Reset()
+
+	// Count returns the number of rows written
+	Count() int
+
 	// Close completes the writing, flushing any records
 	Close() error
 }

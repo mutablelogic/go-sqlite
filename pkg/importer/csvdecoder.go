@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"io"
 
-	// Modules
-	sqlite "github.com/djthorpe/go-sqlite"
+	// Namespace Imports
+	. "github.com/djthorpe/go-errors"
+	. "github.com/djthorpe/go-sqlite"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -23,7 +24,7 @@ type csvdecoder struct {
 // LIFECYCLE
 
 // NewCSVDecoder returns a CSV decoder setting options
-func (this *importer) NewCSVDecoder(r io.Reader, delimiter rune) (sqlite.SQImportDecoder, error) {
+func (this *Importer) NewCSVDecoder(r io.Reader, delimiter rune) (SQImportDecoder, error) {
 	decoder := &csvdecoder{csv.NewReader(r), this.c.Header, this.c.Name, this.c.Schema, nil}
 
 	// Set delimiter
@@ -46,10 +47,10 @@ func (this *importer) NewCSVDecoder(r io.Reader, delimiter rune) (sqlite.SQImpor
 }
 
 // Read reads a CSV record, and returns io.EOF on end of reading
-func (this *csvdecoder) Read(w sqlite.SQWriter) error {
+func (this *csvdecoder) Read(w SQWriter) error {
 	// Check arguments
 	if w == nil {
-		return sqlite.ErrBadParameter.With("SQLWriter")
+		return ErrBadParameter.With("SQLWriter")
 	}
 	// Read a row
 	row, err := this.r.Read()

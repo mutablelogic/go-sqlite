@@ -1,28 +1,29 @@
 package sqimport
 
 import (
-	"fmt"
 	"io"
-	"mime"
 	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
 
+	// Namespace Imports
+	. "github.com/djthorpe/go-errors"
+	. "github.com/djthorpe/go-sqlite"
+
 	// Modules
-	sqlite "github.com/djthorpe/go-sqlite"
 	multierror "github.com/hashicorp/go-multierror"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type importer struct {
+type Importer struct {
 	sync.Mutex
-	c        sqlite.SQImportConfig
+	c        SQImportConfig
 	r        io.ReadCloser
-	w        sqlite.SQWriter
-	dec      sqlite.SQImportDecoder
+	w        SQWriter
+	dec      SQImportDecoder
 	url      *url.URL
 	mimetype string
 }
@@ -31,7 +32,7 @@ type importer struct {
 // GLOBALS
 
 var (
-	DefaultConfig = sqlite.SQImportConfig{
+	DefaultConfig = SQImportConfig{
 		Header:     true,
 		TrimSpace:  true,
 		LazyQuotes: true,
@@ -42,13 +43,13 @@ var (
 // LIFECYCLE
 
 // Create an importer with default configuation
-func DefaultImporter(url string, writer sqlite.SQWriter) (sqlite.SQImporter, error) {
+func DefaultImporter(url string, writer SQWriter) (*Importer, error) {
 	return NewImporter(DefaultConfig, url, writer)
 }
 
 // Create a new importer with a database writer
-func NewImporter(c sqlite.SQImportConfig, u string, writer sqlite.SQWriter) (sqlite.SQImporter, error) {
-	this := &importer{
+func NewImporter(c SQImportConfig, u string, writer SQWriter) (*Importer, error) {
+	this := &Importer{
 		c: c,
 	}
 
@@ -61,7 +62,7 @@ func NewImporter(c sqlite.SQImportConfig, u string, writer sqlite.SQWriter) (sql
 
 	// Set the writer
 	if writer == nil {
-		return nil, sqlite.ErrBadParameter.With("Writer")
+		return nil, ErrBadParameter.With("Writer")
 	} else {
 		this.w = writer
 	}
@@ -90,17 +91,17 @@ func NewImporter(c sqlite.SQImportConfig, u string, writer sqlite.SQWriter) (sql
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (this *importer) URL() *url.URL {
+func (this *Importer) URL() *url.URL {
 	return this.url
 }
 
-func (this *importer) Name() string {
+func (this *Importer) Name() string {
 	return this.c.Name
 }
 
 // Read a row from the source data and potentially insert into the table. On end
 // of data, returns io.EOF.
-func (this *importer) Read() error {
+func (this *Importer) Read() error {
 	var result error
 
 	this.Mutex.Lock()
@@ -155,34 +156,4 @@ func (this *importer) Read() error {
 
 	// Return sucess
 	return nil
-}
-
-// Return a new decoder for the given mimetype
-func (this *importer) Decoder(mimetype string) (sqlite.SQImportDecoder, error) {
-	// Parse mediatype
-	mediatype, params, err := mime.ParseMediaType(mimetype)
-	if err != nil {
-		return nil, err
-	}
-
-	// Set charset
-	r, err := charsetReader(this.r, params["charset"])
-	if err != nil {
-		return nil, err
-	}
-
-	// Set decoder based on mediatype and other possible
-	// parameters
-	switch {
-	case mediatype == "text/csv":
-		return this.NewCSVDecoder(r, ',')
-	case mediatype == "text/tsv":
-		return this.NewCSVDecoder(r, '\t')
-	case mediatype == "text/plain" && this.c.Ext == ".csv":
-		return this.NewCSVDecoder(r, ',')
-	case mediatype == "text/plain" && this.c.Ext == ".tsv":
-		return this.NewCSVDecoder(r, '\t')
-	default:
-		return nil, fmt.Errorf("unsupported media type: %q (file extension %q)", mediatype, this.c.Ext)
-	}
 }

@@ -15,8 +15,7 @@ import (
 
 type StatementEx struct {
 	sync.Mutex
-	st  []*Statement
-	cur int
+	st []*Statement
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -36,10 +35,16 @@ func (c *ConnEx) Prepare(q string) (*StatementEx, error) {
 		s.st = append(s.st, st)
 		q = strings.TrimSpace(extra)
 	}
+
+	// Report on missing close
+	_, file, line, _ := runtime.Caller(1)
 	runtime.SetFinalizer(s, func(s *StatementEx) {
-		print("TODO: IN STATEMENT FINALIZER\n")
-		//s.Close()
+		if s.st != nil {
+			panic(fmt.Sprintf("%s:%d: Prepare() missing call to Close()", file, line))
+		}
 	})
+
+	// Return statement
 	return s, nil
 }
 
@@ -58,26 +63,24 @@ func (s *StatementEx) Close() error {
 
 	// Release resources
 	s.st = nil
-	s.cur = 0
 
 	// Return any errors
 	return result
 }
 
-// Execute a prepared statement, move cursor to next statement
-// when called with arguments, this calls Bind() first
-func (s *StatementEx) Exec(v ...interface{}) (*Results, error) {
+// Execute prepared statement n, when called with arguments, this
+// calls Bind() first
+func (s *StatementEx) Exec(n uint, v ...interface{}) (*Results, error) {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
 
-	// Return nil result and nil error if no more statements to execute
-	if s.cur >= len(s.st) {
-		return nil, nil
+	// Return nil result and SQLITE_DONE if no more statements to execute
+	if n >= uint(len(s.st)) {
+		return nil, SQLITE_DONE
 	}
 
 	// Step to next statement
-	st := s.st[s.cur]
-	s.cur++
+	st := s.st[int(n)]
 	if err := st.Reset(); err != nil {
 		return nil, err
 	}

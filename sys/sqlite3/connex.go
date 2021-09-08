@@ -333,12 +333,12 @@ func (c *ConnEx) ExecEx(q string, fn ExecFunc, v ...interface{}) error {
 	defer st.Close()
 
 	// Execute loop
-	for {
-		r, err := st.Exec(v...)
-		if err != nil {
-			return err
-		} else if r == nil {
+	for n := uint(0); ; n++ {
+		r, err := st.Exec(n, v...)
+		if err == SQLITE_DONE || r == nil {
 			break
+		} else if err != nil {
+			return err
 		}
 
 		// Cast row values to string

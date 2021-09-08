@@ -5,18 +5,20 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
 
 	// Modules
+	importer "github.com/djthorpe/go-sqlite/pkg/importer"
+	sqlite3 "github.com/djthorpe/go-sqlite/sys/sqlite3"
+
+	// Namespace Imports
 	. "github.com/djthorpe/go-sqlite"
-	sqimport "github.com/djthorpe/go-sqlite/pkg/sqimport"
-	sqlite "github.com/djthorpe/go-sqlite/pkg/sqlite"
 )
 
 var (
-	flagLocation  = flag.String("tz", "Local", "Timezone name")
 	flagOverwrite = flag.Bool("overwrite", false, "Overwrite existing tables")
 	flagQuiet     = flag.Bool("quiet", false, "Suppress output")
 	flagHeader    = flag.Bool("header", true, "CSV contains header row")
@@ -32,24 +34,15 @@ func main() {
 
 	// Check number of arguments
 	if flag.NArg() < 2 {
-		fmt.Fprintln(os.Stderr, "Usage: sqimport <sqlite-database> <url>...")
+		fmt.Fprintln(os.Stderr, "Usage: importer <sqlite-database> <url>...")
 		os.Exit(1)
 	}
 
 	// Create log
 	log := logger(filepath.Base(flag.CommandLine.Name()) + " ")
 
-	// Load location
-	loc, err := time.LoadLocation(*flagLocation)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	} else {
-		log.Println("timezone:", loc)
-	}
-
 	// Open database
-	db, err := sqlite.Open(flag.Arg(0), loc)
+	db, err := sqlite3.OpenPathEx(flag.Arg(0), sqlite3.SQLITE_OPEN_CREATE, "")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -71,7 +64,7 @@ func main() {
 	}
 
 	// Create an SQL Writer
-	writer, err := sqimport.NewSQLWriter(config, db)
+	writer, err := importer.NewSQLWriter(config, db)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -80,12 +73,18 @@ func main() {
 	// Read files
 	for _, url := range flag.Args()[1:] {
 		// Create an importer
-		importer, err := sqimport.NewImporter(config, url, writer)
+		importer, err := importer.NewImporter(config, url, writer)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, importer.URL(), ": ", err)
 			continue
 		}
+
+		// Reset the counter
 		log.Println("import:", importer.URL())
+		mark, start := time.Now(), time.Now()
+		writer.Reset()
+
+		// Read and write rows
 		for {
 			if err := importer.Read(); err == io.EOF {
 				break
@@ -93,7 +92,16 @@ func main() {
 				fmt.Fprintln(os.Stderr, importer.URL(), ": ", err)
 				break
 			}
+			if time.Since(mark) > 5*time.Second {
+				log.Printf("     ...written %d rows", writer.Count())
+				mark = time.Now()
+			}
 		}
+
+		// Report
+		since := time.Since(start)
+		ops_per_sec := math.Round(float64(writer.Count()) * 1000 / float64(since.Milliseconds()))
+		log.Printf("     ...written %d rows in %v (%.0f ops/s)", writer.Count(), since.Truncate(time.Millisecond), ops_per_sec)
 	}
 }
 

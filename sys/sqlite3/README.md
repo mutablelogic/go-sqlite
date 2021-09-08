@@ -422,7 +422,27 @@ The backup API is documented [here](https://www.sqlite.org/c3ref/backup_finish.h
   * Call `func (*Backup) Finish() error` to finalize the backup process.
 
 The methods `func (*Backup) Remaining() int` and `func (*Backup) PageCount() int` can be used to
-determine progress through the backup process.
+determine progress through the backup process. For example,
+
+```go
+func BackupMainSchema(src, dest *ConnEx, n int) error {
+	backup, err := src.OpenBackup(dest.Conn, "", "")
+	if err != nil {
+        return err
+	}
+	defer backup.Finish()
+	for {
+		if err := backup.Step(n); err == sqlite3.SQLITE_DONE {
+            return nil
+		} else if err != nil {
+			return err
+		} else {
+            float64 pct = float64(backup.Remaining()) * 100.0 / float64(backup.PageCount())
+            fmt.Printf("%d%% remaining\n", pct)
+		}
+	}
+}
+```
 
 ## Status and Limits
 

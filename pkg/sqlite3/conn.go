@@ -37,7 +37,6 @@ func OpenPath(path string, flags sqlite3.OpenFlags) (*Conn, error) {
 		return nil, err
 	} else {
 		poolconn.ConnEx = conn
-		poolconn.c = make(chan struct{})
 	}
 
 	// Finalizer to panic when connection not closed before garbage collection
@@ -55,10 +54,6 @@ func OpenPath(path string, flags sqlite3.OpenFlags) (*Conn, error) {
 func (conn *Conn) Close() error {
 	conn.Mutex.Lock()
 	defer conn.Mutex.Unlock()
-
-	// Release resources
-	close(conn.c)
-	conn.c = nil
 
 	// Close underlying connection
 	return conn.ConnEx.Close()

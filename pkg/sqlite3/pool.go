@@ -7,11 +7,10 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	// Modules
 	sqlite3 "github.com/djthorpe/go-sqlite/sys/sqlite3"
-	"github.com/hashicorp/go-multierror"
+	multierror "github.com/hashicorp/go-multierror"
 
 	// Namespace Imports
 	. "github.com/djthorpe/go-errors"
@@ -33,16 +32,10 @@ type Pool struct {
 	sync.WaitGroup
 	sync.Pool
 	PoolConfig
-	errs chan<- error
-	n    int64
-}
-
-// worker is a connection worker with the time it was last used
-type worker struct {
-	*Conn
-	c chan int  // Release event
-	g time.Time // Time of last get
-	r time.Time // Time of last release
+	errs   chan<- error
+	ctx    context.Context
+	cancel context.CancelFunc
+	n      int64
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,26 +66,22 @@ func OpenPool(config PoolConfig, errs chan<- error) (*Pool, error) {
 	p.Pool = sync.Pool{New: p.new}
 	p.Max = int64Max(p.Max, 0)
 	p.errs = errs
+	p.ctx, p.cancel = context.WithCancel(context.Background())
 	return p, nil
 }
 
 // Close waits for all connections to be released and then
 // releases resources
 func (p *Pool) Close() error {
-	var result error
 	p.Mutex.Lock()
 	defer p.Mutex.Unlock()
 
-	// Set maximum number to zero, wait for connections to be released
-	p.Max = 0
-
-	fmt.Println("WAITING FOR ALL CONNECTIONS TO BE RELEASED")
-
-	// Wait for all workers to be released
+	// Send cancel signal to all workers and wait for them to exit
+	p.cancel()
 	p.Wait()
 
-	// Return any errors
-	return result
+	// Return success
+	return nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,10 +109,14 @@ func (p *Pool) SetMax(n int64) {
 	p.Max = n
 }
 
+// Cur returns the current number of used connections
 func (p *Pool) Cur() int64 {
 	return atomic.AddInt64(&p.n, 0)
 }
 
+// Get a connection from the pool, and return it to the pool when the context
+// is cancelled or it is put back using the Put method. If there are no
+// connections available, nil is returned.
 func (p *Pool) Get(ctx context.Context) *Conn {
 	p.Mutex.Lock()
 	defer p.Mutex.Unlock()
@@ -134,14 +127,16 @@ func (p *Pool) Get(ctx context.Context) *Conn {
 		return nil
 	}
 
-	// Get a connection from the pool
+	// Get a connection from the pool, add one to counter
 	conn := p.Pool.Get().(*Conn)
 	if conn == nil {
 		return nil
 	}
-
-	// Mark connection as live
-	p.got(conn)
+	if conn.c != nil {
+		panic("Expected conn.c to be nil")
+	}
+	conn.c = make(chan struct{})
+	atomic.AddInt64(&p.n, 1)
 
 	// Release the connection in the background
 	p.WaitGroup.Add(1)
@@ -149,27 +144,11 @@ func (p *Pool) Get(ctx context.Context) *Conn {
 		defer p.WaitGroup.Done()
 		select {
 		case <-ctx.Done():
-			// Mark connection as released, will close
-			// and not put back if n >= max
-			if p.put(conn) {
-				p.Pool.Put(conn)
-			} else {
-				if err := conn.Close(); err != nil {
-					p.err(err)
-				}
-				fmt.Println("Closed connection")
-			}
+			p.put(conn)
 		case <-conn.c:
-			// Mark connection as released, will close
-			// and not put back if n >= max
-			if p.put(conn) {
-				p.Pool.Put(conn)
-			} else {
-				if err := conn.Close(); err != nil {
-					p.err(err)
-				}
-				fmt.Println("Closed connection")
-			}
+			p.put(conn)
+		case <-p.ctx.Done():
+			p.put(conn)
 		}
 	}()
 
@@ -227,16 +206,19 @@ func (p *Pool) new() interface{} {
 	return conn
 }
 
-func (p *Pool) got(c *Conn) {
-	atomic.AddInt64(&p.n, 1)
-}
-
-func (p *Pool) put(c *Conn) bool {
+func (p *Pool) put(conn *Conn) {
+	if conn.c == nil {
+		panic("Expected conn.c to be non-nil")
+	}
 	n := atomic.AddInt64(&p.n, -1)
+	close(conn.c)
+	conn.c = nil
 	if n >= int64(p.Max) {
-		return false
+		p.Pool.Put(conn)
 	} else {
-		return true
+		if err := conn.Close(); err != nil {
+			p.err(err)
+		}
 	}
 }
 

@@ -42,19 +42,29 @@ func Test_Pool_001(t *testing.T) {
 	// Set maximum number of connections
 	pool.SetMax(100)
 
-	for p := 0; p < 100; p++ {
-		wg.Add(1)
+	// Add some blocking connection
+	wg2.Add(1)
+	go func() {
+		defer wg2.Done()
+		// Create 10 connections which block
+		for i := 0; i < 10; i++ {
+			if conn := pool.Get(context.Background()); conn != nil {
+				t.Log("blocking conn [", i, "] => ", conn)
+			}
+			// Wait for a random amount of time before we open the next connection
+			<-time.After(randomDuration(10 * time.Millisecond))
+		}
+	}()
+
+	for p := 0; p < 50; p++ {
 		wg2.Add(1)
 		go func(n int) {
-			defer wg.Done()
 			defer wg2.Done()
 			// Create N connections, release at random times, expect to only allow 5 connections
 			for i := 0; i < n; i++ {
 				ctx, cancel := context.WithTimeout(context.Background(), randomDuration(10*time.Second))
 				defer cancel()
-				if conn := pool.Get(ctx); conn == nil {
-					t.Log("nil return from pool.Get, probably too many connections open", pool.Cur())
-				} else {
+				if conn := pool.Get(ctx); conn != nil {
 					t.Log("conn [", n, ",", i, "] => ", conn)
 					go func() {
 						<-time.After(randomDuration(10 * time.Second))

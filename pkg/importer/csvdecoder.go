@@ -52,6 +52,7 @@ func (this *csvdecoder) Read(w SQWriter) error {
 	if w == nil {
 		return ErrBadParameter.With("SQLWriter")
 	}
+
 	// Read a row
 	row, err := this.r.Read()
 	if err != nil {

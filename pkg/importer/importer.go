@@ -101,7 +101,7 @@ func (this *Importer) Name() string {
 
 // Read a row from the source data and potentially insert into the table. On end
 // of data, returns io.EOF.
-func (this *Importer) Read() error {
+func (this *Importer) ReadWrite() error {
 	var result error
 
 	this.Mutex.Lock()

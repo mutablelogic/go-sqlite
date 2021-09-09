@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	// Modules
-	sqlite "github.com/djthorpe/go-sqlite"
+	// Import namespaces
+	. "github.com/djthorpe/go-sqlite"
+	. "github.com/djthorpe/go-sqlite/pkg/quote"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -19,41 +20,41 @@ type createtable struct {
 	unique       []string
 	index        []string
 	foreignkeys  []string
-	columns      []sqlite.SQColumn
+	columns      []SQColumn
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // Create a new table with name and defined columns
-func (this *source) CreateTable(columns ...sqlite.SQColumn) sqlite.SQTable {
+func (this *source) CreateTable(columns ...SQColumn) SQTable {
 	return &createtable{source{this.name, this.schema, "", false}, false, false, false, nil, nil, nil, columns}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PROPERTIES
 
-func (this *createtable) IfNotExists() sqlite.SQTable {
+func (this *createtable) IfNotExists() SQTable {
 	return &createtable{this.source, this.temporary, true, this.ifnotexists, this.unique, this.index, this.foreignkeys, this.columns}
 }
 
-func (this *createtable) WithTemporary() sqlite.SQTable {
+func (this *createtable) WithTemporary() SQTable {
 	return &createtable{this.source, true, this.ifnotexists, this.withoutrowid, this.unique, this.index, this.foreignkeys, this.columns}
 }
 
-func (this *createtable) WithoutRowID() sqlite.SQTable {
+func (this *createtable) WithoutRowID() SQTable {
 	return &createtable{this.source, this.temporary, this.ifnotexists, true, this.unique, this.index, this.foreignkeys, this.columns}
 }
 
-func (this *createtable) WithUnique(columns ...string) sqlite.SQTable {
-	return &createtable{this.source, this.temporary, this.ifnotexists, this.withoutrowid, append(this.unique, sqlite.QuoteIdentifiers(columns...)), this.index, this.foreignkeys, this.columns}
+func (this *createtable) WithUnique(columns ...string) SQTable {
+	return &createtable{this.source, this.temporary, this.ifnotexists, this.withoutrowid, append(this.unique, QuoteIdentifiers(columns...)), this.index, this.foreignkeys, this.columns}
 }
 
-func (this *createtable) WithIndex(columns ...string) sqlite.SQTable {
-	return &createtable{this.source, this.temporary, this.ifnotexists, this.withoutrowid, this.unique, append(this.index, sqlite.QuoteIdentifiers(columns...)), this.foreignkeys, this.columns}
+func (this *createtable) WithIndex(columns ...string) SQTable {
+	return &createtable{this.source, this.temporary, this.ifnotexists, this.withoutrowid, this.unique, append(this.index, QuoteIdentifiers(columns...)), this.foreignkeys, this.columns}
 }
 
-func (this *createtable) WithForeignKey(key sqlite.SQForeignKey, columns ...string) sqlite.SQTable {
+func (this *createtable) WithForeignKey(key SQForeignKey, columns ...string) SQTable {
 	return &createtable{this.source, this.temporary, this.ifnotexists, this.withoutrowid, this.unique, this.index,
 		append(this.foreignkeys, key.(*foreignkey).Query(columns...)), this.columns}
 }
@@ -86,7 +87,7 @@ func (this *createtable) Query() string {
 	if len(primary) == 1 {
 		columns[j] = fmt.Sprint(this.columns[j], " ", this.columns[j].Primary())
 	} else if len(primary) > 1 {
-		columns = append(columns, "PRIMARY KEY ("+sqlite.QuoteIdentifiers(primary...)+")")
+		columns = append(columns, "PRIMARY KEY ("+QuoteIdentifiers(primary...)+")")
 	}
 
 	// Add indexes

@@ -50,9 +50,9 @@ const (
 )
 
 const (
-	defaultSchema = "main"
-	defaultMemory = ":memory:"
-	defaultFlags  = SQLITE_OPEN_CREATE
+	DefaultSchema = "main"
+	DefaultMemory = ":memory:"
+	DefaultFlags  = SQLITE_OPEN_CREATE
 )
 
 func init() {
@@ -108,14 +108,14 @@ func OpenPath(path string, flags OpenFlags, vfs string) (*Conn, error) {
 	}
 
 	// Set memory database if empty string
-	if path == "" || path == defaultMemory {
-		path = defaultMemory
+	if path == "" || path == DefaultMemory {
+		path = DefaultMemory
 		flags |= SQLITE_OPEN_MEMORY
 	}
 
 	// Set flags
 	if flags == 0 {
-		flags = defaultFlags
+		flags = DefaultFlags
 	}
 
 	// Populate CStrings
@@ -174,7 +174,7 @@ func (c *Conn) Filename(schema string) string {
 
 	// Set schema to default if empty string
 	if schema == "" {
-		schema = defaultSchema
+		schema = DefaultSchema
 	}
 
 	// Populate CStrings
@@ -196,7 +196,7 @@ func (c *Conn) Readonly(schema string) bool {
 
 	// Set schema to default if empty string
 	if schema == "" {
-		schema = defaultSchema
+		schema = DefaultSchema
 	}
 
 	// Populate CStrings

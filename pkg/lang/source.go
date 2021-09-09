@@ -3,7 +3,9 @@ package lang
 import (
 	"strings"
 
-	sqlite "github.com/djthorpe/go-sqlite"
+	// Import namespaces
+	. "github.com/djthorpe/go-sqlite"
+	. "github.com/djthorpe/go-sqlite/pkg/quote"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -20,7 +22,7 @@ type source struct {
 // LIFECYCLE
 
 // N defines a table name or column name
-func N(s string) sqlite.SQSource {
+func N(s string) SQSource {
 	return &source{s, "", "", false}
 }
 
@@ -39,30 +41,30 @@ func (this *source) Alias() string {
 	return this.alias
 }
 
-func (this *source) WithName(name string) sqlite.SQSource {
+func (this *source) WithName(name string) SQSource {
 	return &source{name, this.schema, this.alias, this.desc}
 }
 
-func (this *source) WithSchema(schema string) sqlite.SQSource {
+func (this *source) WithSchema(schema string) SQSource {
 	return &source{this.name, schema, this.alias, this.desc}
 }
 
-func (this *source) WithAlias(alias string) sqlite.SQSource {
+func (this *source) WithAlias(alias string) SQSource {
 	return &source{this.name, this.schema, alias, this.desc}
 }
 
-func (this *source) WithType(decltype string) sqlite.SQColumn {
+func (this *source) WithType(decltype string) SQColumn {
 	return &column{*this, decltype, false, false, false, nil}
 }
 
-func (this *source) WithDesc() sqlite.SQSource {
+func (this *source) WithDesc() SQSource {
 	return &source{this.name, this.schema, this.alias, true}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // CONVERT TO EXPR
 
-func (this *source) Or(v interface{}) sqlite.SQExpr {
+func (this *source) Or(v interface{}) SQExpr {
 	return &e{this, v, "OR"}
 }
 
@@ -72,12 +74,12 @@ func (this *source) Or(v interface{}) sqlite.SQExpr {
 func (this *source) String() string {
 	tokens := []string{}
 	if this.schema != "" {
-		tokens = append(tokens, sqlite.QuoteIdentifier(this.schema), ".", sqlite.QuoteIdentifier(this.name))
+		tokens = append(tokens, QuoteIdentifier(this.schema), ".", QuoteIdentifier(this.name))
 	} else {
-		tokens = append(tokens, sqlite.QuoteIdentifier(this.name))
+		tokens = append(tokens, QuoteIdentifier(this.name))
 	}
 	if this.alias != "" {
-		tokens = append(tokens, " AS ", sqlite.QuoteIdentifier(this.alias))
+		tokens = append(tokens, " AS ", QuoteIdentifier(this.alias))
 	}
 	if this.desc {
 		tokens = append(tokens, " DESC")

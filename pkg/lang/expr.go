@@ -5,8 +5,9 @@ import (
 	"strings"
 	"time"
 
-	// Modules
-	sqlite "github.com/djthorpe/go-sqlite"
+	// Import namespaces
+	. "github.com/djthorpe/go-sqlite"
+	. "github.com/djthorpe/go-sqlite/pkg/quote"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -30,7 +31,7 @@ var (
 // LIFECYCLE
 
 // V creates a value
-func V(v interface{}) sqlite.SQExpr {
+func V(v interface{}) SQExpr {
 	if v == nil {
 		return &e{nil, nil, ""}
 	}
@@ -43,7 +44,7 @@ func V(v interface{}) sqlite.SQExpr {
 		return &e{v, nil, ""}
 	case time.Time:
 		return &e{v, nil, ""}
-	case sqlite.SQSource, sqlite.SQStatement:
+	case SQSource, SQStatement:
 		return &e{v, nil, ""}
 	}
 	// Unsupported value
@@ -53,7 +54,7 @@ func V(v interface{}) sqlite.SQExpr {
 ///////////////////////////////////////////////////////////////////////////////
 // METHODS
 
-func (this *e) Or(v interface{}) sqlite.SQExpr {
+func (this *e) Or(v interface{}) SQExpr {
 	// TODO: if this.r is not nil, then v is this
 	if v == nil {
 		return &e{this.v, nil, "OR"}
@@ -67,7 +68,7 @@ func (this *e) Or(v interface{}) sqlite.SQExpr {
 		return &e{this.v, v, "OR"}
 	case time.Time:
 		return &e{this.v, v, "OR"}
-	case sqlite.SQSource, sqlite.SQStatement:
+	case SQSource, SQStatement:
 		return &e{this.v, v, "OR"}
 	}
 	// Unsupported value
@@ -101,7 +102,7 @@ func lhs(v interface{}) string {
 	}
 	switch e := v.(type) {
 	case string:
-		return sqlite.Quote(e)
+		return Quote(e)
 	case uint, int, int8, int16, int32, int64, uint8, uint16, uint32, uint64, float32, float64:
 		return fmt.Sprint(v)
 	case bool:
@@ -114,14 +115,14 @@ func lhs(v interface{}) string {
 		if e.IsZero() {
 			return "NULL"
 		} else {
-			return sqlite.Quote(e.Format(time.RFC3339Nano))
+			return Quote(e.Format(time.RFC3339Nano))
 		}
-	case sqlite.SQSource:
+	case SQSource:
 		return fmt.Sprint(e.WithAlias(""))
-	case sqlite.SQStatement:
+	case SQStatement:
 		return e.Query()
 	default:
-		return sqlite.Quote(fmt.Sprint(v))
+		return Quote(fmt.Sprint(v))
 	}
 }
 

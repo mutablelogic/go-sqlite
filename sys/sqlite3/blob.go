@@ -33,7 +33,7 @@ func (b *Blob) String() string {
 // for read-only access.
 func (c *Conn) OpenBlob(schema, table, column string, rowid int64, flags OpenFlags) (*Blob, error) {
 	if schema == "" {
-		schema = defaultSchema
+		schema = DefaultSchema
 	}
 
 	// Set cString

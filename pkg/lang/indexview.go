@@ -3,7 +3,9 @@ package lang
 import (
 	"strings"
 
-	sqlite "github.com/djthorpe/go-sqlite"
+	// Import namespaces
+	. "github.com/djthorpe/go-sqlite"
+	. "github.com/djthorpe/go-sqlite/pkg/quote"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -29,12 +31,12 @@ type createvirtual struct {
 // LIFECYCLE
 
 // Create a new index with name and defined columns
-func (this *source) CreateIndex(name string, columns ...string) sqlite.SQIndexView {
+func (this *source) CreateIndex(name string, columns ...string) SQIndexView {
 	return &createindex{source{this.name, this.schema, "", false}, name, false, false, columns, false}
 }
 
 // Create a virtual table with module name name and arguments
-func (this *source) CreateVirtualTable(module string, args ...string) sqlite.SQIndexView {
+func (this *source) CreateVirtualTable(module string, args ...string) SQIndexView {
 	return &createvirtual{source{this.name, this.schema, "", false}, module, false, args}
 }
 
@@ -81,35 +83,35 @@ func (this *createvirtual) Auto() bool {
 	return false
 }
 
-func (this *createindex) IfNotExists() sqlite.SQIndexView {
+func (this *createindex) IfNotExists() SQIndexView {
 	return &createindex{this.source, this.name, this.unique, true, this.columns, this.auto}
 }
 
-func (this *createindex) WithUnique() sqlite.SQIndexView {
+func (this *createindex) WithUnique() SQIndexView {
 	return &createindex{this.source, this.name, true, this.ifnotexists, this.columns, this.auto}
 }
 
-func (this *createindex) WithTemporary() sqlite.SQIndexView {
+func (this *createindex) WithTemporary() SQIndexView {
 	return nil
 }
 
-func (this *createindex) WithAuto() sqlite.SQIndexView {
+func (this *createindex) WithAuto() SQIndexView {
 	return &createindex{this.source, this.name, true, this.ifnotexists, this.columns, true}
 }
 
-func (this *createvirtual) IfNotExists() sqlite.SQIndexView {
+func (this *createvirtual) IfNotExists() SQIndexView {
 	return &createvirtual{this.source, this.module, true, this.args}
 }
 
-func (this *createvirtual) WithUnique() sqlite.SQIndexView {
+func (this *createvirtual) WithUnique() SQIndexView {
 	return nil
 }
 
-func (this *createvirtual) WithTemporary() sqlite.SQIndexView {
+func (this *createvirtual) WithTemporary() SQIndexView {
 	return &createvirtual{source{this.name, "temp", "", false}, this.module, this.ifnotexists, this.args}
 }
 
-func (this *createvirtual) WithAuto() sqlite.SQIndexView {
+func (this *createvirtual) WithAuto() SQIndexView {
 	return nil
 }
 
@@ -139,7 +141,7 @@ func (this *createindex) Query() string {
 	if this.ifnotexists {
 		tokens = append(tokens, "IF NOT EXISTS")
 	}
-	tokens = append(tokens, this.source.String(), "ON", sqlite.QuoteIdentifier(this.name), "("+sqlite.QuoteIdentifiers(this.columns...)+")")
+	tokens = append(tokens, this.source.String(), "ON", QuoteIdentifier(this.name), "("+QuoteIdentifiers(this.columns...)+")")
 
 	// Return the query
 	return strings.Join(tokens, " ")
@@ -150,9 +152,9 @@ func (this *createvirtual) Query() string {
 	if this.ifnotexists {
 		tokens = append(tokens, "IF NOT EXISTS")
 	}
-	tokens = append(tokens, this.source.String(), "USING", sqlite.QuoteIdentifier(this.module))
+	tokens = append(tokens, this.source.String(), "USING", QuoteIdentifier(this.module))
 	if len(this.args) > 0 {
-		tokens = append(tokens, "("+sqlite.QuoteIdentifiers(this.args...)+")")
+		tokens = append(tokens, "("+QuoteIdentifiers(this.args...)+")")
 	}
 
 	// Return the query

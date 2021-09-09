@@ -20,7 +20,7 @@ import (
 
 var (
 	flagOverwrite = flag.Bool("overwrite", false, "Overwrite existing tables")
-	flagQuiet     = flag.Bool("quiet", false, "Suppress output")
+	flagQuiet     = flag.Bool("quiet", false, "Suppress non-error output")
 	flagHeader    = flag.Bool("header", true, "CSV contains header row")
 	flagDelimiter = flag.String("delimiter", "", "Field delimiter")
 	flagComment   = flag.String("comment", "#", "Comment character")
@@ -48,7 +48,8 @@ func main() {
 		os.Exit(1)
 	}
 	defer db.Close()
-	log.Println("database:", flag.Arg(0))
+
+	log.Println("database:", db.Filename())
 
 	// Create a configuration
 	config := SQImportConfig{
@@ -82,11 +83,10 @@ func main() {
 		// Reset the counter
 		log.Println("import:", importer.URL())
 		mark, start := time.Now(), time.Now()
-		writer.Reset()
 
 		// Read and write rows
 		for {
-			if err := importer.Read(); err == io.EOF {
+			if err := importer.ReadWrite(); err == io.EOF {
 				break
 			} else if err != nil {
 				fmt.Fprintln(os.Stderr, importer.URL(), ": ", err)

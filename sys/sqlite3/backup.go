@@ -35,10 +35,10 @@ func (b *Backup) String() string {
 
 func (c *Conn) OpenBackup(dest *Conn, destSchema, sourceSchema string) (*Backup, error) {
 	if destSchema == "" {
-		destSchema = defaultSchema
+		destSchema = DefaultSchema
 	}
 	if sourceSchema == "" {
-		sourceSchema = defaultSchema
+		sourceSchema = DefaultSchema
 	}
 
 	// Set CStrings

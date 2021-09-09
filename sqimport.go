@@ -40,8 +40,10 @@ type SQImportConfig struct {
 // INTERFACES
 
 type SQImporter interface {
-	// Read from the source. Returns io.EOF when no more data is available.
-	Read() error
+	// ReadWrite will read from the source, and write to destination. This function
+	// should be called multiple times until io.EOF is returned, indicating that
+	// no more data is available.
+	ReadWrite(SQImportDecoder, SQImportWriter) error
 
 	// Return the URL of the source
 	URL() *url.URL
@@ -49,25 +51,26 @@ type SQImporter interface {
 	// Return the Table name for the destination
 	Name() string
 
-	// Return a decoder for a mimetype
+	// Return a decoder for a mimetype or file extension (when starts with a .)
+	// Will return nil if no decoder is available. The mimetype can include
+	// the character set (e.g. text/csv;charset=utf-8)
 	Decoder(string) (SQImportDecoder, error)
 }
 
-type SQWriter interface {
-	// Write is called to add a row to the table with the named columns
-	Write(name, schema string, cols []string, row []interface{}) error
+// SQWriterFunc callback invoked for each array of columns and values from decoder
+type SQImportWriterFunc func([]string, []interface{}) error
 
-	// Reset the counter
-	Reset()
+// SQImportWriter is an interface for writing decoded rows to a destination
+type SQImportWriter interface {
+	// Begin the writer process for a destination and return a writer callback
+	Begin(name, schema string) (SQImportWriterFunc, error)
 
-	// Count returns the number of rows written
-	Count() int
-
-	// Close completes the writing, flushing any records
-	Close() error
+	// End the transaction with success (true) or failure (false). On failure, rollback
+	End(bool) error
 }
 
 type SQImportDecoder interface {
-	// Read from the source, and write rows. Returns io.EOF when no more data is available.
-	Read(SQWriter) error
+	// Read from the source, return column names and values. May
+	// return nil to skip a write. Returns io.EOF when no more data is available.
+	Read() ([]string, []interface{}, error)
 }

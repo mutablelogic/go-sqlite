@@ -3,7 +3,9 @@ package lang
 import (
 	"strings"
 
-	sqlite "github.com/djthorpe/go-sqlite"
+	// Import namespaces
+	. "github.com/djthorpe/go-sqlite"
+	. "github.com/djthorpe/go-sqlite/pkg/quote"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -26,31 +28,31 @@ type conflict struct {
 // LIFECYCLE
 
 // Insert values into a table with a name and defined column names
-func (this *source) Insert(columns ...string) sqlite.SQInsert {
+func (this *source) Insert(columns ...string) SQInsert {
 	return &insert{source{this.name, this.schema, "", false}, "INSERT", false, columns, nil}
 }
 
 // Replace values into a table with a name and defined column names
-func (this *source) Replace(columns ...string) sqlite.SQInsert {
+func (this *source) Replace(columns ...string) SQInsert {
 	return &insert{source{this.name, this.schema, "", false}, "REPLACE", false, columns, nil}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // PROPERTIES
 
-func (this *insert) DefaultValues() sqlite.SQInsert {
+func (this *insert) DefaultValues() SQInsert {
 	return &insert{this.source, this.class, true, this.columns, nil}
 }
 
 // WithConflictUpdate sets the conflict resolution to do nothing (that is,
 // silently fail)
-func (this *insert) WithConflictDoNothing(target ...string) sqlite.SQInsert {
+func (this *insert) WithConflictDoNothing(target ...string) SQInsert {
 	return &insert{this.source, this.class, this.defaultvalues, this.columns, append(this.conflicts, conflict{"NOTHING", target})}
 }
 
 // WithConflictUpdate sets the conflict resolution to update the row only
 // when named columns are changed
-func (this *insert) WithConflictUpdate(target ...string) sqlite.SQInsert {
+func (this *insert) WithConflictUpdate(target ...string) SQInsert {
 	return &insert{this.source, this.class, this.defaultvalues, this.columns, append(this.conflicts, conflict{"UPDATE SET", target})}
 }
 
@@ -69,7 +71,7 @@ func (this *insert) Query() string {
 
 	// Add column names
 	if len(this.columns) > 0 {
-		tokens = append(tokens, "("+sqlite.QuoteIdentifiers(this.columns...)+")")
+		tokens = append(tokens, "("+QuoteIdentifiers(this.columns...)+")")
 	}
 
 	// If default values
@@ -96,14 +98,14 @@ func (this *insert) Query() string {
 func (c conflict) Query(columns []string) string {
 	tokens := []string{"ON CONFLICT"}
 	if len(c.target) > 0 {
-		tokens = append(tokens, "("+sqlite.QuoteIdentifiers(c.target...)+")")
+		tokens = append(tokens, "("+QuoteIdentifiers(c.target...)+")")
 	}
 	tokens = append(tokens, "DO", c.action)
 	if c.action != "NOTHING" {
 		set, where := make([]string, 0, len(columns)), make([]string, 0, len(columns))
 		for _, column := range columns {
-			set = append(set, sqlite.QuoteIdentifier(column)+"=excluded."+sqlite.QuoteIdentifier(column))
-			where = append(where, sqlite.QuoteIdentifier(column)+"<>excluded."+sqlite.QuoteIdentifier(column))
+			set = append(set, QuoteIdentifier(column)+"=excluded."+QuoteIdentifier(column))
+			where = append(where, QuoteIdentifier(column)+"<>excluded."+QuoteIdentifier(column))
 		}
 		tokens = append(tokens, strings.Join(set, ","), "WHERE", strings.Join(where, " OR "))
 	}

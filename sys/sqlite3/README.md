@@ -389,6 +389,25 @@ The return value from the callback should be one of the following:
 
 More documentation is available on [authorization hooks](https://www.sqlite.org/c3ref/set_authorizer.html).
 
+## Tracing
+
+You can trace the execution of statements using the `func (*ConnEx) SetTraceHook(TraceFunc,TraceType)` method.
+The first argument is the callback with signature 
+`type TraceFunc func(TraceType, unsafe.Pointer, unsafe.Pointer) int`
+and the second argument is logical OR'd value of trace types you are interested in.
+The callback will then be invoked with `TraceType` and two `unsafe.Pointers`:
+
+| TraceType            | First ptr     | Second ptr  | Interpretation of second ptr |
+| -------------------- | ------------- | ----------- | ---------------------------- |
+| SQLITE_TRACE_STMT    | (*Statement)  | (*C.char)   | Expanded SQL statement       |
+|	SQLITE_TRACE_PROFILE | (*Statement)  | (*C.int64)  | Nanoseconds elapsed          |
+|	SQLITE_TRACE_ROW     | (*Statement)  | nil         |                              |
+|	SQLITE_TRACE_CLOSE   | (*Conn)       | nil         |                              |
+
+The return value from the callback is currently ignored. Call `SetTraceHook` with 
+`nil` as the first argument to unregister the callback. See the
+[documentation](https://www.sqlite.org/c3ref/c_trace.html) for more information.
+
 ## Binary Object (Blob IO) Interface
 
 In addition to the standard interface which inserts, updates and deletes binary objects atomically,

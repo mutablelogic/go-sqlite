@@ -35,7 +35,7 @@ func Test_SQLiteEx_001(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		if st, err := db.Prepare(fmt.Sprint("SELECT ", i)); err != nil {
 			t.Error(err)
-		} else if r, err := st.Exec(); err != nil {
+		} else if r, err := st.Exec(0); err != nil {
 			t.Error(err)
 		} else {
 			t.Log(r)

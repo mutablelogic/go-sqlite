@@ -34,7 +34,7 @@ func Test_Func_001(t *testing.T) {
 	// Execute sleepy function
 	if st, err := db.Prepare(fmt.Sprint("SELECT SLEEPY()")); err != nil {
 		t.Error(err)
-	} else if r, err := st.Exec(); err != nil {
+	} else if r, err := st.Exec(0); err != nil {
 		t.Error(err)
 	} else {
 		t.Log(r)

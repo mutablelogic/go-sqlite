@@ -40,6 +40,11 @@ static inline int _sqlite3_exec(sqlite3* db, char* q, uintptr_t userInfo, char**
 	return sqlite3_exec(db, (const char* )(q), go_exec_handler, (void* )(userInfo), errmsg);
 }
 
+extern int go_trace_handler(unsigned mask, void* userInfo, void* a, void* b);
+static inline int _sqlite3_trace_v2(sqlite3* db, unsigned mask, uintptr_t userInfo) {
+	return sqlite3_trace_v2(db, mask, go_trace_handler, (void* )(userInfo));
+}
+
 */
 import "C"
 
@@ -68,6 +73,7 @@ type ConnEx struct {
 	UpdateHookFunc
 	AuthorizerHookFunc
 	ExecFunc
+	TraceFunc
 
 	// Locks
 	xmu sync.Mutex // Mutex for calling Exec - only one per connection
@@ -106,6 +112,9 @@ type AuthorizerHookFunc func(SQAction, [4]string) SQAuth
 // SQLITE_ABORT without invoking the callback again and without running any subsequent
 // SQL statements.
 type ExecFunc func(row, cols []string) bool
+
+// TraceFunc is invoked for tracing. That's all I can say right now.
+type TraceFunc func(TraceType, unsafe.Pointer, unsafe.Pointer) int
 
 // Transaction type
 type SQTransaction string
@@ -226,7 +235,7 @@ func (c *ConnEx) SetBusyHandler(fn BusyHandlerFunc) error {
 // successive invocations of the callback
 func (c *ConnEx) SetProgressHandler(n uint, fn ProgressHandlerFunc) error {
 	if fn == nil || n == 0 {
-		c.ProgressHandlerFunc = nil
+		fn, c.ProgressHandlerFunc = nil, nil
 	} else {
 		c.ProgressHandlerFunc = fn
 	}
@@ -277,6 +286,21 @@ func (c *ConnEx) SetAuthorizerHook(fn AuthorizerHookFunc) error {
 
 	// Add rollback hook
 	C._sqlite3_set_authorizer((*C.sqlite3)(c.Conn), C.uintptr_t(c.userInfo()))
+
+	// Return success
+	return nil
+}
+
+// SetTraceHook sets the callback for the trace hook, use nil to remove the handler.
+func (c *ConnEx) SetTraceHook(fn TraceFunc, flags TraceType) error {
+	if fn == nil || flags == 0 {
+		fn, c.TraceFunc = nil, nil
+	} else {
+		c.TraceFunc = fn
+	}
+
+	// Add trace hook
+	C._sqlite3_trace_v2((*C.sqlite3)(c.Conn), C.unsigned(flags), C.uintptr_t(c.userInfo()))
 
 	// Return success
 	return nil
@@ -483,6 +507,15 @@ func go_authorizer_hook(userInfo unsafe.Pointer, op C.int, a1, a2, a3, a4 *C.cha
 func go_exec_handler(userInfo unsafe.Pointer, nargs C.int, row, cols **C.char) C.int {
 	if c := cb.get(uintptr(userInfo)); c != nil && c.ExecFunc != nil {
 		return C.int(boolToInt(c.ExecFunc(go_string_slice(int(nargs), row), go_string_slice(int(nargs), cols))))
+	} else {
+		return C.int(0)
+	}
+}
+
+//export go_trace_handler
+func go_trace_handler(mask C.unsigned, userInfo unsafe.Pointer, a, b unsafe.Pointer) C.int {
+	if c := cb.get(uintptr(userInfo)); c != nil && c.TraceFunc != nil {
+		return C.int(c.TraceFunc(TraceType(mask), a, b))
 	} else {
 		return C.int(0)
 	}

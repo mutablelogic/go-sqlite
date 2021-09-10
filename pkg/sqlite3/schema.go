@@ -2,8 +2,6 @@ package sqlite3
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-sqlite"
@@ -132,7 +130,7 @@ func (c *Conn) Modules(prefix ...string) []string {
 	// Get the names, return
 	var result []string
 	if err := c.Exec(Q("PRAGMA module_list"), func(row, _ []string) bool {
-		if module := row[0]; len(prefix) == 0 || inPrefixList(prefix, module) {
+		if module := row[0]; len(prefix) == 0 || inList(prefix, module, true) {
 			result = append(result, module)
 		}
 		return false
@@ -161,43 +159,4 @@ func (c *Conn) objectsInSchema(schema, t string) []string {
 		return nil
 	}
 	return result
-}
-
-func (c *Conn) indexesInSchema(schema, t string) []string {
-	// Set the schema
-	tableName := N("sqlite_master").WithSchema(schema)
-	if schema == tempSchema {
-		tableName = N("sqlite_temp_master").WithSchema(schema)
-	}
-
-	// Get the names, return
-	var result []string
-	if err := c.Exec(Q("SELECT name FROM ", tableName, " WHERE type=", V(t), " AND name NOT LIKE 'sqlite_%%'"), func(row, _ []string) bool {
-		result = append(result, row[0])
-		return false
-	}); err != nil {
-		return nil
-	}
-	return result
-}
-
-func inPrefixList(prefix []string, name string) bool {
-	name = strings.ToUpper(name)
-	for _, p := range prefix {
-		p = strings.ToUpper(p)
-		if name == p || strings.HasPrefix(name, p) {
-			return true
-		}
-	}
-	return false
-}
-
-func stringToBool(v string) bool {
-	if b, err := strconv.ParseBool(v); err == nil {
-		return b
-	} else if n, err := strconv.ParseUint(v, 0, 32); err == nil {
-		return n != 0
-	} else {
-		return false
-	}
 }

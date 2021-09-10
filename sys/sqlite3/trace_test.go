@@ -29,7 +29,7 @@ func Test_Trace_001(t *testing.T) {
 		case sqlite3.SQLITE_TRACE_ROW:
 			fmt.Println("TRACE => ", t, (*sqlite3.Statement)(a))
 		case sqlite3.SQLITE_TRACE_PROFILE:
-			ms := time.Duration(time.Duration(*(*int64)(b)) * time.Millisecond)
+			ms := time.Duration(time.Duration(*(*int64)(b)) * time.Nanosecond)
 			fmt.Println("TRACE => ", t, (*sqlite3.Statement)(a), ms)
 		case sqlite3.SQLITE_TRACE_CLOSE:
 			fmt.Println("TRACE => ", t, (*sqlite3.Conn)(a))

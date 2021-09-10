@@ -405,7 +405,27 @@ The callback will then be invoked with `TraceType` and two `unsafe.Pointers`:
 |	SQLITE_TRACE_CLOSE   | (*Conn)       | nil         |                              |
 
 The return value from the callback is currently ignored. Call `SetTraceHook` with 
-`nil` as the first argument to unregister the callback. See the
+`nil` as the first argument to unregister the callback. Here's an example of what your 
+trace function might look like, if you are interested in all trace events:
+
+```go
+  func TraceHook(t sqlite3.TraceType, a, b unsafe.Pointer) int {
+    switch t {
+    case sqlite3.SQLITE_TRACE_STMT:
+      fmt.Println("STMT => ", (*sqlite3.Statement)(a), C.GoString(b))
+    case sqlite3.SQLITE_TRACE_PROFILE:
+      ms := time.Duration(time.Duration(*(*int64)(b)) * time.Nanosecond)
+      fmt.Println("PROF => ", (*sqlite3.Statement)(a), ms)
+    case sqlite3.SQLITE_TRACE_ROW:
+      fmt.Println("ROW  => ",(*sqlite3.Statement)(a))
+    case sqlite3.SQLITE_TRACE_CLOSE:
+      fmt.Println("CLSE => ", (*sqlite3.Conn)(a))
+    }
+    return 0
+  }
+```
+
+See the
 [documentation](https://www.sqlite.org/c3ref/c_trace.html) for more information.
 
 ## Binary Object (Blob IO) Interface

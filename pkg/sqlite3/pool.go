@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
+	"unsafe"
 
 	// Modules
 	sqlite3 "github.com/djthorpe/go-sqlite/sys/sqlite3"
@@ -23,8 +25,9 @@ import (
 
 // PoolConfig is the starting configuration for a pool
 type PoolConfig struct {
-	Max     int64             `yaml:"max"` // The maximum number of connections in the pool
-	Schemas map[string]string `yaml:"db"`  // Schema names mapped onto path for database file
+	Max     int64             `yaml:"max"`   // The maximum number of connections in the pool
+	Schemas map[string]string `yaml:"db"`    // Schema names mapped onto path for database file
+	Trace   bool              `yaml:"trace"` // Profiling for statements
 	Flags   sqlite3.OpenFlags // Flags for opening connections
 }
 
@@ -46,6 +49,7 @@ var (
 	reSchemaName      = regexp.MustCompile("^[a-zA-Z][a-zA-Z0-9_-]+$")
 	defaultPoolConfig = PoolConfig{
 		Max:     5,
+		Trace:   false,
 		Schemas: map[string]string{defaultSchema: defaultMemory},
 		Flags:   sqlite3.DefaultFlags | sqlite3.SQLITE_OPEN_SHAREDCACHE,
 	}
@@ -225,6 +229,14 @@ func (p *Pool) new() (*Conn, error) {
 		}
 	}
 
+	// Set trace
+	if p.PoolConfig.Trace {
+		conn.SetTraceHook(func(_ sqlite3.TraceType, a, b unsafe.Pointer) int {
+			p.trace(conn, (*sqlite3.Statement)(a), *(*int64)(b))
+			return 0
+		}, sqlite3.SQLITE_TRACE_PROFILE)
+	}
+
 	// Check for errors
 	if result != nil {
 		return nil, result
@@ -298,4 +310,9 @@ func (p *Pool) attach(conn *Conn, schema, path string) error {
 // Detach named database as schema
 func (p *Pool) detach(conn *Conn, schema string) error {
 	return conn.Exec(Q("DETACH DATABASE ", QuoteIdentifier(schema)), nil)
+}
+
+// Trace
+func (p *Pool) trace(c *Conn, s *sqlite3.Statement, ns int64) {
+	fmt.Printf("TRACE %q => %v\n", s, time.Duration(ns)*time.Nanosecond)
 }

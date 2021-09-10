@@ -10,5 +10,6 @@ import (
 
 const (
 	defaultSchema = sqlite3.DefaultSchema
+	tempSchema    = "temp"
 	defaultMemory = sqlite3.DefaultMemory
 )

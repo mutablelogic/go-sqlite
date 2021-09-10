@@ -11,8 +11,6 @@ import (
 	// Namespace Imports
 	. "github.com/djthorpe/go-errors"
 	. "github.com/djthorpe/go-sqlite"
-	. "github.com/djthorpe/go-sqlite/pkg/lang"
-	. "github.com/djthorpe/go-sqlite/pkg/quote"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,21 +70,4 @@ func (conn *Conn) Exec(st SQStatement, fn ExecFunc) error {
 		return ErrBadParameter.With("Exec")
 	}
 	return conn.ConnEx.Exec(st.Query(), sqlite3.ExecFunc(fn))
-}
-
-// Attach database as schema. If path is empty then a new in-memory database
-// is attached.
-func (conn *Conn) Attach(schema, path string) error {
-	if schema == "" {
-		return ErrBadParameter.Withf("%q", schema)
-	}
-	if path == "" {
-		return conn.Attach(schema, defaultMemory)
-	}
-	return conn.Exec(Q("ATTACH DATABASE ", DoubleQuote(path), " AS ", QuoteIdentifier(schema)), nil)
-}
-
-// Detach named database as schema
-func (conn *Conn) Detach(schema string) error {
-	return conn.Exec(Q("DETACH DATABASE ", QuoteIdentifier(schema)), nil)
 }

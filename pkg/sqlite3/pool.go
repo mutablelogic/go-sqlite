@@ -14,6 +14,8 @@ import (
 
 	// Namespace Imports
 	. "github.com/djthorpe/go-errors"
+	. "github.com/djthorpe/go-sqlite/pkg/lang"
+	. "github.com/djthorpe/go-sqlite/pkg/quote"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,7 +30,6 @@ type PoolConfig struct {
 
 // Pool is a connection pool object
 type Pool struct {
-	sync.Mutex
 	sync.WaitGroup
 	sync.Pool
 	PoolConfig
@@ -62,21 +63,50 @@ func NewPool(errs chan<- error) (*Pool, error) {
 // OpenPool returns a new pool with the specified configuration
 func OpenPool(config PoolConfig, errs chan<- error) (*Pool, error) {
 	p := new(Pool)
+
+	// Set config.Max to default if zero, or minimum of 1
+	// connection
+	if config.Max == 0 {
+		config.Max = defaultPoolConfig.Max
+	} else {
+		config.Max = maxInt64(config.Max, 1)
+	}
+
+	// Set default flags if not set
+	if config.Flags == 0 {
+		config.Flags = defaultPoolConfig.Flags
+	}
+
+	// Set up pool
 	p.PoolConfig = config
-	p.Pool = sync.Pool{New: p.new}
-	p.Max = int64Max(p.Max, 0)
+	p.Pool = sync.Pool{New: func() interface{} {
+		if conn, errs := p.new(); errs != nil {
+			p.err(errs)
+			return nil
+		} else {
+			return conn
+		}
+	}}
 	p.errs = errs
 	p.ctx, p.cancel = context.WithCancel(context.Background())
+
+	// Create a single connection and put in the pool
+	if conn, errs := p.new(); errs != nil {
+		return nil, errs
+	} else {
+		p.Pool.Put(conn)
+	}
+
+	// Return success
 	return p, nil
 }
 
 // Close waits for all connections to be released and then
 // releases resources
 func (p *Pool) Close() error {
-	p.Mutex.Lock()
-	defer p.Mutex.Unlock()
-
-	// Send cancel signal to all workers and wait for them to exit
+	// Set max to 0 to prevent new connections, send cancel signal to all workers
+	// and wait for them to exit
+	p.SetMax(0)
 	p.cancel()
 	p.Wait()
 
@@ -89,8 +119,9 @@ func (p *Pool) Close() error {
 
 func (p *Pool) String() string {
 	str := "<pool"
-	str += fmt.Sprint(" cur=", atomic.AddInt64(&p.n, 0))
-	str += fmt.Sprint(" max=", p.Max)
+	str += fmt.Sprint(" cur=", p.Cur())
+	str += fmt.Sprint(" max=", p.Max())
+	str += fmt.Sprint(" flags=", p.Flags)
 	for schema := range p.Schemas {
 		str += fmt.Sprintf(" <schema %s=%q>", strings.TrimSpace(schema), p.pathForSchema(schema))
 	}
@@ -100,29 +131,29 @@ func (p *Pool) String() string {
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// Max returns the maximum number of connections allowed
+func (p *Pool) Max() int64 {
+	return atomic.LoadInt64(&p.PoolConfig.Max)
+}
+
 // SetMax allowed connections released from pool. Note this does not change
 // the maximum instantly, it will settle to this value over time. Set as value
 // zero to disable opening new connections
 func (p *Pool) SetMax(n int64) {
-	p.Mutex.Lock()
-	defer p.Mutex.Unlock()
-	p.Max = n
+	atomic.StoreInt64(&p.PoolConfig.Max, maxInt64(n, 0))
 }
 
 // Cur returns the current number of used connections
 func (p *Pool) Cur() int64 {
-	return atomic.AddInt64(&p.n, 0)
+	return atomic.LoadInt64(&p.n)
 }
 
 // Get a connection from the pool, and return it to the pool when the context
 // is cancelled or it is put back using the Put method. If there are no
 // connections available, nil is returned.
 func (p *Pool) Get(ctx context.Context) *Conn {
-	p.Mutex.Lock()
-	defer p.Mutex.Unlock()
-
 	// Return error if maximum number of connections has been reached
-	if atomic.AddInt64(&p.n, 0) >= int64(p.Max) {
+	if p.Cur() >= p.Max() {
 		p.err(ErrChannelBlocked.Withf("Maximum number of connections (%d) reached", p.Cur()))
 		return nil
 	}
@@ -131,12 +162,12 @@ func (p *Pool) Get(ctx context.Context) *Conn {
 	conn := p.Pool.Get().(*Conn)
 	if conn == nil {
 		return nil
-	}
-	if conn.c != nil {
+	} else if conn.c != nil {
 		panic("Expected conn.c to be nil")
+	} else {
+		conn.c = make(chan struct{})
+		atomic.AddInt64(&p.n, 1)
 	}
-	conn.c = make(chan struct{})
-	atomic.AddInt64(&p.n, 1)
 
 	// Release the connection in the background
 	p.WaitGroup.Add(1)
@@ -168,17 +199,15 @@ func (p *Pool) Put(conn *Conn) {
 
 // Create a new connection and attach databases, returns error if unable to
 // complete operation
-func (p *Pool) new() interface{} {
+func (p *Pool) new() (*Conn, error) {
 	// Open connection to main schema, which is required
 	defaultPath := p.pathForSchema(defaultSchema)
 	if defaultPath == "" {
-		p.err(ErrNotFound.Withf("No default schema %q found", defaultSchema))
-		return nil
+		return nil, ErrNotFound.Withf("No default schema %q found", defaultSchema)
 	}
 	conn, err := OpenPath(defaultPath, p.Flags)
 	if err != nil {
-		p.err(err)
-		return nil
+		return nil, err
 	}
 
 	// Attach additional databases
@@ -191,34 +220,34 @@ func (p *Pool) new() interface{} {
 		}
 		if path == "" {
 			result = multierror.Append(result, ErrBadParameter.Withf("Schema %q", schema))
-		} else if err := conn.Attach(schema, path); err != nil {
+		} else if err := p.attach(conn, schema, path); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
 
 	// Check for errors
 	if result != nil {
-		p.err(err)
-		return nil
+		return nil, result
 	}
 
 	// Success
-	return conn
+	return conn, nil
 }
 
 func (p *Pool) put(conn *Conn) {
+	// Close channel
 	if conn.c == nil {
 		panic("Expected conn.c to be non-nil")
-	}
-	n := atomic.AddInt64(&p.n, -1)
-	close(conn.c)
-	conn.c = nil
-	if n >= int64(p.Max) {
-		p.Pool.Put(conn)
 	} else {
-		if err := conn.Close(); err != nil {
-			p.err(err)
-		}
+		close(conn.c)
+		conn.c = nil
+	}
+	// Choose to put back into pool or close connection
+	n := atomic.AddInt64(&p.n, -1)
+	if n >= p.Max() {
+		p.Pool.Put(conn)
+	} else if err := conn.Close(); err != nil {
+		p.err(err)
 	}
 }
 
@@ -246,10 +275,27 @@ func (p *Pool) err(err error) {
 	}
 }
 
-// int64Max returns the maximum of two values
-func int64Max(a, b int64) int64 {
+// maxInt64 returns the maximum of two values
+func maxInt64(a, b int64) int64 {
 	if a > b {
 		return a
 	}
 	return b
+}
+
+// Attach database as schema. If path is empty then a new in-memory database
+// is attached.
+func (p *Pool) attach(conn *Conn, schema, path string) error {
+	if schema == "" {
+		return ErrBadParameter.Withf("%q", schema)
+	}
+	if path == "" {
+		return p.attach(conn, schema, defaultMemory)
+	}
+	return conn.Exec(Q("ATTACH DATABASE ", DoubleQuote(path), " AS ", QuoteIdentifier(schema)), nil)
+}
+
+// Detach named database as schema
+func (p *Pool) detach(conn *Conn, schema string) error {
+	return conn.Exec(Q("DETACH DATABASE ", QuoteIdentifier(schema)), nil)
 }

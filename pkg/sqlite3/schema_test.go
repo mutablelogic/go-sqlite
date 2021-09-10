@@ -17,7 +17,7 @@ func Test_Schema_001(t *testing.T) {
 	defer cancel()
 
 	// Create the pool
-	pool, err := NewPool(errs)
+	pool, err := NewPool("", errs)
 	if err != nil {
 		t.Error(err)
 	}

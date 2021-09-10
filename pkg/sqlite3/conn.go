@@ -1,12 +1,13 @@
 package sqlite3
 
 import (
-	// Modules
 	"fmt"
 	"runtime"
 	"sync"
 
-	"github.com/djthorpe/go-sqlite/sys/sqlite3"
+	// Modules
+	sqlite3 "github.com/djthorpe/go-sqlite/sys/sqlite3"
+	multierror "github.com/hashicorp/go-multierror"
 
 	// Namespace Imports
 	. "github.com/djthorpe/go-errors"
@@ -22,7 +23,12 @@ type Conn struct {
 	c chan struct{}
 }
 
+type Txn struct {
+	*Conn
+}
+
 type ExecFunc sqlite3.ExecFunc
+type TxnFunc func(SQTransaction) error
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -63,11 +69,42 @@ func (conn *Conn) Close() error {
 // Execute SQL statement without preparing, and invoke a callback for each row of results
 // which may return true to abort
 func (conn *Conn) Exec(st SQStatement, fn ExecFunc) error {
-	conn.Mutex.Lock()
-	defer conn.Mutex.Unlock()
-
 	if st == nil {
 		return ErrBadParameter.With("Exec")
 	}
 	return conn.ConnEx.Exec(st.Query(), sqlite3.ExecFunc(fn))
+}
+
+// Perform a transaction, rollback if error is returned
+func (conn *Conn) Do(fn TxnFunc) error {
+	conn.Mutex.Lock()
+	defer conn.Mutex.Unlock()
+
+	// Begin transaction
+	if err := conn.ConnEx.Begin(sqlite3.SQLITE_TXN_DEFAULT); err != nil {
+		return err
+	}
+
+	var result error
+	if fn != nil {
+		if err := fn(&Txn{conn}); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+	if result == nil {
+		result = multierror.Append(result, conn.ConnEx.Commit())
+	} else {
+		result = multierror.Append(result, conn.ConnEx.Rollback())
+	}
+
+	// Return any errors
+	return nil
+}
+
+// Execute SQL statement and invoke a callback for each row of results which may return true to abort
+func (txn *Txn) Query(st SQStatement, v ...interface{}) (SQResult, error) {
+	if st == nil {
+		return nil, ErrBadParameter.With("Query")
+	}
+	return nil, ErrNotImplemented
 }

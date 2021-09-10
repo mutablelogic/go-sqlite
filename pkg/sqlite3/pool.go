@@ -36,6 +36,8 @@ type Pool struct {
 	sync.WaitGroup
 	sync.Pool
 	PoolConfig
+	PoolCache
+
 	errs   chan<- error
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -59,9 +61,14 @@ var (
 // LIFECYCLE
 
 // NewPool returns a new default pool with a shared cache and maxiumum pool
-// size of 5 connections. Pass a channel to receive errors, or nil to ignore
-func NewPool(errs chan<- error) (*Pool, error) {
-	return OpenPool(defaultPoolConfig, errs)
+// size of 5 connections. If filename is not empty, this database is opened
+// or else memory is used. Pass a channel to receive errors, or nil to ignore
+func NewPool(path string, errs chan<- error) (*Pool, error) {
+	cfg := defaultPoolConfig
+	if path != "" {
+		cfg.Schemas = map[string]string{defaultSchema: path}
+	}
+	return OpenPool(cfg, errs)
 }
 
 // OpenPool returns a new pool with the specified configuration

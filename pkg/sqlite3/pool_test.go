@@ -34,7 +34,7 @@ func Test_Pool_001(t *testing.T) {
 	}(ctx)
 
 	// Create the pool
-	pool, err := NewPool(errs)
+	pool, err := NewPool("", errs)
 	if err != nil {
 		t.Error(err)
 	}

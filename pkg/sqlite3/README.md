@@ -1,0 +1,94 @@
+# sqlite3 package
+
+This package provides a high-level interface for [sqlite3](http://sqlite.org/)
+including connection pooling, transaction and execution management.
+
+This package is part of a wider project, `github.com/djthorpe/go-sqlite`.
+Please see the [module documentation](https://github.com/djthorpe/go-sqlite/blob/master/README.md)
+for more information.
+
+## Building
+
+This module does not include a full
+copy of __sqlite__ as part of the build process, but expect a `pkgconfig`
+file called `sqlite.pc` to be present (and an existing set of header
+files and libraries to be available to link against, of course).
+
+In order to locate the __pkgconfig__ file in a non-standard location, use
+the `PKG_CONFIG_PATH` environment variable. For example, I have installed
+sqlite using `brew install sqlite` and this is how I run the tests:
+
+```bash
+[bash] git clone git@github.com:djthorpe/go-sqlite.git
+[bash] cd go-sqlite
+[bash] go mod tidy
+[bash] PKG_CONFIG_PATH="/usr/local/opt/sqlite/lib/pkgconfig" go test -v ./pkg/sqlite3
+```
+
+There are some examples in the `cmd` folder of the main repository on how to use
+the bindings, and various pseudo examples in this document.
+
+## Contributing & Distribution
+
+Please do file feature requests and bugs [here](https://github.com/djthorpe/go-sqlite/issues).
+The license is Apache 2 so feel free to redistribute. Redistributions in either source
+code or binary form must reproduce the copyright notice, and please link back to this
+repository for more information:
+
+> Copyright (c) 2021, David Thorpe, All rights reserved.
+
+## Overview
+
+The package includes:
+
+  * __Connection Pool__ for managing connections to sqlite3 databases;
+  * __Connection__ for executing queries;
+  * __Auth__ interface for managing authentication and authorization;
+  * and a __Cache__ for managing prepared statements and profiling for slow
+    queries.
+
+It's possible to create custom functions (both in a scalar and aggregate context)
+and use perform streaming read and write operations on large binary (BLOB) objects.
+
+In order to create a connection pool, you can create a default pool using the `NewPool`
+method:
+
+```go
+package main
+
+import (
+    sqlite "github.com/djthorpe/go-sqlite/pkg/sqlite3"
+)
+
+func main() {
+	pool, err := sqlite.NewPool(path, nil)
+	if err != nil {
+        panic(err)
+	}
+	defer pool.Close()
+
+    // Enumerate the tables in the database
+    tables := pool.Get(context.Background()).Tables()
+    // ...
+}
+```
+
+In this example, a database is opened and the `Get` method obtains a connection
+to the database. The `Tables` method enumerates the tables in the database.
+
+## Connection Pool
+
+TODO
+
+## Transactions and Queries
+
+TODO
+
+
+## Authentication and Authorization
+
+TODO
+
+## Pool Status
+
+TODO

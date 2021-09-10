@@ -1,12 +1,39 @@
 package sqlite
 
+import "context"
+
 const (
 	// TagName defines the tag name used for struct tags
 	TagName = "sqlite"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
-// INTERFACES - CONNECTION
+// INTERFACES
+
+// SQPool is an sqlite connection pool
+type SQPool interface {
+	// Close waits for all connections to be released and then releases resources
+	Close() error
+
+	// Get a connection from the pool, and return it to the pool when the context
+	// is cancelled or it is put back using the Put method. If there are no
+	// connections available or an error occurs, nil is returned.
+	Get(context.Context) SQConnection
+
+	// Cur returns the current number of used connections
+	Cur() int64
+
+	// Return connection to the pool
+	Put(SQConnection)
+
+	// Max returns the maximum number of connections allowed
+	Max() int64
+
+	// SetMax allowed connections released from pool. Note this does not change
+	// the maximum instantly, it will settle to this value over time. Set as value
+	// zero to disable opening new connections
+	SetMax(int64)
+}
 
 // SQConnection is an sqlite connection to one or more databases
 type SQConnection interface {
@@ -62,214 +89,26 @@ type SQConnection interface {
 // SQTransaction is an sqlite transaction
 type SQTransaction interface {
 	// Query and return a set of results
-	Query(SQStatement, ...interface{}) (SQRows, error)
-
-	// Execute a statement and return affected rows
-	Exec(SQStatement, ...interface{}) (SQResult, error)
-
-	// Prepare a statement
-	Prepare(SQStatement) (SQStatement, error)
+	Query(SQStatement, ...interface{}) (SQResult, error)
 }
 
-// SQRows increments over returned rows from a query
-type SQRows interface {
+// SQResult increments over returned rows from a query
+type SQResult interface {
 	// Return next row, returns nil when all rows consumed
 	Next() []interface{}
 
 	// Return next map of values, or nil if no more rows
 	NextMap() map[string]interface{}
 
+	// NextQuery executes the next query or returns io.EOF
+	NextQuery(...interface{}) error
+
 	// Close the rows, and free up any resources
 	Close() error
+
+	// Return Last RowID inserted of last statement
+	LastInsertId() int64
+
+	// Return number of changes made of last statement
+	RowsAffected() uint64
 }
-
-// SQResult is returned after SQTransaction.Exec
-type SQResult struct {
-	LastInsertId int64
-	RowsAffected uint64
-}
-
-// SQStatement is any statement which can be prepared or executed
-type SQStatement interface {
-	Query() string
-}
-
-// SQSource defines a table or column name
-type SQSource interface {
-	SQStatement
-	SQExpr
-
-	// Return name, schema, type
-	Name() string
-	Schema() string
-	Alias() string
-
-	// Modify the source
-	WithName(string) SQSource
-	WithSchema(string) SQSource
-	WithType(string) SQColumn
-	WithAlias(string) SQSource
-	WithDesc() SQSource
-
-	// Insert, replace or upsert a row with named columns
-	Insert(...string) SQInsert
-	Replace(...string) SQInsert
-
-	// Drop objects
-	DropTable() SQDrop
-	DropIndex() SQDrop
-	DropTrigger() SQDrop
-	DropView() SQDrop
-
-	// Create objects
-	CreateTable(...SQColumn) SQTable
-	CreateVirtualTable(string, ...string) SQIndexView
-	CreateIndex(string, ...string) SQIndexView
-	//CreateView(SQSelect, ...string) SQIndexView
-	ForeignKey(...string) SQForeignKey
-
-	// Alter objects
-	AlterTable() SQAlter
-
-	// Update and delete data
-	Update(...string) SQUpdate
-	Delete(...interface{}) SQStatement
-}
-
-// SQTable defines a table of columns and indexes
-type SQTable interface {
-	SQStatement
-
-	IfNotExists() SQTable
-	WithTemporary() SQTable
-	WithoutRowID() SQTable
-	WithIndex(...string) SQTable
-	WithUnique(...string) SQTable
-	WithForeignKey(SQForeignKey, ...string) SQTable
-}
-
-// SQUpdate defines an update statement
-type SQUpdate interface {
-	SQStatement
-
-	// Modifiers
-	WithAbort() SQUpdate
-	WithFail() SQUpdate
-	WithIgnore() SQUpdate
-	WithReplace() SQUpdate
-	WithRollback() SQUpdate
-
-	// Where clause
-	Where(...interface{}) SQUpdate
-}
-
-// SQIndexView defines a create index or view statement
-type SQIndexView interface {
-	SQStatement
-	SQSource
-
-	// Return properties
-	Unique() bool
-	Table() string
-	Columns() []string
-	Auto() bool
-
-	// Modifiers
-	IfNotExists() SQIndexView
-	WithTemporary() SQIndexView
-	WithUnique() SQIndexView
-	WithAuto() SQIndexView
-}
-
-// SQDrop defines a drop for tables, views, indexes, and triggers
-type SQDrop interface {
-	SQStatement
-
-	IfExists() SQDrop
-}
-
-// SQInsert defines an insert or replace statement
-type SQInsert interface {
-	SQStatement
-
-	DefaultValues() SQInsert
-	WithConflictDoNothing(...string) SQInsert
-	WithConflictUpdate(...string) SQInsert
-}
-
-// SQSelect defines a select statement
-type SQSelect interface {
-	SQStatement
-
-	// Set select flags
-	WithDistinct() SQSelect
-	WithLimitOffset(limit, offset uint) SQSelect
-
-	// Destination columns for results
-	To(...SQSource) SQSelect
-
-	// Where and order clauses
-	Where(...interface{}) SQSelect
-	Order(...SQSource) SQSelect
-}
-
-// SQAlter defines an alter table statement
-type SQAlter interface {
-	SQStatement
-
-	// Alter operation
-	AddColumn(SQColumn) SQStatement
-	DropColumn(SQColumn) SQStatement
-}
-
-// SQForeignKey represents a foreign key constraint
-type SQForeignKey interface {
-	// Modifiers
-	OnDeleteCascade() SQForeignKey
-}
-
-// SQColumn represents a column definition
-type SQColumn interface {
-	SQStatement
-
-	// Properties
-	Name() string
-	Type() string
-	Nullable() bool
-	Primary() string
-
-	// Modifiers
-	NotNull() SQColumn
-	WithType(string) SQColumn
-	WithAlias(string) SQSource
-	WithPrimary() SQColumn
-	WithAutoIncrement() SQColumn
-	WithDefault(v interface{}) SQColumn
-	WithDefaultNow() SQColumn
-}
-
-// SQExpr defines any expression
-type SQExpr interface {
-	SQStatement
-
-	// And, Or, Not
-	Or(interface{}) SQExpr
-
-	// Comparison expression with one or more right hand side expressions
-	//Is(SQExpr, ...SQExpr) SQComparison
-}
-
-// SQComparison defines a comparison between two expressions
-type SQComparison interface {
-	SQStatement
-
-	// Negate the comparison
-	Not() SQComparison
-}
-
-/*
-	Gt() SQComparison
-	GtEq() SQComparison
-	Lt() SQComparison
-	LtEq() SQComparison
-*/

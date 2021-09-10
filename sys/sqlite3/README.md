@@ -409,17 +409,17 @@ The return value from the callback is currently ignored. Call `SetTraceHook` wit
 trace function might look like, if you are interested in all trace events:
 
 ```go
-  func TraceHook(t sqlite3.TraceType, a, b unsafe.Pointer) int {
+  func TraceHook(t TraceType, a, b unsafe.Pointer) int {
     switch t {
-    case sqlite3.SQLITE_TRACE_STMT:
-      fmt.Println("STMT => ", (*sqlite3.Statement)(a), C.GoString(b))
-    case sqlite3.SQLITE_TRACE_PROFILE:
+    case SQLITE_TRACE_STMT:
+      fmt.Println("STMT => ", (*Statement)(a), C.GoString(b))
+    case SQLITE_TRACE_PROFILE:
       ms := time.Duration(time.Duration(*(*int64)(b)) * time.Nanosecond)
-      fmt.Println("PROF => ", (*sqlite3.Statement)(a), ms)
-    case sqlite3.SQLITE_TRACE_ROW:
-      fmt.Println("ROW  => ",(*sqlite3.Statement)(a))
-    case sqlite3.SQLITE_TRACE_CLOSE:
-      fmt.Println("CLSE => ", (*sqlite3.Conn)(a))
+      fmt.Println("PROF => ", (*Statement)(a), ms)
+    case SQLITE_TRACE_ROW:
+      fmt.Println("ROW  => ",(*Statement)(a))
+    case SQLITE_TRACE_CLOSE:
+      fmt.Println("CLSE => ", (*Conn)(a))
     }
     return 0
   }

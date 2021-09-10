@@ -79,11 +79,13 @@ func Test_SQLite_005(t *testing.T) {
 
 	if statement, extra, err := db.Prepare("SELECT NULL; SELECT NULL"); err != nil {
 		t.Error(err)
-	} else if err := statement.Finalize(); err != nil {
-		t.Error(err)
 	} else {
 		t.Log("Statement=", statement)
 		t.Log("Extra=", extra)
+
+		if err := statement.Finalize(); err != nil {
+			t.Error(err)
+		}
 	}
 }
 

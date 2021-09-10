@@ -32,21 +32,24 @@ func Test_Func_001(t *testing.T) {
 	}
 
 	// Execute sleepy function
-	if st, err := db.Prepare(fmt.Sprint("SELECT SLEEPY()")); err != nil {
+	st, err := db.Prepare(fmt.Sprint("SELECT SLEEPY()"))
+	if err != nil {
 		t.Error(err)
-	} else if r, err := st.Exec(0); err != nil {
+	}
+	defer st.Close()
+	r, err := st.Exec(0)
+	if err != nil {
 		t.Error(err)
-	} else {
-		t.Log(r)
-		for {
-			row, err := r.Next()
-			if err != nil {
-				t.Error(err)
-				break
-			} else if row == nil {
-				break
-			}
-			t.Log(row)
+	}
+	t.Log(r)
+	for {
+		row, err := r.Next()
+		if err != nil {
+			t.Error(err)
+			break
+		} else if row == nil {
+			break
 		}
+		t.Log(row)
 	}
 }

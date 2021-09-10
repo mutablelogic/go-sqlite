@@ -33,21 +33,24 @@ func Test_SQLiteEx_001(t *testing.T) {
 	defer db.Close()
 
 	for i := 0; i < 10; i++ {
-		if st, err := db.Prepare(fmt.Sprint("SELECT ", i)); err != nil {
+		st, err := db.Prepare(fmt.Sprint("SELECT ", i))
+		if err != nil {
 			t.Error(err)
-		} else if r, err := st.Exec(0); err != nil {
+		}
+		defer st.Close()
+		r, err := st.Exec(0)
+		if err != nil {
 			t.Error(err)
-		} else {
-			t.Log(r)
-			for {
-				if row, err := r.Next(); err != nil {
-					t.Error(err)
-					break
-				} else if row == nil {
-					break
-				} else {
-					t.Log(row)
-				}
+		}
+		t.Log(r)
+		for {
+			if row, err := r.Next(); err != nil {
+				t.Error(err)
+				break
+			} else if row == nil {
+				break
+			} else {
+				t.Log(row)
 			}
 		}
 	}
@@ -94,7 +97,7 @@ func Test_SQLiteEx_002(t *testing.T) {
 	// Run long running query, expect interrupted error
 	if st, err := db.Prepare(longRunningQuery); err != nil {
 		t.Error(err)
-	} else if r, err := st.Exec(9999999999); err != nil && err != sqlite3.SQLITE_INTERRUPT {
+	} else if r, err := st.Exec(0, 9999999999); err != nil && err != sqlite3.SQLITE_INTERRUPT {
 		t.Error("Error returned:", err)
 	} else if r != nil {
 		t.Log(r)

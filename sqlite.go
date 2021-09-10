@@ -50,6 +50,10 @@ type SQPool interface {
 type SQConnection interface {
 	//SQTransaction
 
+	// Execute a transaction with context, rollback on any errors
+	// or cancelled context
+	Do(context.Context, SQTxnFlag, func(SQTransaction) error) error
+
 	// Schemas returns a list of all the schemas in the database
 	Schemas() []string
 
@@ -60,37 +64,22 @@ type SQConnection interface {
 	// string if in-memory database
 	Filename(string) string
 
-	// Execute a transaction with context, rollback on any errors
-	Do(context.Context, SQTxnFlag, func(SQTransaction) error) error
+	// ColumnsForTable returns the columns in a schema and table
+	ColumnsForTable(string, string) []SQColumn
 
-	/*
+	// ColumnsForIndex returns the column names associated with schema and index
+	ColumnsForIndex(string, string) []string
 
-		// TablesEx returns a list of tables in the specified schema. Pass true
-		// as second argument to include temporary tables.
-		TablesEx(string, bool) []string
+	// IndexesForTable returns the indexes associated with a schema and table
+	IndexesForTable(string, string) []SQIndexView
 
-		// Indexes returns indexes for a specified table
-		Indexes(string) []SQIndexView
+	// Views returns a list of view names in a schema
+	Views(string) []string
 
-		// Indexes returns indexes for a specified table in the specified schema
-		IndexesEx(string, string) []SQIndexView
-
-		// ColumnsEx returns an ordered list of columns in the specified table
-		Columns(string) []SQColumn
-
-		// ColumnsEx returns an ordered list of columns in the specified table and schema
-		ColumnsEx(string, string) []SQColumn
-
-		// Attach with schema name to a database at path in second argument
-		Attach(string, string) error
-
-		// Detach database by schema name
-		Detach(string) error
-
-		// Modules returns a list of virtual table modules. If a string is provided,
-		// only modules with the prefix of the string will be returned.
-		Modules(...string) []string
-	*/
+	// Modules returns a list of modules. If an argument is
+	// provided, then only modules with those name prefixes
+	// matched
+	Modules(...string) []string
 }
 
 // SQTransaction is an sqlite transaction

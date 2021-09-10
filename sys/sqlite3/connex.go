@@ -346,9 +346,6 @@ func (c *ConnEx) Exec(q string, fn ExecFunc) error {
 // each row of data returned, otherwise return true from the callback to abort the
 // transaction.
 func (c *ConnEx) ExecEx(q string, fn ExecFunc, v ...interface{}) error {
-	c.xmu.Lock()
-	defer c.xmu.Unlock()
-
 	// Prepare statements
 	st, err := c.Prepare(q)
 	if err != nil {

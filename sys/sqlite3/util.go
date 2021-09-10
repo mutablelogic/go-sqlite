@@ -48,7 +48,8 @@ func IsComplete(v string) bool {
 	return intToBool(int(C.sqlite3_complete(cStr)))
 }
 
-// Enable shared cache
+// Enable shared cache - potentially deprecated
+/*
 func EnableSharedCache(v bool) error {
 	if err := SQError(C.sqlite3_enable_shared_cache(C.int(boolToInt(v)))); err != SQLITE_OK {
 		return err
@@ -56,6 +57,7 @@ func EnableSharedCache(v bool) error {
 		return nil
 	}
 }
+*/
 
 // Return number of keywords
 func KeywordCount() int {

@@ -72,7 +72,7 @@ func (c *Conn) ColumnsForIndex(schema, index string) []string {
 
 	var result []string
 	if err := c.Exec(Q("PRAGMA ", N(schema), ".index_info(", N(index), ")"), func(row, c []string) bool {
-		fmt.Printf("%q %q => %q\n", index, row, c)
+		result = append(result, row[2])
 		return false
 	}); err != nil {
 		return nil
@@ -88,7 +88,7 @@ func (c *Conn) IndexesForTable(schema, table string) []SQIndexView {
 		return c.IndexesForTable(defaultSchema, table)
 	}
 	var result []SQIndexView
-	if err := c.Exec(Q("PRAGMA ", N(schema), ".index_list(", N(table), ")"), func(row, _ []string) bool {
+	if err := c.ExecEx(Q("PRAGMA ", N(schema), ".index_list(", N(table), ")").Query(), func(row, _ []string) bool {
 		// columns are is "seq" "name" "unique" "origin" "partial"
 
 		// Get index column names, abort if error

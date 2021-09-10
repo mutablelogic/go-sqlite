@@ -259,7 +259,7 @@ func Test_Schema_007(t *testing.T) {
 	if err := conn.Exec(N("table_a").CreateTable(
 		C("a").WithType("INTEGER").WithAutoIncrement(),
 		C("b").NotNull(),
-		C("c").WithType("TIMESTAMP").WithDefault(0),
+		C("c").WithType("TIMESTAMP"),
 	), nil); err != nil {
 		t.Error(err)
 	}
@@ -273,7 +273,7 @@ func Test_Schema_007(t *testing.T) {
 	indexes := conn.IndexesForTable("main", "table_a")
 	if indexes == nil {
 		t.Errorf("Unexpected return from indexes: %q", indexes)
-	} else if len(indexes) != 3 {
+	} else if len(indexes) != 1 {
 		t.Errorf("Unexpected return from indexes: %q", indexes)
 	} else {
 		t.Logf("indexes: %q", indexes)

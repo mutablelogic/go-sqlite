@@ -84,6 +84,13 @@ TODO
 
 TODO
 
+## Custom Types
+
+TODO
+
+## Custom Functions
+
+TODO
 
 ## Authentication and Authorization
 
@@ -92,3 +99,8 @@ TODO
 ## Pool Status
 
 TODO
+
+## Reading and Writing Large Objects
+
+## Backup
+

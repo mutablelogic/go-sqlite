@@ -1,6 +1,7 @@
 package sqlite3
 
 import (
+	"context"
 	"fmt"
 	"runtime"
 	"sync"
@@ -20,7 +21,8 @@ import (
 type Conn struct {
 	sync.Mutex
 	*sqlite3.ConnEx
-	c chan struct{}
+	c   chan struct{}
+	ctx context.Context
 }
 
 type Txn struct {
@@ -76,29 +78,60 @@ func (conn *Conn) Exec(st SQStatement, fn ExecFunc) error {
 }
 
 // Perform a transaction, rollback if error is returned
-func (conn *Conn) Do(fn TxnFunc) error {
+func (conn *Conn) Do(ctx context.Context, flag SQTxnFlag, fn func(SQTransaction) error) error {
 	conn.Mutex.Lock()
 	defer conn.Mutex.Unlock()
 
+	// Return any context errors
+	if ctx != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
+
+	// Get existing foreign key constraints, set new ones
+	fk, err := conn.ForeignKeyConstraints()
+	if err != nil {
+		return err
+	}
+	if flag&SQLITE_TXN_NO_FOREIGNKEY_CONSTRAINTS != 0 && fk {
+		if err := conn.SetForeignKeyConstraints(false); err != nil {
+			return err
+		}
+	}
+
+	// Flags
+	v := sqlite3.SQLITE_TXN_DEFAULT
+	if flag.Is(SQLITE_TXN_EXCLUSIVE) {
+		v = sqlite3.SQLITE_TXN_EXCLUSIVE
+	} else if flag.Is(SQLITE_TXN_IMMEDIATE) {
+		v = sqlite3.SQLITE_TXN_IMMEDIATE
+	}
+
 	// Begin transaction
-	if err := conn.ConnEx.Begin(sqlite3.SQLITE_TXN_DEFAULT); err != nil {
+	if err := conn.ConnEx.Begin(v); err != nil {
 		return err
 	}
 
+	// Perform transaction
 	var result error
 	if fn != nil {
+		conn.ctx = ctx
 		if err := fn(&Txn{conn}); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
+
+	// Commit or rollback transaction
 	if result == nil {
 		result = multierror.Append(result, conn.ConnEx.Commit())
 	} else {
 		result = multierror.Append(result, conn.ConnEx.Rollback())
 	}
 
+	// Return foreign key constraints
+	result = multierror.Append(result, conn.SetForeignKeyConstraints(fk))
+
 	// Return any errors
-	return nil
+	return result
 }
 
 // Execute SQL statement and invoke a callback for each row of results which may return true to abort
@@ -106,5 +139,6 @@ func (txn *Txn) Query(st SQStatement, v ...interface{}) (SQResult, error) {
 	if st == nil {
 		return nil, ErrBadParameter.With("Query")
 	}
+	// TODO: Use conn.ctx as context for running the query, and aborting it as necessary
 	return nil, ErrNotImplemented
 }

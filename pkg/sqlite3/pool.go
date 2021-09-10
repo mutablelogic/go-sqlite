@@ -16,6 +16,7 @@ import (
 
 	// Namespace Imports
 	. "github.com/djthorpe/go-errors"
+	. "github.com/djthorpe/go-sqlite"
 	. "github.com/djthorpe/go-sqlite/pkg/lang"
 	. "github.com/djthorpe/go-sqlite/pkg/quote"
 )
@@ -28,6 +29,7 @@ type PoolConfig struct {
 	Max     int64             `yaml:"max"`   // The maximum number of connections in the pool
 	Schemas map[string]string `yaml:"db"`    // Schema names mapped onto path for database file
 	Trace   bool              `yaml:"trace"` // Profiling for statements
+	Auth    SQAuth            // Authentication and Authorization interface
 	Flags   sqlite3.OpenFlags // Flags for opening connections
 }
 
@@ -242,6 +244,18 @@ func (p *Pool) new() (*Conn, error) {
 			p.trace(conn, (*sqlite3.Statement)(a), *(*int64)(b))
 			return 0
 		}, sqlite3.SQLITE_TRACE_PROFILE)
+	}
+
+	// Set auth
+	if p.PoolConfig.Auth != nil {
+		conn.SetAuthorizerHook(func(action sqlite3.SQAction, args [4]string) sqlite3.SQAuth {
+			if err := p.auth(conn.ctx, action, args); err == nil {
+				return sqlite3.SQLITE_ALLOW
+			} else {
+				p.err(err)
+				return sqlite3.SQLITE_DENY
+			}
+		})
 	}
 
 	// Check for errors

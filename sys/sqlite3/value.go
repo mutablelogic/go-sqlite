@@ -92,9 +92,11 @@ func (v *Value) NoChange() bool {
 }
 
 // FromBind returns true if value originated from a bound parameter
+/*
 func (v *Value) FromBind() bool {
 	return intToBool(int(C.sqlite3_value_frombind((*C.sqlite3_value)(v))))
 }
+*/
 
 // Interface returns a go value from a sqlite value
 func (v *Value) Interface() interface{} {

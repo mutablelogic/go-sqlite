@@ -33,8 +33,8 @@ type PingResponse struct {
 }
 
 type PoolResponse struct {
-	Cur int64 `json:"cur"`
-	Max int64 `json:"max"`
+	Cur int32 `json:"cur"`
+	Max int32 `json:"max"`
 }
 
 type SchemaResponse struct {

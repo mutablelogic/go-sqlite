@@ -31,19 +31,19 @@ type SQPool interface {
 	// connections available or an error occurs, nil is returned.
 	Get(context.Context) SQConnection
 
-	// Cur returns the current number of used connections
-	Cur() int64
-
 	// Return connection to the pool
 	Put(SQConnection)
 
+	// Cur returns the current number of used connections
+	Cur() int32
+
 	// Max returns the maximum number of connections allowed
-	Max() int64
+	Max() int32
 
 	// SetMax allowed connections released from pool. Note this does not change
 	// the maximum instantly, it will settle to this value over time. Set as value
 	// zero to disable opening new connections
-	SetMax(int64)
+	SetMax(int32)
 }
 
 // SQConnection is an sqlite connection to one or more databases

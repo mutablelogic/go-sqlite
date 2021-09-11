@@ -247,7 +247,8 @@ func Test_Schema_007(t *testing.T) {
 		Schemas: map[string]string{
 			"main": filepath.Join(tmpdir, "main.sqlite"),
 		},
-		Trace: true,
+		Trace:  true,
+		Create: true,
 	}, errs)
 	if err != nil {
 		t.Fatal(err)

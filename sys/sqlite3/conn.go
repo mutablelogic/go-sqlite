@@ -48,9 +48,9 @@ const (
 	SQLITE_OPEN_FULLMUTEX    OpenFlags = C.SQLITE_OPEN_FULLMUTEX                        // The new database connection will use the "serialized" threading mode. This means the multiple threads can safely attempt to use the same database connection at the same time. (Mutexes will block any actual concurrency, but in this mode there is no harm in trying.)
 	SQLITE_OPEN_SHAREDCACHE  OpenFlags = C.SQLITE_OPEN_SHAREDCACHE                      // The database is opened shared cache enabled, overriding the default shared cache setting provided by sqlite3_enable_shared_cache().
 	SQLITE_OPEN_PRIVATECACHE OpenFlags = C.SQLITE_OPEN_PRIVATECACHE                     // The database is opened shared cache disabled, overriding the default shared cache setting provided by sqlite3_enable_shared_cache().
-	SQLITE_OPEN_NOFOLLOW     OpenFlags = C.SQLITE_OPEN_NOFOLLOW                         // The database filename is not allowed to be a symbolic link
-	SQLITE_OPEN_MIN                    = SQLITE_OPEN_READONLY
-	SQLITE_OPEN_MAX                    = SQLITE_OPEN_NOFOLLOW
+	//	SQLITE_OPEN_NOFOLLOW     OpenFlags = C.SQLITE_OPEN_NOFOLLOW                         // The database filename is not allowed to be a symbolic link
+	SQLITE_OPEN_MIN = SQLITE_OPEN_READONLY
+	SQLITE_OPEN_MAX = SQLITE_OPEN_PRIVATECACHE
 )
 
 const (

@@ -14,14 +14,12 @@ copy of __sqlite__ as part of the build process, but expect a `pkgconfig`
 file called `sqlite3.pc` to be present (and an existing set of header
 files and libraries to be available to link against, of course).
 
-In order to locate the __pkgconfig__ file in a non-standard location, use
-two environment variables:
+In order to locate the correct installation of `sqlite3` use two environment variables:
 
   * `PKG_CONFIG_PATH` is used for locating `sqlite3.pc`
   * `DYLD_LIBRARY_PATH` is used for locating the dynamic library when testing and/or running
 
-On Macintosh with homebrew:
-sqlite using `` and this is how I run the tests:
+On Macintosh with homebrew, for example:
 
 ```bash
 [bash] brew install sqlite3
@@ -32,8 +30,18 @@ sqlite using `` and this is how I run the tests:
 [bash] PKG_CONFIG_PATH="${SQLITE_LIB}/pkgconfig" DYLD_LIBRARY_PATH="${SQLITE_LIB}" go test -v ./pkg/sqlite3
 ```
 
+On Debian Linux you shouldn't need to locate the correct path to the sqlite3 library:
+
+```bash
+[bash] sudo apt install libsqlite3-dev
+[bash] git clone git@github.com:djthorpe/go-sqlite.git
+[bash] cd go-sqlite
+[bash] go mod tidy
+[bash] go test -v ./pkg/sqlite3
+```
+
 There are some examples in the `cmd` folder of the main repository on how to use
-the bindings, and various pseudo examples in this document.
+the package, and various pseudo examples in this document.
 
 ## Contributing & Distribution
 
@@ -48,10 +56,10 @@ repository for more information:
 
 The package includes:
 
-  * __Connection Pool__ for managing connections to sqlite3 databases;
-  * __Connection__ for executing queries;
-  * __Auth__ interface for managing authentication and authorization;
-  * and a __Cache__ for managing prepared statements and profiling for slow
+  * A Connection __Pool__ for managing connections to sqlite3 databases;
+  * A __Connection__ for executing queries;
+  * An __Auth__ interface for managing authentication and authorization;
+  * A __Cache__ for managing prepared statements and profiling for slow
     queries.
 
 It's possible to create custom functions (both in a scalar and aggregate context)
@@ -74,14 +82,20 @@ func main() {
 	}
 	defer pool.Close()
 
+    // Onbtain a connection from pool, put back when done
+    conn := pool.Get(context.Background())
+    defer pool.Put(conn)
+
     // Enumerate the tables in the database
-    tables := pool.Get(context.Background()).Tables()
+    tables := conn.Tables()
+
     // ...
 }
 ```
 
 In this example, a database is opened and the `Get` method obtains a connection
-to the database. The `Tables` method enumerates the tables in the database.
+to the databaseand `Put` will return it to the pool. The `Tables` method enumerates 
+the tables in the database.
 
 ## Connection Pool
 

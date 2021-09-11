@@ -3,6 +3,7 @@ package sqlite3
 import (
 	"context"
 	"fmt"
+	"os"
 	"runtime"
 	"sync"
 
@@ -37,6 +38,15 @@ type TxnFunc func(SQTransaction) error
 
 func OpenPath(path string, flags sqlite3.OpenFlags) (*Conn, error) {
 	poolconn := new(Conn)
+
+	// If no create flag then check to make sure database exists
+	if path != defaultMemory && flags&sqlite3.SQLITE_OPEN_CREATE == 0 {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return nil, ErrNotFound.Withf("%q", path)
+		} else if err != nil {
+			return nil, err
+		}
+	}
 
 	// Open database with flags
 	if conn, err := sqlite3.OpenPathEx(path, flags, ""); err != nil {

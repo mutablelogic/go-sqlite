@@ -27,7 +27,7 @@ import (
 
 // PoolConfig is the starting configuration for a pool
 type PoolConfig struct {
-	Max     int64             `yaml:"max"`       // The maximum number of connections in the pool
+	Max     int32             `yaml:"max"`       // The maximum number of connections in the pool
 	Schemas map[string]string `yaml:"databases"` // Schema names mapped onto path for database file
 	Trace   bool              `yaml:"trace"`     // Profiling for statements
 	Create  bool              `yaml:"create"`    // When false, do not allow creation of new file-based databases
@@ -45,7 +45,7 @@ type Pool struct {
 	errs   chan<- error
 	ctx    context.Context
 	cancel context.CancelFunc
-	n      int64
+	n      int32
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,7 +85,7 @@ func OpenPool(config PoolConfig, errs chan<- error) (*Pool, error) {
 	if config.Max == 0 {
 		config.Max = defaultPoolConfig.Max
 	} else {
-		config.Max = maxInt64(config.Max, 1)
+		config.Max = maxInt32(config.Max, 1)
 	}
 
 	// Set default flags if not set
@@ -156,20 +156,20 @@ func (p *Pool) String() string {
 // PUBLIC METHODS
 
 // Max returns the maximum number of connections allowed
-func (p *Pool) Max() int64 {
-	return atomic.LoadInt64(&p.PoolConfig.Max)
+func (p *Pool) Max() int32 {
+	return atomic.LoadInt32(&p.PoolConfig.Max)
 }
 
 // SetMax allowed connections released from pool. Note this does not change
 // the maximum instantly, it will settle to this value over time. Set as value
 // zero to disable opening new connections
-func (p *Pool) SetMax(n int64) {
-	atomic.StoreInt64(&p.PoolConfig.Max, maxInt64(n, 0))
+func (p *Pool) SetMax(n int32) {
+	atomic.StoreInt32(&p.PoolConfig.Max, maxInt32(n, 0))
 }
 
 // Cur returns the current number of used connections
-func (p *Pool) Cur() int64 {
-	return atomic.LoadInt64(&p.n)
+func (p *Pool) Cur() int32 {
+	return atomic.LoadInt32(&p.n)
 }
 
 // Get a connection from the pool, and return it to the pool when the context
@@ -190,7 +190,7 @@ func (p *Pool) Get(ctx context.Context) SQConnection {
 		panic("Expected conn.c to be nil")
 	} else {
 		conn.c = make(chan struct{})
-		atomic.AddInt64(&p.n, 1)
+		atomic.AddInt32(&p.n, 1)
 	}
 
 	// Release the connection in the background
@@ -297,7 +297,7 @@ func (p *Pool) put(conn *Conn) {
 		conn.c = nil
 	}
 	// Choose to put back into pool or close connection
-	n := atomic.AddInt64(&p.n, -1)
+	n := atomic.AddInt32(&p.n, -1)
 	if n >= p.Max() {
 		p.Pool.Put(conn)
 	} else if err := conn.Close(); err != nil {
@@ -371,8 +371,8 @@ func (p *Pool) trace(c *Conn, s *sqlite3.Statement, ns int64) {
 	fmt.Printf("TRACE %q => %v\n", s, time.Duration(ns)*time.Nanosecond)
 }
 
-// maxInt64 returns the maximum of two values
-func maxInt64(a, b int64) int64 {
+// maxInt32 returns the maximum of two values
+func maxInt32(a, b int32) int32 {
 	if a > b {
 		return a
 	}

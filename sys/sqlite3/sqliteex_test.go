@@ -97,7 +97,7 @@ func Test_SQLiteEx_002(t *testing.T) {
 	// Run long running query, expect interrupted error
 	if st, err := db.Prepare(longRunningQuery); err != nil {
 		t.Error(err)
-	} else if r, err := st.Exec(0, 9999999999); err != nil && err != sqlite3.SQLITE_INTERRUPT {
+	} else if r, err := st.Exec(0, 99999999); err != nil && err != sqlite3.SQLITE_INTERRUPT {
 		t.Error("Error returned:", err)
 	} else if r != nil {
 		t.Log(r)

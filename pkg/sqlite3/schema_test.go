@@ -19,7 +19,7 @@ func Test_Schema_001(t *testing.T) {
 	// Create the pool
 	pool, err := NewPool("", errs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	defer pool.Close()
 
@@ -50,9 +50,10 @@ func Test_Schema_002(t *testing.T) {
 			"main": filepath.Join(tmpdir, "main.sqlite"),
 			"test": filepath.Join(tmpdir, "test.sqlite"),
 		},
+		Create: true,
 	}, errs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	defer pool.Close()
 
@@ -83,9 +84,10 @@ func Test_Schema_003(t *testing.T) {
 			"main": filepath.Join(tmpdir, "main.sqlite"),
 			"test": filepath.Join(tmpdir, "test.sqlite"),
 		},
+		Create: true,
 	}, errs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	defer pool.Close()
 
@@ -146,9 +148,10 @@ func Test_Schema_004(t *testing.T) {
 			"main": filepath.Join(tmpdir, "main.sqlite"),
 			"test": filepath.Join(tmpdir, "test.sqlite"),
 		},
+		Create: true,
 	}, errs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	defer pool.Close()
 
@@ -195,9 +198,10 @@ func Test_Schema_006(t *testing.T) {
 		Schemas: map[string]string{
 			"main": filepath.Join(tmpdir, "main.sqlite"),
 		},
+		Create: true,
 	}, errs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	defer pool.Close()
 
@@ -206,6 +210,7 @@ func Test_Schema_006(t *testing.T) {
 	if conn == nil {
 		t.Fatal("Unexpected nil connection")
 	}
+	defer pool.Put(conn)
 
 	// Create a table
 	if err := conn.Exec(N("table_a").CreateTable(
@@ -245,7 +250,7 @@ func Test_Schema_007(t *testing.T) {
 		Trace: true,
 	}, errs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 	defer pool.Close()
 
@@ -254,6 +259,7 @@ func Test_Schema_007(t *testing.T) {
 	if conn == nil {
 		t.Fatal("Unexpected nil connection")
 	}
+	defer pool.Put(conn)
 
 	// Create a table
 	if err := conn.Exec(N("table_a").CreateTable(

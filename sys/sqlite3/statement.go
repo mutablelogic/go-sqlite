@@ -27,9 +27,11 @@ func (s *Statement) String() string {
 	if s.IsBusy() {
 		str += " busy"
 	}
-	if s.IsExplain() {
-		str += " explain"
-	}
+	/*
+		if s.IsExplain() {
+			str += " explain"
+		}
+	*/
 	if s.IsReadonly() {
 		str += " readonly"
 	}

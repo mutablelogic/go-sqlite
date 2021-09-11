@@ -31,17 +31,17 @@ func Test_ForeignKeys_001(t *testing.T) {
 	}
 	defer pool.Put(conn)
 
-	if err := conn.SetForeignKeyConstraints(true); err != nil {
+	if err := conn.(*Conn).SetForeignKeyConstraints(true); err != nil {
 		t.Error(err)
-	} else if v, err := conn.ForeignKeyConstraints(); err != nil {
+	} else if v, err := conn.(*Conn).ForeignKeyConstraints(); err != nil {
 		t.Error(err)
 	} else if v != true {
 		t.Error("Unexpected response from ForeignKeyConstraints")
 	}
 
-	if err := conn.SetForeignKeyConstraints(false); err != nil {
+	if err := conn.(*Conn).SetForeignKeyConstraints(false); err != nil {
 		t.Error(err)
-	} else if v, err := conn.ForeignKeyConstraints(); err != nil {
+	} else if v, err := conn.(*Conn).ForeignKeyConstraints(); err != nil {
 		t.Error(err)
 	} else if v != false {
 		t.Error("Unexpected response from ForeignKeyConstraints")

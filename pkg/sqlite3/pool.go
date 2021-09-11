@@ -3,6 +3,7 @@ package sqlite3
 import (
 	"context"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -229,7 +230,15 @@ func (p *Pool) new() (*Conn, error) {
 	if defaultPath == "" {
 		return nil, ErrNotFound.Withf("No default schema %q found", defaultSchema)
 	}
-	conn, err := OpenPath(defaultPath, p.Flags)
+
+	// Always allow memory databases to be created
+	flags := p.Flags
+	if defaultPath == defaultMemory {
+		flags |= sqlite3.SQLITE_OPEN_MEMORY | sqlite3.SQLITE_OPEN_CREATE
+	}
+
+	// Perform the open
+	conn, err := OpenPath(defaultPath, flags)
 	if err != nil {
 		return nil, err
 	}
@@ -336,7 +345,18 @@ func (p *Pool) attach(conn *Conn, schema, path string) error {
 	if path == "" {
 		return p.attach(conn, schema, defaultMemory)
 	}
-	return conn.Exec(Q("ATTACH DATABASE ", DoubleQuote(path), " AS ", QuoteIdentifier(schema)), nil)
+	// Create a new database or return an error if it doesn't exist
+	if path != defaultMemory {
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			if err := p.attachcreate(path); err != nil {
+				return err
+			}
+		} else if err != nil {
+			return err
+		}
+	}
+	fmt.Println(Q("ATTACH DATABASE ", Quote(path), " AS ", QuoteIdentifier(schema)))
+	return conn.Exec(Q("ATTACH DATABASE ", Quote(path), " AS ", QuoteIdentifier(schema)), nil)
 }
 
 // Detach named database as schema
@@ -347,4 +367,19 @@ func (p *Pool) detach(conn *Conn, schema string) error {
 // Trace
 func (p *Pool) trace(c *Conn, s *sqlite3.Statement, ns int64) {
 	fmt.Printf("TRACE %q => %v\n", s, time.Duration(ns)*time.Nanosecond)
+}
+
+// Create a database before attaching
+func (p *Pool) attachcreate(path string) error {
+	if p.PoolConfig.Flags&sqlite3.SQLITE_OPEN_CREATE == 0 {
+		return ErrBadParameter.Withf("Database does not exist: %q", path)
+	}
+	// Open then close database before attaching
+	if conn, err := sqlite3.OpenPath(path, p.PoolConfig.Flags, ""); err != nil {
+		return err
+	} else if err := conn.Close(); err != nil {
+		return err
+	} else {
+		return nil
+	}
 }

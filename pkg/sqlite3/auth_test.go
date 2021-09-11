@@ -36,7 +36,7 @@ func Test_Auth_001(t *testing.T) {
 	defer pool.Put(conn)
 
 	// Make various requests
-	if err := conn.Exec(N("table_a").CreateTable(N("a").WithType("TEXT").WithPrimary()), nil); err != nil {
+	if err := conn.(*Conn).Exec(N("table_a").CreateTable(N("a").WithType("TEXT").WithPrimary()), nil); err != nil {
 		t.Error(err)
 	}
 	for _, schema := range conn.Schemas() {
@@ -44,16 +44,16 @@ func Test_Auth_001(t *testing.T) {
 	}
 
 	// Insert a row
-	conn.Exec(N("table_a").Insert().DefaultValues(), nil)
+	conn.(*Conn).Exec(N("table_a").Insert().DefaultValues(), nil)
 
 	// Delete a row
-	conn.Exec(N("table_a").Delete(true), nil)
+	conn.(*Conn).Exec(N("table_a").Delete(true), nil)
 
 	// Do a transaction
-	conn.Begin(sqlite3.SQLITE_TXN_DEFAULT)
-	conn.Rollback()
-	conn.Begin(sqlite3.SQLITE_TXN_IMMEDIATE)
-	conn.Commit()
+	conn.(*Conn).Begin(sqlite3.SQLITE_TXN_DEFAULT)
+	conn.(*Conn).Rollback()
+	conn.(*Conn).Begin(sqlite3.SQLITE_TXN_IMMEDIATE)
+	conn.(*Conn).Commit()
 }
 
 type Auth struct {

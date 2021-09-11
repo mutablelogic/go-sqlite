@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	// Packages
 	sqlite3 "github.com/djthorpe/go-sqlite/pkg/sqlite3"
@@ -46,6 +47,13 @@ func New(ctx context.Context, provider Provider) Plugin {
 
 	// Return success
 	return p
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (p *plugin) String() string {
+	return fmt.Sprint(p.SQPool)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -6,10 +6,10 @@ github.com/dgrijalva/jwt-go v3.2.0+incompatible/go.mod h1:E3ru+11k8xSBh+hMPgOLZm
 github.com/djthorpe/go-errors v1.0.2 h1:kZuNLhb6Yo1iNHaenGa9s5CpRbOG6KxbUtrME4LrAkk=
 github.com/djthorpe/go-errors v1.0.2/go.mod h1:HtfrZnMd6HsX75Mtbv9Qcnn0BqOrrFArvCaj3RMnZhY=
 github.com/djthorpe/go-marshaler v0.0.4/go.mod h1:xCXhTzj52UL3YStRsqUSfrKses7ofmfTXYQfVedn8Lw=
-github.com/djthorpe/go-marshaler v0.0.13 h1:d0qXD6c/L9MVoCeEzxF85GoyFO/S8ey1bxvt3ndFelY=
-github.com/djthorpe/go-marshaler v0.0.13/go.mod h1:xCXhTzj52UL3YStRsqUSfrKses7ofmfTXYQfVedn8Lw=
-github.com/djthorpe/go-server v1.0.7 h1:zNGbUhUPtAZjrA3T3RTfbjmTpbpVZL6WwfN+qxbflaI=
-github.com/djthorpe/go-server v1.0.7/go.mod h1:yio797qn9P5z2P9ZpASvCnHIFamAaRb+l3ejQJjGicE=
+github.com/djthorpe/go-marshaler v0.0.14 h1:L3qHWvEgqPGZI8ZQr4qAxOpKfSKAaF6EUPcGyWulIcQ=
+github.com/djthorpe/go-marshaler v0.0.14/go.mod h1:xCXhTzj52UL3YStRsqUSfrKses7ofmfTXYQfVedn8Lw=
+github.com/djthorpe/go-server v1.0.8 h1:Ml1SkYPiDmMVpSDMmVNjSMLFW7MLttZwkOnJYC5NgA4=
+github.com/djthorpe/go-server v1.0.8/go.mod h1:FShgU8xZdpIiNDhBD/SGytAEW1t3O4+eJdcBRU1vQwQ=
 github.com/djthorpe/go-sqlite v1.0.28/go.mod h1:TiGX+dIFea54xxIBVmFemTI/8KUjVUlEoDN2A5HKaMs=
 github.com/go-asn1-ber/asn1-ber v1.5.1/go.mod h1:hEBeB/ic+5LoWskz+yKT7vGhhPYkProFKoKdwZRWMe0=
 github.com/go-ldap/ldap/v3 v3.4.1/go.mod h1:iYS1MdmrmceOJ1QOTnRXrIs7i3kloqtmGQjRvjKpyMg=

@@ -90,7 +90,7 @@ func Test_Schema_003(t *testing.T) {
 	defer pool.Close()
 
 	// Create table_a and table_b in main schema
-	conn := pool.Get(context.Background())
+	conn := pool.Get(context.Background()).(*Conn)
 	if conn == nil {
 		t.Fatal("Unexpected nil connection")
 	}
@@ -202,7 +202,7 @@ func Test_Schema_006(t *testing.T) {
 	defer pool.Close()
 
 	// Create table_a and table_b in main schema
-	conn := pool.Get(context.Background())
+	conn := pool.Get(context.Background()).(*Conn)
 	if conn == nil {
 		t.Fatal("Unexpected nil connection")
 	}
@@ -250,7 +250,7 @@ func Test_Schema_007(t *testing.T) {
 	defer pool.Close()
 
 	// Create table_a and table_b in main schema
-	conn := pool.Get(context.Background())
+	conn := pool.Get(context.Background()).(*Conn)
 	if conn == nil {
 		t.Fatal("Unexpected nil connection")
 	}

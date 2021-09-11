@@ -29,6 +29,7 @@ type PoolConfig struct {
 	Max     int64             `yaml:"max"`       // The maximum number of connections in the pool
 	Schemas map[string]string `yaml:"databases"` // Schema names mapped onto path for database file
 	Trace   bool              `yaml:"trace"`     // Profiling for statements
+	Create  bool              `yaml:"create"`    // When false, do not allow creation of new file-based databases
 	Auth    SQAuth            // Authentication and Authorization interface
 	Flags   sqlite3.OpenFlags // Flags for opening connections
 }
@@ -54,6 +55,7 @@ var (
 	defaultPoolConfig = PoolConfig{
 		Max:     5,
 		Trace:   false,
+		Create:  true,
 		Schemas: map[string]string{defaultSchema: defaultMemory},
 		Flags:   sqlite3.DefaultFlags | sqlite3.SQLITE_OPEN_SHAREDCACHE,
 	}
@@ -88,6 +90,13 @@ func OpenPool(config PoolConfig, errs chan<- error) (*Pool, error) {
 	// Set default flags if not set
 	if config.Flags == 0 {
 		config.Flags = defaultPoolConfig.Flags
+	}
+
+	// Update create flag
+	if config.Create {
+		config.Flags |= sqlite3.SQLITE_OPEN_CREATE
+	} else {
+		config.Flags &^= sqlite3.SQLITE_OPEN_CREATE
 	}
 
 	// Set up pool

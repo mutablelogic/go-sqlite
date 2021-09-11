@@ -15,7 +15,7 @@ PLUGIN_DIR = $(wildcard plugin/*)
 
 .PHONY: all server plugins dependencies mkdir clean 
 
-all: clean server plugins
+all: clean plugins server 
 
 server: dependencies mkdir
 	@echo Build server

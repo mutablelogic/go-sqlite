@@ -61,7 +61,7 @@ func (p *plugin) Run(ctx context.Context, provider Provider) error {
 		return err
 	}
 
-	// Run until cancelled
+	// Run until cancelled - print any errors from the connection pool
 FOR_LOOP:
 	for {
 		select {

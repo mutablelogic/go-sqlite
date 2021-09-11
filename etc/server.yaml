@@ -6,22 +6,27 @@ plugins:
 
 # HTTP Server parameters
 httpserver:
+  # Port to listen on. Can be a path to unix socket to serve through FastCGI
   addr: :80
 
-# Handlers for serving plugins  
+# Handlers for serving plugins
 handlers:
   sqlite3:
-    prefix: /
+    # The sqlite3 plugin can be viewed at http://localhost/api/sqlite
+    prefix: /api/sqlite
+    # Requests are logged
     middleware:
       - log
 
 sqlite3:
-  # Databases to load and/or create
+  # Databases to load and/or create. Only the 'main' database is required.
   databases:
     main: ":memory:"
-  # Set trace to true to enable the ability to profile queries
+  # Set create to true to allow databases which don't exist to be created.
+  create: true
+  # Set trace to true to enable the ability to profile queries. Profiling information
+  # can be displayed through the API.
   trace: true
   # Set max number of connections that can be simultaneously opened
   max: 100
-
 

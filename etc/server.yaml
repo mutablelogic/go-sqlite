@@ -1,0 +1,24 @@
+# Plugins to load, the order of these is important
+plugins:
+  - build/log.plugin
+  - build/httpserver.plugin
+  - build/sqlite3.plugin
+
+# HTTP Server parameters
+httpserver:
+  addr: :80
+
+# Handlers for serving plugins  
+handlers:
+  sqlite3:
+    prefix: /
+    middleware:
+      - log
+
+sqlite3:
+  # Databases to load and/or create
+  databases:
+    main: ":memory:"
+  # Set trace to true to enable the ability to profile queries
+  trace: true
+

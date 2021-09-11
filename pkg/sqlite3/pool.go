@@ -26,9 +26,9 @@ import (
 
 // PoolConfig is the starting configuration for a pool
 type PoolConfig struct {
-	Max     int64             `yaml:"max"`   // The maximum number of connections in the pool
-	Schemas map[string]string `yaml:"db"`    // Schema names mapped onto path for database file
-	Trace   bool              `yaml:"trace"` // Profiling for statements
+	Max     int64             `yaml:"max"`       // The maximum number of connections in the pool
+	Schemas map[string]string `yaml:"databases"` // Schema names mapped onto path for database file
+	Trace   bool              `yaml:"trace"`     // Profiling for statements
 	Auth    SQAuth            // Authentication and Authorization interface
 	Flags   sqlite3.OpenFlags // Flags for opening connections
 }
@@ -164,7 +164,7 @@ func (p *Pool) Cur() int64 {
 // Get a connection from the pool, and return it to the pool when the context
 // is cancelled or it is put back using the Put method. If there are no
 // connections available, nil is returned.
-func (p *Pool) Get(ctx context.Context) *Conn {
+func (p *Pool) Get(ctx context.Context) SQConnection {
 	// Return error if maximum number of connections has been reached
 	if p.Cur() >= p.Max() {
 		p.err(ErrChannelBlocked.Withf("Maximum number of connections (%d) reached", p.Cur()))
@@ -201,9 +201,11 @@ func (p *Pool) Get(ctx context.Context) *Conn {
 }
 
 // Return connection to the pool
-func (p *Pool) Put(conn *Conn) {
-	if conn != nil {
+func (p *Pool) Put(conn SQConnection) {
+	if conn, ok := conn.(*Conn); ok {
 		conn.c <- struct{}{}
+	} else {
+		panic(ErrBadParameter.With("Put"))
 	}
 }
 

@@ -1,32 +1,46 @@
+# Paths to packages
+GO=$(shell which go)
 
-# Go parameters
-GO=go
-GOFLAGS = -ldflags "-s -w $(GOLDFLAGS)" 
-BUILDDIR = build
-TAGS = 
-COMMAND = $(wildcard cmd/*)
+# Paths to locations, etc
+BUILD_DIR = "build"
+BUILD_MODULE = "github.com/djthorpe/go-server"
+BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitSource=${BUILD_MODULE}
+BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitTag=$(shell git describe --tags)
+BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitBranch=$(shell git name-rev HEAD --name-only --always)
+BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitHash=$(shell git rev-parse HEAD)
+BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
+BUILD_FLAGS = -ldflags "-s -w $(BUILD_LD_FLAGS)" 
+BUILD_VERSION = $(shell git describe --tags)
+PLUGIN_DIR = $(wildcard plugin/*)
 
-# All targets
-all: test commands
+.PHONY: all server dependencies mkdir clean 
 
-# Rules for building
-.PHONY: commands $(COMMAND)
-commands: mkdir $(COMMAND)
+all: clean server plugins $(PLUGIN_DIR)
 
-$(COMMAND): 
-	@echo "Building ${BUILDDIR}/$@"
-	@$(GO) build -o ${BUILDDIR}/$@ -tags "$(TAGS)" ${GOFLAGS} ./$@
+server: dependencies mkdir
+	@echo Build server
+	@${GO} build -o ${BUILD_DIR}/server ${BUILD_FLAGS} github.com/djthorpe/go-server/cmd/server
 
-.PHONY: test
-test:
-	@$(GO) test -tags "$(TAGS)" ./pkg/...
+plugins:
+	@echo Build httpserver and log plugins
+	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/httpserver.plugin ${BUILD_FLAGS} github.com/djthorpe/go-server/plugin/httpserver
+	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/log.plugin ${BUILD_FLAGS} github.com/djthorpe/go-server/plugin/log
 
-.PHONY: mkdir
+$(PLUGIN_DIR): FORCE
+	@echo Build plugin $(notdir $@)
+	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/$(notdir $@).plugin ${BUILD_FLAGS} ./$@
+
+FORCE:
+
+dependencies:
+ifeq (,${GO})
+        $(error "Missing go binary")
+endif
+
 mkdir:
-	@install -d $(BUILDDIR)
+	@install -d ${BUILD_DIR}
 
-.PHONY: clean
-clean: 
-	@rm -fr $(BUILDDIR)
-	$(GO) mod tidy
-	$(GO) clean
+clean:
+	@rm -fr $(BUILD_DIR)
+	@${GO} mod tidy
+	@${GO} clean

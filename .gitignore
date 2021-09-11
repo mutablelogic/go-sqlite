@@ -6,7 +6,6 @@
 *.test
 *.out
 *.pb.go
-go.sum
 .vscode
 .DS_Store
 build

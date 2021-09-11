@@ -2,13 +2,12 @@ package main
 
 import (
 	"context"
-	"time"
 
-	// Modules
-	server "github.com/djthorpe/go-server"
+	// Packages
 	sqlite3 "github.com/djthorpe/go-sqlite/pkg/sqlite3"
 
 	// Namespace imports
+	. "github.com/djthorpe/go-server"
 	. "github.com/djthorpe/go-sqlite"
 )
 
@@ -21,17 +20,10 @@ type plugin struct {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// GLOBALS
-
-const (
-	tickerDelta = time.Second * 5
-)
-
-///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // Create the module
-func New(ctx context.Context, provider server.Provider) server.Plugin {
+func New(ctx context.Context, provider Provider) Plugin {
 	p := new(plugin)
 
 	// Get configuration
@@ -63,7 +55,7 @@ func Name() string {
 	return "sqlite3"
 }
 
-func (p *plugin) Run(ctx context.Context, provider server.Provider) error {
+func (p *plugin) Run(ctx context.Context, provider Provider) error {
 	// Add handlers
 	if err := p.AddHandlers(ctx, provider); err != nil {
 		return err

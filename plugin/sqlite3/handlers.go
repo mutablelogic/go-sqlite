@@ -6,8 +6,11 @@ import (
 	"regexp"
 
 	// Modules
-	server "github.com/djthorpe/go-server"
 	router "github.com/djthorpe/go-server/pkg/httprouter"
+	sqlite3 "github.com/djthorpe/go-sqlite/pkg/sqlite3"
+
+	// Namespace imports
+	. "github.com/djthorpe/go-server"
 
 	// Some sort of hack
 	_ "gopkg.in/yaml.v3"
@@ -39,7 +42,7 @@ const (
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
-func (p *plugin) AddHandlers(ctx context.Context, provider server.Provider) error {
+func (p *plugin) AddHandlers(ctx context.Context, provider Provider) error {
 
 	// Add handler for ping
 	if err := provider.AddHandlerFuncEx(ctx, reRoutePing, p.ServePing); err != nil {
@@ -67,6 +70,7 @@ func (p *plugin) ServePing(w http.ResponseWriter, req *http.Request) {
 		Modules: []string{},
 		Schemas: []string{},
 	}
+	response.Version = sqlite3.Version()
 	response.Modules = append(response.Modules, conn.Modules()...)
 	response.Schemas = append(response.Schemas, conn.Schemas()...)
 

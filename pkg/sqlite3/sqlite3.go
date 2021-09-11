@@ -13,3 +13,11 @@ const (
 	tempSchema    = "temp"
 	defaultMemory = sqlite3.DefaultMemory
 )
+
+////////////////////////////////////////////////////////////////////////////////
+// METHODS
+
+func Version() string {
+	str, _, _ := sqlite3.Version()
+	return str
+}

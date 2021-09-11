@@ -21,4 +21,7 @@ sqlite3:
     main: ":memory:"
   # Set trace to true to enable the ability to profile queries
   trace: true
+  # Set max number of connections that can be simultaneously opened
+  max: 100
+
 

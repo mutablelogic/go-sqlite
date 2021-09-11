@@ -232,10 +232,10 @@ func (p *Pool) new() (*Conn, error) {
 		return nil, ErrNotFound.Withf("No default schema %q found", defaultSchema)
 	}
 
-	// Always allow memory databases to be created
+	// Always allow memory databases to be created and read/write
 	flags := p.Flags
 	if defaultPath == defaultMemory {
-		flags |= sqlite3.SQLITE_OPEN_CREATE
+		flags |= (sqlite3.SQLITE_OPEN_CREATE | sqlite3.SQLITE_OPEN_READWRITE)
 	}
 
 	// Perform the open

@@ -11,18 +11,25 @@ for more information.
 
 This module does not include a full
 copy of __sqlite__ as part of the build process, but expect a `pkgconfig`
-file called `sqlite.pc` to be present (and an existing set of header
+file called `sqlite3.pc` to be present (and an existing set of header
 files and libraries to be available to link against, of course).
 
 In order to locate the __pkgconfig__ file in a non-standard location, use
-the `PKG_CONFIG_PATH` environment variable. For example, I have installed
-sqlite using `brew install sqlite` and this is how I run the tests:
+two environment variables:
+
+  * `PKG_CONFIG_PATH` is used for locating `sqlite3.pc`
+  * `DYLD_LIBRARY_PATH` is used for locating the dynamic library when testing and/or running
+
+On Macintosh with homebrew:
+sqlite using `` and this is how I run the tests:
 
 ```bash
+[bash] brew install sqlite3
 [bash] git clone git@github.com:djthorpe/go-sqlite.git
 [bash] cd go-sqlite
 [bash] go mod tidy
-[bash] PKG_CONFIG_PATH="/usr/local/opt/sqlite/lib/pkgconfig" go test -v ./pkg/sqlite3
+[bash] SQLITE_LIB="/usr/local/opt/sqlite/lib"
+[bash] PKG_CONFIG_PATH="${SQLITE_LIB}/pkgconfig" DYLD_LIBRARY_PATH="${SQLITE_LIB}" go test -v ./pkg/sqlite3
 ```
 
 There are some examples in the `cmd` folder of the main repository on how to use

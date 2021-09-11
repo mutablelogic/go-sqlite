@@ -28,6 +28,7 @@ import (
 
 type PingResponse struct {
 	Version string       `json:"version"`
+	Modules []string     `json:"modules"`
 	Schemas []string     `json:"schemas"`
 	Pool    PoolResponse `json:"pool"`
 }
@@ -123,9 +124,11 @@ func (p *plugin) ServePing(w http.ResponseWriter, req *http.Request) {
 	// Populate response
 	response := PingResponse{
 		Schemas: []string{},
+		Modules: []string{},
 	}
 	response.Version = sqlite3.Version()
 	response.Schemas = append(response.Schemas, conn.Schemas()...)
+	response.Modules = append(response.Schemas, conn.Modules()...)
 	response.Pool = PoolResponse{Cur: p.Cur(), Max: p.Max()}
 
 	// Serve response

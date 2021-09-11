@@ -51,7 +51,6 @@ import "C"
 
 import (
 	"errors"
-	"fmt"
 	"reflect"
 	"sync"
 	"time"
@@ -504,7 +503,6 @@ func go_authorizer_hook(userInfo unsafe.Pointer, op C.int, a1, a2, a3, a4 *C.cha
 
 //export go_exec_handler
 func go_exec_handler(userInfo unsafe.Pointer, nargs C.int, row, cols **C.char) C.int {
-	fmt.Println("nargs=", nargs, "row=", row, "cols=", cols)
 	if c := cb.get(uintptr(userInfo)); c != nil && c.ExecFunc != nil {
 		return C.int(boolToInt(c.ExecFunc(go_string_slice(int(nargs), row), go_string_slice(int(nargs), cols))))
 	} else {

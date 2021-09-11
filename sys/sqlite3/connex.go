@@ -4,6 +4,7 @@ package sqlite3
 #cgo pkg-config: sqlite3
 #include <sqlite3.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 extern int go_busy_handler(void* userInfo, int n);
 static inline int _sqlite3_busy_handler(sqlite3* db, uintptr_t userInfo) {

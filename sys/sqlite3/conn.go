@@ -18,6 +18,7 @@ import "C"
 
 import (
 	"fmt"
+	"strings"
 	"unsafe"
 
 	// Modules
@@ -37,6 +38,7 @@ type Conn C.sqlite3
 // GLOBALS
 
 const (
+	SQLITE_OPEN_NONE         OpenFlags = 0
 	SQLITE_OPEN_READONLY     OpenFlags = C.SQLITE_OPEN_READONLY                         // The database is opened in read-only mode. If the database does not already exist, an error is returned.
 	SQLITE_OPEN_READWRITE    OpenFlags = C.SQLITE_OPEN_READWRITE                        // The database is opened for reading and writing if possible, or reading only if the file is write protected by the operating system. In either case the database must already exist, otherwise an error is returned.
 	SQLITE_OPEN_CREATE       OpenFlags = C.SQLITE_OPEN_CREATE | C.SQLITE_OPEN_READWRITE // The database is created if it does not already exist
@@ -46,7 +48,9 @@ const (
 	SQLITE_OPEN_FULLMUTEX    OpenFlags = C.SQLITE_OPEN_FULLMUTEX                        // The new database connection will use the "serialized" threading mode. This means the multiple threads can safely attempt to use the same database connection at the same time. (Mutexes will block any actual concurrency, but in this mode there is no harm in trying.)
 	SQLITE_OPEN_SHAREDCACHE  OpenFlags = C.SQLITE_OPEN_SHAREDCACHE                      // The database is opened shared cache enabled, overriding the default shared cache setting provided by sqlite3_enable_shared_cache().
 	SQLITE_OPEN_PRIVATECACHE OpenFlags = C.SQLITE_OPEN_PRIVATECACHE                     // The database is opened shared cache disabled, overriding the default shared cache setting provided by sqlite3_enable_shared_cache().
-//	SQLITE_OPEN_NOFOLLOW     OpenFlags = C.SQLITE_OPEN_NOFOLLOW                         // The database filename is not allowed to be a symbolic link
+	SQLITE_OPEN_NOFOLLOW     OpenFlags = C.SQLITE_OPEN_NOFOLLOW                         // The database filename is not allowed to be a symbolic link
+	SQLITE_OPEN_MIN                    = SQLITE_OPEN_READONLY
+	SQLITE_OPEN_MAX                    = SQLITE_OPEN_NOFOLLOW
 )
 
 const (
@@ -82,6 +86,46 @@ func (c *Conn) String() string {
 		str += fmt.Sprint(" rows_affected=", changes)
 	}
 	return str + ">"
+}
+
+func (v OpenFlags) StringFlag() string {
+	switch v {
+	case SQLITE_OPEN_NONE:
+		return "SQLITE_OPEN_NONE"
+	case SQLITE_OPEN_READONLY:
+		return "SQLITE_OPEN_READONLY"
+	case SQLITE_OPEN_READWRITE:
+		return "SQLITE_OPEN_READWRITE"
+	case SQLITE_OPEN_CREATE:
+		return "SQLITE_OPEN_CREATE"
+	case SQLITE_OPEN_URI:
+		return "SQLITE_OPEN_URI"
+	case SQLITE_OPEN_MEMORY:
+		return "SQLITE_OPEN_MEMORY"
+	case SQLITE_OPEN_NOMUTEX:
+		return "SQLITE_OPEN_NOMUTEX"
+	case SQLITE_OPEN_FULLMUTEX:
+		return "SQLITE_OPEN_FULLMUTEX"
+	case SQLITE_OPEN_SHAREDCACHE:
+		return "SQLITE_OPEN_SHAREDCACHE"
+	case SQLITE_OPEN_PRIVATECACHE:
+		return "SQLITE_OPEN_PRIVATECACHE"
+	default:
+		return "[?? Invalid OpenFlags value]"
+	}
+}
+
+func (v OpenFlags) String() string {
+	if v == SQLITE_OPEN_NONE {
+		return v.StringFlag()
+	}
+	str := ""
+	for f := SQLITE_OPEN_MIN; f <= SQLITE_OPEN_MAX; f <<= 1 {
+		if v&f != 0 {
+			str += "|" + f.StringFlag()
+		}
+	}
+	return strings.TrimPrefix(str, "|")
 }
 
 ///////////////////////////////////////////////////////////////////////////////

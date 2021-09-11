@@ -58,7 +58,7 @@ var (
 		Trace:   false,
 		Create:  true,
 		Schemas: map[string]string{defaultSchema: defaultMemory},
-		Flags:   sqlite3.DefaultFlags | sqlite3.SQLITE_OPEN_SHAREDCACHE,
+		Flags:   sqlite3.SQLITE_OPEN_CREATE | sqlite3.SQLITE_OPEN_SHAREDCACHE,
 	}
 )
 
@@ -142,6 +142,7 @@ func (p *Pool) Close() error {
 
 func (p *Pool) String() string {
 	str := "<pool"
+	str += fmt.Sprintf(" ver=%q", Version())
 	str += fmt.Sprint(" cur=", p.Cur())
 	str += fmt.Sprint(" max=", p.Max())
 	str += fmt.Sprint(" flags=", p.Flags)
@@ -234,13 +235,21 @@ func (p *Pool) new() (*Conn, error) {
 	// Always allow memory databases to be created
 	flags := p.Flags
 	if defaultPath == defaultMemory {
-		flags |= sqlite3.SQLITE_OPEN_MEMORY | sqlite3.SQLITE_OPEN_CREATE
+		flags |= sqlite3.SQLITE_OPEN_CREATE
 	}
 
 	// Perform the open
 	conn, err := OpenPath(defaultPath, flags)
 	if err != nil {
 		return nil, err
+	}
+
+	// Set trace
+	if p.PoolConfig.Trace {
+		conn.SetTraceHook(func(_ sqlite3.TraceType, a, b unsafe.Pointer) int {
+			p.trace(conn, (*sqlite3.Statement)(a), *(*int64)(b))
+			return 0
+		}, sqlite3.SQLITE_TRACE_PROFILE)
 	}
 
 	// Attach additional databases
@@ -256,14 +265,6 @@ func (p *Pool) new() (*Conn, error) {
 		} else if err := p.attach(conn, schema, path); err != nil {
 			result = multierror.Append(result, err)
 		}
-	}
-
-	// Set trace
-	if p.PoolConfig.Trace {
-		conn.SetTraceHook(func(_ sqlite3.TraceType, a, b unsafe.Pointer) int {
-			p.trace(conn, (*sqlite3.Statement)(a), *(*int64)(b))
-			return 0
-		}, sqlite3.SQLITE_TRACE_PROFILE)
 	}
 
 	// Set auth
@@ -328,14 +329,6 @@ func (p *Pool) err(err error) {
 	}
 }
 
-// maxInt64 returns the maximum of two values
-func maxInt64(a, b int64) int64 {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 // Attach database as schema. If path is empty then a new in-memory database
 // is attached.
 func (p *Pool) attach(conn *Conn, schema, path string) error {
@@ -348,29 +341,18 @@ func (p *Pool) attach(conn *Conn, schema, path string) error {
 	// Create a new database or return an error if it doesn't exist
 	if path != defaultMemory {
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			if err := p.attachcreate(path); err != nil {
+			if err := p.attachCreate(path); err != nil {
 				return err
 			}
 		} else if err != nil {
 			return err
 		}
 	}
-	fmt.Println(Q("ATTACH DATABASE ", Quote(path), " AS ", QuoteIdentifier(schema)))
 	return conn.Exec(Q("ATTACH DATABASE ", Quote(path), " AS ", QuoteIdentifier(schema)), nil)
 }
 
-// Detach named database as schema
-func (p *Pool) detach(conn *Conn, schema string) error {
-	return conn.Exec(Q("DETACH DATABASE ", QuoteIdentifier(schema)), nil)
-}
-
-// Trace
-func (p *Pool) trace(c *Conn, s *sqlite3.Statement, ns int64) {
-	fmt.Printf("TRACE %q => %v\n", s, time.Duration(ns)*time.Nanosecond)
-}
-
 // Create a database before attaching
-func (p *Pool) attachcreate(path string) error {
+func (p *Pool) attachCreate(path string) error {
 	if p.PoolConfig.Flags&sqlite3.SQLITE_OPEN_CREATE == 0 {
 		return ErrBadParameter.Withf("Database does not exist: %q", path)
 	}
@@ -382,4 +364,17 @@ func (p *Pool) attachcreate(path string) error {
 	} else {
 		return nil
 	}
+}
+
+// Trace
+func (p *Pool) trace(c *Conn, s *sqlite3.Statement, ns int64) {
+	fmt.Printf("TRACE %q => %v\n", s, time.Duration(ns)*time.Nanosecond)
+}
+
+// maxInt64 returns the maximum of two values
+func maxInt64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
 }

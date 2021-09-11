@@ -149,15 +149,13 @@ func (p *plugin) ServeSchema(w http.ResponseWriter, req *http.Request) {
 		Filename: conn.Filename(params[0]),
 	}
 
-	if err := conn.(*sqlite3.Conn).Exec(Q("PRAGMA database_list"), func(row, col []string) bool {
+	if err := conn.(*sqlite3.Conn).Exec(Q("PRAGMA database_list;"), func(row, col []string) bool {
 		fmt.Printf("%q => %q\n", col, row)
 		return false
 	}); err != nil {
 		router.ServeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
-	fmt.Printf("%v => %q\n", params[0], conn.Filename(params[0]))
 
 	// Set memory flag
 	if response.Filename == "" {

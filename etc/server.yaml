@@ -24,13 +24,14 @@ sqlite3:
     main: ":memory:"
     test: /tmp/test.sqlite  
     
-  # Set create to true to allow databases which don't exist to be created.
-  create: true
+  # Set create to true to allow databases which don't exist to be created, or
+  # else error will be reported on server start. In-memory databases can always
+  # be created.
+  create: false
 
   # Set trace to true to enable the ability to profile queries. Profiling information
   # can be displayed through the API.
   trace: true
 
   # Set max number of connections that can be simultaneously opened
-  max: 100
-
+  max: 50

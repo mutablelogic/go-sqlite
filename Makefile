@@ -13,17 +13,18 @@ BUILD_FLAGS = -ldflags "-s -w $(BUILD_LD_FLAGS)"
 BUILD_VERSION = $(shell git describe --tags)
 PLUGIN_DIR = $(wildcard plugin/*)
 
-.PHONY: all server dependencies mkdir clean 
+.PHONY: all server plugins dependencies mkdir clean 
 
-all: clean server plugins $(PLUGIN_DIR)
+all: clean server plugins
 
 server: dependencies mkdir
 	@echo Build server
 	@${GO} build -o ${BUILD_DIR}/server ${BUILD_FLAGS} github.com/djthorpe/go-server/cmd/server
 
-plugins:
-	@echo Build httpserver and log plugins
+plugins: $(PLUGIN_DIR)
+	@echo Build plugin httpserver 
 	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/httpserver.plugin ${BUILD_FLAGS} github.com/djthorpe/go-server/plugin/httpserver
+	@echo Build plugin log 
 	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/log.plugin ${BUILD_FLAGS} github.com/djthorpe/go-server/plugin/log
 
 $(PLUGIN_DIR): FORCE

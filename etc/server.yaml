@@ -1,7 +1,7 @@
 # Plugins to load, the order of these is important
 plugins:
-  - build/log.plugin
   - build/httpserver.plugin
+  - build/log.plugin
   - build/sqlite3.plugin
 
 # HTTP Server parameters

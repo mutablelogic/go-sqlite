@@ -58,7 +58,7 @@ var (
 		Trace:   false,
 		Create:  true,
 		Schemas: map[string]string{defaultSchema: defaultMemory},
-		Flags:   sqlite3.SQLITE_OPEN_CREATE | sqlite3.SQLITE_OPEN_SHAREDCACHE,
+		Flags:   sqlite3.SQLITE_OPEN_CREATE | sqlite3.SQLITE_OPEN_READWRITE | sqlite3.SQLITE_OPEN_SHAREDCACHE,
 	}
 )
 
@@ -257,7 +257,7 @@ func (p *Pool) new() (*Conn, error) {
 	for schema := range p.Schemas {
 		schema = strings.TrimSpace(schema)
 		path := p.pathForSchema(schema)
-		if path == defaultPath {
+		if schema == defaultSchema {
 			continue
 		}
 		if path == "" {

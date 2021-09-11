@@ -38,9 +38,16 @@ type PoolResponse struct {
 }
 
 type SchemaResponse struct {
-	Schema   string `json:"schema"`
-	Filename string `json:"filename,omitempty"`
-	Memory   bool   `json:"memory,omitempty"`
+	Schema   string                `json:"schema"`
+	Filename string                `json:"filename,omitempty"`
+	Memory   bool                  `json:"memory,omitempty"`
+	Tables   []SchemaTableResponse `json:"tables,omitempty"`
+}
+
+type SchemaTableResponse struct {
+	Name    string   `json:"name"`
+	Schema  string   `json:"schema"`
+	Indexes []string `json:"indexes,omitempty"`
 }
 
 type SqlRequest struct {
@@ -147,6 +154,7 @@ func (p *plugin) ServeSchema(w http.ResponseWriter, req *http.Request) {
 	response := SchemaResponse{
 		Schema:   params[0],
 		Filename: conn.Filename(params[0]),
+		Tables:   []SchemaTableResponse{},
 	}
 
 	if err := conn.(*sqlite3.Conn).Exec(Q("PRAGMA database_list;"), func(row, col []string) bool {
@@ -160,6 +168,14 @@ func (p *plugin) ServeSchema(w http.ResponseWriter, req *http.Request) {
 	// Set memory flag
 	if response.Filename == "" {
 		response.Memory = true
+	}
+
+	// Populate tables
+	for _, table := range conn.Tables(params[0]) {
+		response.Tables = append(response.Tables, SchemaTableResponse{
+			Name:   table,
+			Schema: params[0],
+		})
 	}
 
 	// Serve response

@@ -1,7 +1,6 @@
 package sqlite3
 
 import (
-	"fmt"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-sqlite"
@@ -13,7 +12,7 @@ import (
 
 // Schemas returns a list of schemas
 func (c *Conn) Schemas() []string {
-	var schemas []string
+	schemas := []string{}
 	if err := c.Exec(Q("PRAGMA database_list"), func(row, col []string) bool {
 		schemas = append(schemas, row[1])
 		return false
@@ -44,7 +43,7 @@ func (c *Conn) ColumnsForTable(schema, table string) []SQColumn {
 	if schema == "" {
 		return c.ColumnsForTable(defaultSchema, table)
 	}
-	var result []SQColumn
+	result := []SQColumn{}
 	if err := c.Exec(Q("PRAGMA ", N(schema), ".table_info(", N(table), ")"), func(row, k []string) bool {
 		// k is "cid" "name" "type" "notnull" "dflt_value" "pk"
 		col := C(row[1]).WithType(row[2])
@@ -58,7 +57,6 @@ func (c *Conn) ColumnsForTable(schema, table string) []SQColumn {
 		result = append(result, col)
 		return false
 	}); err != nil {
-		fmt.Println(err)
 		return nil
 	}
 	return result
@@ -70,7 +68,7 @@ func (c *Conn) ColumnsForIndex(schema, index string) []string {
 		return c.ColumnsForIndex(defaultSchema, index)
 	}
 
-	var result []string
+	result := []string{}
 	if err := c.Exec(Q("PRAGMA ", N(schema), ".index_info(", N(index), ")"), func(row, c []string) bool {
 		result = append(result, row[2])
 		return false
@@ -87,7 +85,7 @@ func (c *Conn) IndexesForTable(schema, table string) []SQIndexView {
 	} else if schema == "" {
 		return c.IndexesForTable(defaultSchema, table)
 	}
-	var result []SQIndexView
+	result := []SQIndexView{}
 	if err := c.ExecEx(Q("PRAGMA ", N(schema), ".index_list(", N(table), ")").Query(), func(row, _ []string) bool {
 		// columns are is "seq" "name" "unique" "origin" "partial"
 
@@ -128,7 +126,7 @@ func (c *Conn) Views(schema string) []string {
 // provided, then only modules with those name prefixes are returned.
 func (c *Conn) Modules(prefix ...string) []string {
 	// Get the names, return
-	var result []string
+	result := []string{}
 	if err := c.Exec(Q("PRAGMA module_list"), func(row, _ []string) bool {
 		if module := row[0]; len(prefix) == 0 || inList(prefix, module, true) {
 			result = append(result, module)

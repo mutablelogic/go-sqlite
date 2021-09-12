@@ -39,16 +39,34 @@ type PoolResponse struct {
 }
 
 type SchemaResponse struct {
-	Schema   string                `json:"schema"`
-	Filename string                `json:"filename,omitempty"`
-	Memory   bool                  `json:"memory,omitempty"`
-	Tables   []SchemaTableResponse `json:"tables,omitempty"`
+	Schema   string                 `json:"schema"`
+	Filename string                 `json:"filename,omitempty"`
+	Memory   bool                   `json:"memory,omitempty"`
+	Tables   []SchemaTableResponse  `json:"tables,omitempty"`
+	Columns  []SchemaColumnResponse `json:"columns,omitempty"`
 }
 
 type SchemaTableResponse struct {
+	Name    string                 `json:"name"`
+	Schema  string                 `json:"schema"`
+	Count   int64                  `json:"count"`
+	Indexes []SchemaIndexResponse  `json:"indexes,omitempty"`
+	Columns []SchemaColumnResponse `json:"columns,omitempty"`
+}
+
+type SchemaColumnResponse struct {
+	Name     string `json:"name"`
+	Table    string `json:"table"`
+	Schema   string `json:"schema"`
+	Type     string `json:"type"`
+	Primary  bool   `json:"primary"`
+	Nullable bool   `json:"nullable"`
+}
+
+type SchemaIndexResponse struct {
 	Name    string   `json:"name"`
-	Schema  string   `json:"schema"`
-	Indexes []string `json:"indexes,omitempty"`
+	Unique  bool     `json:"unique"`
+	Columns []string `json:"columns"`
 }
 
 type SqlRequest struct {
@@ -128,7 +146,7 @@ func (p *plugin) ServePing(w http.ResponseWriter, req *http.Request) {
 	}
 	response.Version = sqlite3.Version()
 	response.Schemas = append(response.Schemas, conn.Schemas()...)
-	response.Modules = append(response.Schemas, conn.Modules()...)
+	response.Modules = append(response.Modules, conn.Modules()...)
 	response.Pool = PoolResponse{Cur: p.Cur(), Max: p.Max()}
 
 	// Serve response
@@ -160,25 +178,40 @@ func (p *plugin) ServeSchema(w http.ResponseWriter, req *http.Request) {
 		Tables:   []SchemaTableResponse{},
 	}
 
-	if err := conn.(*sqlite3.Conn).Exec(Q("PRAGMA database_list;"), func(row, col []string) bool {
-		fmt.Printf("%q => %q\n", col, row)
-		return false
-	}); err != nil {
-		router.ServeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
 	// Set memory flag
 	if response.Filename == "" {
 		response.Memory = true
 	}
 
 	// Populate tables
-	for _, table := range conn.Tables(params[0]) {
-		response.Tables = append(response.Tables, SchemaTableResponse{
-			Name:   table,
-			Schema: params[0],
-		})
+	for _, name := range conn.Tables(params[0]) {
+		table := SchemaTableResponse{
+			Name:    name,
+			Schema:  params[0],
+			Count:   conn.Count(params[0], name),
+			Columns: []SchemaColumnResponse{},
+			Indexes: []SchemaIndexResponse{},
+		}
+		for _, index := range conn.IndexesForTable(params[0], name) {
+			table.Indexes = append(table.Indexes, SchemaIndexResponse{
+				Name:    index.Name(),
+				Unique:  index.Unique(),
+				Columns: index.Columns(),
+			})
+		}
+		for _, column := range conn.ColumnsForTable(params[0], name) {
+			col := SchemaColumnResponse{
+				Name:   column.Name(),
+				Table:  name,
+				Schema: params[0],
+				Type:   column.Type(),
+			}
+			if column.Primary() != "" {
+				col.Primary = true
+			}
+			table.Columns = append(table.Columns, col)
+		}
+		response.Tables = append(response.Tables, table)
 	}
 
 	// Serve response

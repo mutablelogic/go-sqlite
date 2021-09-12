@@ -60,6 +60,9 @@ type SQConnection interface {
 	// Tables returns a list of tables in a schema
 	Tables(string) []string
 
+	// Count returns the number of rows in a table and schema
+	Count(string, string) int64
+
 	// Filename returns a filename for a schema, returns empty
 	// string if in-memory database
 	Filename(string) string
@@ -106,7 +109,7 @@ type SQResult interface {
 	LastInsertId() int64
 
 	// Return number of changes made of last statement
-	RowsAffected() uint64
+	RowsAffected() int64
 }
 
 // SQAuth is an interface for authenticating an action

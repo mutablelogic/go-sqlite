@@ -125,9 +125,14 @@ func (conn *Conn) Do(ctx context.Context, flag SQTxnFlag, fn func(SQTransaction)
 	var result error
 	if fn != nil {
 		conn.ctx = ctx
+		conn.SetProgressHandler(100, func() bool {
+			return ctx != nil && ctx.Err() != nil
+		})
 		if err := fn(&Txn{conn}); err != nil {
 			result = multierror.Append(result, err)
 		}
+		conn.SetProgressHandler(0, nil)
+		conn.ctx = nil
 	}
 
 	// Commit or rollback transaction
@@ -149,6 +154,19 @@ func (txn *Txn) Query(st SQStatement, v ...interface{}) (SQResult, error) {
 	if st == nil {
 		return nil, ErrBadParameter.With("Query")
 	}
-	// TODO: Use conn.ctx as context for running the query, and aborting it as necessary
-	return nil, ErrNotImplemented
+
+	// TODO: Get prepared version of query from the cache
+	stx, err := txn.Conn.Prepare(st.Query())
+	if err != nil {
+		return nil, err
+	}
+
+	// Create a results object and return it
+	results, err := stx.Exec(0, v...)
+	if err != nil {
+		stx.Close()
+		return nil, err
+	}
+
+	return NewResults(results), nil
 }

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width">
+    <title>sqlite</title>
+    <meta name="description" content="sqlite api">
+    <link rel="icon" href="/assets/favicon/favicon.ico">
+    <link rel="stylesheet" href="/index.css" media="all">
+    <script src="/index.js"></script>
+</head>
+<body>
+    <!-- NAVIGATION -->
+    <nav class="navbar sticky-top navbar navbar-dark navbar-expand-md bg-primary border-bottom border-white" id="nav">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/"><strong>sqlite</strong></a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-items"
+                aria-expanded="false">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbar-items">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">Home</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <!-- TOAST -->
+    <div class="toast-container position-absolute bottom-0 end-0 p-3 d-none" style="z-index: 9999;">
+        <div class="toast" id="toast" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto _title"></strong>
+                <small class="text-muted _code"></small>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body _reason"></div>
+        </div>
+    </div>    
+</body>
+</html>

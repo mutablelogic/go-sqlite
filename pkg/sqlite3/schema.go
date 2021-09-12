@@ -3,6 +3,8 @@ package sqlite3
 import (
 
 	// Namespace imports
+	"strconv"
+
 	. "github.com/djthorpe/go-sqlite"
 	. "github.com/djthorpe/go-sqlite/pkg/lang"
 )
@@ -36,6 +38,25 @@ func (c *Conn) Tables(schema string) []string {
 		return c.Tables(defaultSchema)
 	}
 	return c.objectsInSchema(schema, "table")
+}
+
+// Count returns a count of rows in a table, returns -1 on error
+func (c *Conn) Count(schema, table string) int64 {
+	if table == "" {
+		return -1
+	} else if schema == "" {
+		return c.Count(defaultSchema, table)
+	}
+	result := int64(-1)
+	if err := c.Exec(Q("SELECT COUNT(*) FROM ", N(table).WithSchema(schema)), func(row, k []string) bool {
+		if v, err := strconv.ParseInt(row[0], 10, 64); err == nil {
+			result = v
+		}
+		return false
+	}); err != nil {
+		return -1
+	}
+	return result
 }
 
 // ColumnsForTable returns the columns in a table

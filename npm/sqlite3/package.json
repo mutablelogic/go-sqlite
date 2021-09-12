@@ -1,0 +1,45 @@
+{
+  "name": "@djthorpe/go-sqlite",
+  "version": "0.0.0",
+  "description": "sqlite3 frontend",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "rm -fr dist && install -d html assets/favicon dist/assets && cp -r html/* dist && cp -r assets/* dist/assets && esbuild js/index.js --loader:.ttf=file --format=esm --minify --bundle --outdir=dist --sourcemap",
+    "watch": "npm-watch"
+  },
+  "watch": {
+    "build": {
+      "patterns": [
+        "css",
+        "html",
+        "js"
+      ],
+      "extensions": "html,css,js"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/djthorpe/go-sqlite.git"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "author": "David Thorpe",
+  "bugs": {
+    "url": "https://github.com/djthorpe/go-sqlite/issues"
+  },
+  "homepage": "https://github.com/djthorpe/go-sqlite#readme",
+  "devDependencies": {
+    "esbuild": "^0.12.14",
+    "eslint": "^7.30.0",
+    "eslint-config-airbnb-base": "^14.2.1",
+    "eslint-plugin-import": "^2.23.4",
+    "npm-watch": "^0.10.0"
+  },
+  "files": [
+    "dist/**/*.{js,map,woff,woff2,txt,ttf,css,html,jpg,jpeg,png,gif,svg}"
+  ],
+  "dependencies": {
+    "@djthorpe/js-framework": "^0.0.47"
+  }
+}

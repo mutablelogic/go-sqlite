@@ -1,4 +1,4 @@
-package sqlite3
+package tokenizer
 
 import (
 	"bufio"
@@ -8,6 +8,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	// Package imports
+	sqlite3 "github.com/djthorpe/go-sqlite/sys/sqlite3"
+
 	// Namespace imports
 	. "github.com/djthorpe/go-errors"
 	. "github.com/djthorpe/go-sqlite/pkg/quote"
@@ -16,17 +19,18 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+// A tokenizer that scans the input SQL statement
 type Tokenizer struct {
 	*bufio.Scanner
 }
 
 type (
-	KeywordToken    string
-	TypeToken       string
-	NameToken       string
-	ValueToken      string
-	PuncuationToken string
-	WhitespaceToken string
+	KeywordToken    string // An SQL reserved keyword
+	TypeToken       string // An SQL data type
+	NameToken       string // A table or column identifier
+	ValueToken      string // A value literal
+	PuncuationToken string // A punctuation character
+	WhitespaceToken string // Whitespace token
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,6 +45,7 @@ var (
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
+// NewTokenizer returns a new Tokenizer that scans the input SQL statement
 func NewTokenizer(v string) *Tokenizer {
 	t := &Tokenizer{bufio.NewScanner(strings.NewReader(v))}
 	t.Scanner.Split(sqlSplit)
@@ -48,8 +53,10 @@ func NewTokenizer(v string) *Tokenizer {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// METHODS
+// PUBLIC METHODS
 
+// Next returns the next token in the input stream, or returns io.EOF error and
+// nil if there are no more tokens to comsume.
 func (t *Tokenizer) Next() (interface{}, error) {
 	if t.Scanner.Scan() {
 		txt := t.Scanner.Text()
@@ -61,6 +68,14 @@ func (t *Tokenizer) Next() (interface{}, error) {
 		return nil, io.EOF
 	}
 }
+
+// IsComplete returns true if the input string appears to be a complete SQL statement
+func IsComplete(v string) bool {
+	return sqlite3.IsComplete(v)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
 
 func toToken(v string) interface{} {
 	if reWhitespace.MatchString(v) {

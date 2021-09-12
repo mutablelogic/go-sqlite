@@ -178,7 +178,7 @@ func (p *Pool) Cur() int32 {
 func (p *Pool) Get(ctx context.Context) SQConnection {
 	// Return error if maximum number of connections has been reached
 	if p.Cur() >= p.Max() {
-		p.err(ErrChannelBlocked.Withf("Maximum number of connections (%d) reached", p.Cur()))
+		p.err(ErrChannelBlocked.Withf("Maximum number of connections (%d) reached", p.Max()))
 		return nil
 	}
 
@@ -186,12 +186,12 @@ func (p *Pool) Get(ctx context.Context) SQConnection {
 	conn := p.Pool.Get().(*Conn)
 	if conn == nil {
 		return nil
-	} else if conn.c != nil {
-		panic("Expected conn.c to be nil")
-	} else {
-		conn.c = make(chan struct{})
-		atomic.AddInt32(&p.n, 1)
 	}
+	if conn.c != nil {
+		panic("Expected conn.c to be nil")
+	}
+	atomic.AddInt32(&p.n, 1)
+	conn.c = make(chan struct{})
 
 	// Release the connection in the background
 	p.WaitGroup.Add(1)
@@ -289,16 +289,17 @@ func (p *Pool) new() (*Conn, error) {
 }
 
 func (p *Pool) put(conn *Conn) {
-	// Close channel
 	if conn.c == nil {
 		panic("Expected conn.c to be non-nil")
-	} else {
-		close(conn.c)
-		conn.c = nil
 	}
+
+	// Close channel
+	close(conn.c)
+	conn.c = nil
+
 	// Choose to put back into pool or close connection
 	n := atomic.AddInt32(&p.n, -1)
-	if n >= p.Max() {
+	if n < p.Max() {
 		p.Pool.Put(conn)
 	} else if err := conn.Close(); err != nil {
 		p.err(err)

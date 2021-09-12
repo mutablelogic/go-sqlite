@@ -1,10 +1,10 @@
-package sqlite3_test
+package tokenizer_test
 
 import (
 	"testing"
 
 	// Namespace Imports
-	. "github.com/djthorpe/go-sqlite/pkg/sqlite3"
+	. "github.com/djthorpe/go-sqlite/pkg/tokenizer"
 )
 
 func Test_Tokenizer_001(t *testing.T) {

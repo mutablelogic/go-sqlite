@@ -165,8 +165,6 @@ func Test_Schema_004(t *testing.T) {
 	modules := conn.Modules()
 	if modules == nil {
 		t.Errorf("Unexpected nil return from modules: %q", modules)
-	} else if len(modules) == 0 {
-		t.Errorf("Unexpected return from modules: %q", modules)
 	} else {
 		t.Logf("modules: %q", modules)
 	}

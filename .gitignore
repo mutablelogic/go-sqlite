@@ -8,6 +8,14 @@
 *.pb.go
 .vscode
 .DS_Store
+
+# Build files
 build
+
+# sqlie files
 .sqlite
 .sqlite-journal
+
+# NPM ignores
+dist/
+node_modules/

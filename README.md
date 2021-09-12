@@ -31,10 +31,11 @@ Presently the module is in development and the API is subject to change.
 
 ## Requirements
 
-  * A sqlite3 installation, with library and header files;
-  * go1.17 or later
-  * Tested on Debian Linux (32- and 64- bit) and macOS with ARM
-    and x64 architectures.
+  * A [sqlite3 installation](https://www.sqlite.org/capi3ref.html), with library and header files;
+  * [go1.17](https://golang.org/dl/) or later;
+  * [npm](https://www.npmjs.com/) in order to build the frontend;
+  * Tested on Debian Linux (32- and 64- bit) on ARM and macOS on x64
+    architectures.
 
 ## Building
 
@@ -43,7 +44,8 @@ copy of __sqlite__ as part of the build process, but expect a `pkgconfig`
 file called `sqlite3.pc` to be present (and an existing set of header
 files and libraries to be available to link against, of course).
 
-In order to locate the correct installation of `sqlite3` use two environment variables:
+Especially for macOS, in order to locate the correct installation of 
+`sqlite3` use two environment variables:
 
   * `PKG_CONFIG_PATH` is used for locating `sqlite3.pc`
   * `DYLD_LIBRARY_PATH` is used for locating the dynamic library when testing and/or running
@@ -57,6 +59,10 @@ On Macintosh with homebrew, for example:
 [bash] SQLITE_LIB="/usr/local/opt/sqlite/lib"
 [bash] PKG_CONFIG_PATH="${SQLITE_LIB}/pkgconfig" DYLD_LIBRARY_PATH="${SQLITE_LIB}" make
 ```
+
+(You will generally want to use the `DYLD_LIBRARY_PATH` environment variable whenever you
+invoke an executable which embeds the sqlite dynamic library, as presently it's not statically
+linked into the executable)
 
 On Debian Linux you shouldn't need to locate the correct path to the sqlite3 library, since
 only one copy is installed:

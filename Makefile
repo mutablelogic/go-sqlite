@@ -53,11 +53,21 @@ FORCE:
 
 test:
 	@echo Test sys/sqlite3
-	@${GO} test -v ./sys/sqlite3
+	@${GO} test ./sys/sqlite3
 	@echo Test pkg/sqlite3
-	@${GO} test -v ./pkg/sqlite3
+	@${GO} test ./pkg/sqlite3
 	@echo Test pkg/tokenizer
-	@${GO} test -v ./pkg/tokenizer
+	@${GO} test ./pkg/tokenizer
+	@echo Test pkg/lang
+	@${GO} test ./pkg/lang
+	@echo Test pkg/importer
+	@${GO} test ./pkg/importer
+	@echo Test pkg/indexer
+	@${GO} test ./pkg/indexer
+	@echo Test pkg/quote
+	@${GO} test ./pkg/quote
+	@echo Test pkg/sqobj
+	@${GO} test ./pkg/sqobj
 
 dependencies:
 ifeq (,${GO})

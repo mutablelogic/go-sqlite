@@ -3,9 +3,10 @@ GO=$(shell which go)
 NPM=$(shell which npm)
 
 # Paths to locations, etc
-BUILD_DIR = "build"
-PLUGIN_DIR = $(wildcard plugin/*)
-NPM_DIR = $(wildcard npm/*)
+BUILD_DIR := "build"
+PLUGIN_DIR := $(wildcard plugin/*)
+NPM_DIR := $(wildcard npm/*)
+CMD_DIR := $(filter-out cmd/README.md, $(wildcard cmd/*))
 
 # Build flags
 BUILD_MODULE = "github.com/djthorpe/go-server"
@@ -16,9 +17,9 @@ BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitHash=$(shell git rev-parse HE
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 BUILD_FLAGS = -ldflags "-s -w $(BUILD_LD_FLAGS)" 
 
-.PHONY: all test server npm plugins dependencies mkdir clean 
+.PHONY: all test server npm cmd plugins dependencies mkdir clean 
 
-all: clean plugins server npm
+all: clean plugins server npm cmd
 
 server: dependencies mkdir
 	@echo Build server
@@ -26,9 +27,15 @@ server: dependencies mkdir
 
 npm: $(NPM_DIR)
 
+cmd: dependencies mkdir $(CMD_DIR)
+  
 $(NPM_DIR): FORCE
 	@echo Build npm $(notdir $@)
 	@cd $@ && ${NPM} run build
+
+$(CMD_DIR): FORCE
+	@echo Build cmd $(notdir $@)
+	@${GO} build -o ${BUILD_DIR}/$(notdir $@) ${BUILD_FLAGS} ./$@
 
 plugins: $(PLUGIN_DIR)
 	@echo Build plugin httpserver 

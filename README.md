@@ -20,11 +20,11 @@ Presently the module is in development and the API is subject to change.
 |--------------------------------------|-----------------|---------------|
 | Use the lower-level sqlite3 bindings similar to the [C API](https://www.sqlite.org/capi3ref.html) | [sys/sqlite3](https://github.com/djthorpe/go-sqlite/tree/master/sys/sqlite3) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/sys/sqlite3/README.md) |
 | Use high-concurrency high-level interface including statement caching and connection pool | [pkg/sqlite3](https://github.com/djthorpe/go-sqlite/tree/master/pkg/sqlite3) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/pkg/sqlite3/README.md) |
-| Implement a REST API to sqlite3 | [plugin/sqlite3](https://github.com/djthorpe/go-sqlite/tree/master/plugin/sqlite3) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/plugin/sqlite3/README.md) |
-| Develop a front-end web service to the REST API backend | [npm/sqlite3](https://github.com/djthorpe/go-sqlite/tree/master/npm/sqlite3) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/npm/sqlite3/README.md) |
+| Implement or use a REST API to sqlite3 | [plugin/sqlite3](https://github.com/djthorpe/go-sqlite/tree/master/plugin/sqlite3) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/plugin/sqlite3/README.md) |
+| Develop or use a front-end web service to the REST API backend | [npm/sqlite3](https://github.com/djthorpe/go-sqlite/tree/master/npm/sqlite3) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/npm/sqlite3/README.md) |
 | Use an "object" interface to persist structured data | [pkg/sqobj](https://github.com/djthorpe/go-sqlite/tree/master/pkg/sqobj) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/pkg/sqobj/README.md) |
 | Use a statement builder to programmatically write SQL statements | [pkg/lang](https://github.com/djthorpe/go-sqlite/tree/master/pkg/lang) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/pkg/lang/README.md) |
-| Implement a generalized data importer from CSV, JSON, etc | [pkg/importer](https://github.com/djthorpe/go-sqlite/tree/master/pkg/importer) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/pkg/importer/README.md) |
+| Implement a generalized data importer from CSV, JSON, Excel, etc | [pkg/importer](https://github.com/djthorpe/go-sqlite/tree/master/pkg/importer) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/pkg/importer/README.md) |
 | Implement a search indexer | [pkg/indexer](https://github.com/djthorpe/go-sqlite/tree/master/pkg/indexer) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/pkg/indexer/README.md) |
 | Tokenize SQL statements for syntax colouring (for example) | [pkg/tokenizer](https://github.com/djthorpe/go-sqlite/tree/master/pkg/tokenizer) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/pkg/tokenizer/README.md) |
 | See example command-line tools | [cmd](https://github.com/djthorpe/go-sqlite/tree/master/cmd) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/cmd/README.md) |
@@ -79,6 +79,7 @@ the package. The various make targets are:
 
   * `make all` will perform tests, build all examples, the backend API and the frontend web application;
   * `make test` will perform tests;
+  * `make cmd` will build example command-line tools into the `build` folder;
   * `make server plugins` will install the backend server and required plugins in the `build` folder;
   * `make npm` will compile the frontend web application in a 'dist' folder for each npm module located in the `npm` folder;
   * `make clean` will remove all build artifacts.

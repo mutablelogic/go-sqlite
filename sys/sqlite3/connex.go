@@ -154,6 +154,12 @@ func OpenUrlEx(url string, flags OpenFlags, vfs string) (*ConnEx, error) {
 // Open Path (with busy and progress handlers)
 func OpenPathEx(path string, flags OpenFlags, vfs string) (*ConnEx, error) {
 	c := new(ConnEx)
+
+	// Add RW flag if CREATE flag is set
+	if flags&SQLITE_OPEN_CREATE != 0 {
+		flags |= SQLITE_OPEN_READWRITE
+	}
+
 	if conn, err := OpenPath(path, flags, vfs); err != nil {
 		return nil, err
 	} else {

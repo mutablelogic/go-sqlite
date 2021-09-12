@@ -16,7 +16,7 @@ BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitHash=$(shell git rev-parse HE
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 BUILD_FLAGS = -ldflags "-s -w $(BUILD_LD_FLAGS)" 
 
-.PHONY: all server npm plugins dependencies mkdir clean 
+.PHONY: all test server npm plugins dependencies mkdir clean 
 
 all: clean plugins server npm
 
@@ -43,6 +43,14 @@ $(PLUGIN_DIR): FORCE
 	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/$(notdir $@).plugin ${BUILD_FLAGS} ./$@
 
 FORCE:
+
+test:
+	@echo Test sys/sqlite3
+	@${GO} test -v ./sys/sqlite3
+	@echo Test pkg/sqlite3
+	@${GO} test -v ./pkg/sqlite3
+	@echo Test pkg/tokenizer
+	@${GO} test -v ./pkg/tokenizer
 
 dependencies:
 ifeq (,${GO})

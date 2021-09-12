@@ -10,9 +10,10 @@ import (
 	"regexp"
 	"strconv"
 
-	// Modules
+	// Packages
 	router "github.com/djthorpe/go-server/pkg/httprouter"
 	sqlite3 "github.com/djthorpe/go-sqlite/pkg/sqlite3"
+	tokenizer "github.com/djthorpe/go-sqlite/pkg/tokenizer"
 
 	// Namespace imports
 	. "github.com/djthorpe/go-server"
@@ -302,7 +303,7 @@ func tokenize(v string) ([]template.HTML, error) {
 	result := []template.HTML{}
 
 	// Iterate through the tokenizer
-	t := sqlite3.NewTokenizer(v)
+	t := tokenizer.NewTokenizer(v)
 	for {
 		token, err := t.Next()
 		if token == nil || err == io.EOF {
@@ -311,17 +312,17 @@ func tokenize(v string) ([]template.HTML, error) {
 			return nil, err
 		}
 		switch t := token.(type) {
-		case sqlite3.KeywordToken:
+		case tokenizer.KeywordToken:
 			result = appendtoken(result, "keyword", t)
-		case sqlite3.TypeToken:
+		case tokenizer.TypeToken:
 			result = appendtoken(result, "type", t)
-		case sqlite3.NameToken:
+		case tokenizer.NameToken:
 			result = appendtoken(result, "name", t)
-		case sqlite3.ValueToken:
+		case tokenizer.ValueToken:
 			result = appendtoken(result, "value", t)
-		case sqlite3.PuncuationToken:
+		case tokenizer.PuncuationToken:
 			result = appendtoken(result, "puncuation", t)
-		case sqlite3.WhitespaceToken:
+		case tokenizer.WhitespaceToken:
 			result = appendtoken(result, "space", t)
 		default:
 			result = appendtoken(result, "", t)

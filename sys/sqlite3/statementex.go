@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/hashicorp/go-multierror"
 )
@@ -16,6 +17,7 @@ import (
 type StatementEx struct {
 	sync.Mutex
 	st []*Statement
+	n  uint32
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -98,6 +100,17 @@ func (s *StatementEx) Exec(n uint, v ...interface{}) (*Results, error) {
 	} else {
 		return nil, err
 	}
+}
+
+// Increment adds n to the statement counter and returns the previous value
+// so the first call to Inc returns 0 and so forth
+func (s *StatementEx) Inc(n uint32) uint32 {
+	return atomic.AddUint32(&s.n, n) - n
+}
+
+// Returns current count. Used to count the frequency of calls for caching purposes.
+func (s *StatementEx) Count() uint32 {
+	return atomic.LoadUint32(&s.n)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

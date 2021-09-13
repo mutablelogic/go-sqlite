@@ -83,7 +83,7 @@ func Test_SQLiteEx_002(t *testing.T) {
 		t.Log("Called busy handler with n=", n)
 		return true
 	}); err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Add auth handler
@@ -91,26 +91,32 @@ func Test_SQLiteEx_002(t *testing.T) {
 		t.Logf("Called auth handler with %v %q", action, args)
 		return sqlite3.SQLITE_ALLOW
 	}); err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	// Run long running query, expect interrupted error
-	if st, err := db.Prepare(longRunningQuery); err != nil {
-		t.Error(err)
-	} else if r, err := st.Exec(0, 99999999); err != nil && err != sqlite3.SQLITE_INTERRUPT {
-		t.Error("Error returned:", err)
-	} else if r != nil {
-		t.Log(r)
-		for {
-			row, err := r.Next()
-			if err != nil {
-				t.Error(err)
-				break
-			} else if row == nil {
-				break
-			}
-			t.Log(row)
+	st, err := db.Prepare(longRunningQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	r, err := st.Exec(0, 99999999)
+	if err != nil && err != sqlite3.SQLITE_INTERRUPT {
+		t.Fatal("Error returned:", err)
+	}
+	if r == nil {
+		t.Fatal("Unexpected nil return")
+	}
+	t.Log(r)
+	for {
+		row, err := r.Next()
+		if err != nil {
+			t.Fatal(err)
+			break
+		} else if row == nil {
+			break
 		}
+		t.Log(row)
 	}
 }
 

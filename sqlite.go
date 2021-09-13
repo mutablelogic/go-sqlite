@@ -88,28 +88,25 @@ type SQConnection interface {
 // SQTransaction is an sqlite transaction
 type SQTransaction interface {
 	// Query and return a set of results
-	Query(SQStatement, ...interface{}) (SQResult, error)
+	Query(SQStatement, ...interface{}) (SQResults, error)
 }
 
-// SQResult increments over returned rows from a query
-type SQResult interface {
+// SQResults increments over returned rows from a query
+type SQResults interface {
 	// Return next row, returns nil when all rows consumed
-	Next() []interface{}
+	//Next() []interface{}
 
 	// Return next map of values, or nil if no more rows
-	NextMap() map[string]interface{}
+	//NextMap() map[string]interface{}
 
 	// NextQuery executes the next query or returns io.EOF
 	NextQuery(...interface{}) error
 
-	// Close the rows, and free up any resources
-	Close() error
-
 	// Return Last RowID inserted of last statement
-	LastInsertId() int64
+	//LastInsertId() int64
 
 	// Return number of changes made of last statement
-	RowsAffected() int64
+	//RowsAffected() int64
 }
 
 // SQAuth is an interface for authenticating an action

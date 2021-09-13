@@ -40,7 +40,6 @@ type Pool struct {
 	sync.WaitGroup
 	sync.Pool
 	PoolConfig
-	PoolCache
 
 	errs   chan<- error
 	ctx    context.Context
@@ -301,7 +300,11 @@ func (p *Pool) put(conn *Conn) {
 	n := atomic.AddInt32(&p.n, -1)
 	if n < p.Max() {
 		p.Pool.Put(conn)
-	} else if err := conn.Close(); err != nil {
+		return
+	}
+
+	// Close connection and remove from cache
+	if err := conn.Close(); err != nil {
 		p.err(err)
 	}
 }

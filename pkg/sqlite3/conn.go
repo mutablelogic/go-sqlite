@@ -22,6 +22,8 @@ import (
 type Conn struct {
 	sync.Mutex
 	*sqlite3.ConnEx
+	ConnCache
+
 	c   chan struct{}
 	ctx context.Context
 }
@@ -150,23 +152,21 @@ func (conn *Conn) Do(ctx context.Context, flag SQTxnFlag, fn func(SQTransaction)
 }
 
 // Execute SQL statement and invoke a callback for each row of results which may return true to abort
-func (txn *Txn) Query(st SQStatement, v ...interface{}) (SQResult, error) {
+func (txn *Txn) Query(st SQStatement, v ...interface{}) (SQResults, error) {
 	if st == nil {
 		return nil, ErrBadParameter.With("Query")
 	}
 
-	// TODO: Get prepared version of query from the cache
-	stx, err := txn.Conn.Prepare(st.Query())
+	// Get a results object
+	r, err := txn.ConnCache.Prepare(txn.Conn.ConnEx, st.Query())
 	if err != nil {
 		return nil, err
 	}
 
-	// Create a results object and return it
-	results, err := stx.Exec(0, v...)
-	if err != nil {
-		stx.Close()
+	// Execute first query
+	if err := r.NextQuery(v...); err != nil {
 		return nil, err
+	} else {
+		return r, nil
 	}
-
-	return NewResults(results), nil
 }

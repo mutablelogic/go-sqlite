@@ -161,6 +161,9 @@ func OpenPath(path string, flags OpenFlags, vfs string) (*Conn, error) {
 	if flags == 0 {
 		flags = DefaultFlags
 	}
+	if flags|SQLITE_OPEN_CREATE > 0 {
+		flags |= SQLITE_OPEN_READWRITE
+	}
 
 	// Populate CStrings
 	if vfs != "" {

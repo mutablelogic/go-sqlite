@@ -7,7 +7,7 @@ import "strings"
 
 type SQFlag uint
 type SQKey uint
-type SQWriteHook func(SQResult, interface{}) error
+type SQWriteHook func(SQResults, interface{}) error
 
 ///////////////////////////////////////////////////////////////////////////////
 // INTERFACES
@@ -20,16 +20,16 @@ type SQObjects interface {
 	Create(string, SQFlag, ...SQClass) error
 
 	// Write objects to database
-	Write(v ...interface{}) ([]SQResult, error)
+	Write(v ...interface{}) ([]SQResults, error)
 
 	// Read objects from database
 	Read(SQClass) (SQIterator, error)
 
 	// Write objects to database, call hook after each write
-	WriteWithHook(SQWriteHook, ...interface{}) ([]SQResult, error)
+	WriteWithHook(SQWriteHook, ...interface{}) ([]SQResults, error)
 
 	// Delete objects from the database
-	Delete(v ...interface{}) ([]SQResult, error)
+	Delete(v ...interface{}) ([]SQResults, error)
 }
 
 // SQClass is a class definition, which can be a table or view
@@ -42,16 +42,16 @@ type SQClass interface {
 	Read(SQConnection) (SQIterator, error)
 
 	// Insert objects, return rowids
-	Insert(SQConnection, ...interface{}) ([]SQResult, error)
+	Insert(SQConnection, ...interface{}) ([]SQResults, error)
 
 	// Update objects by primary key, return rowids
-	Update(SQConnection, ...interface{}) ([]SQResult, error)
+	Update(SQConnection, ...interface{}) ([]SQResults, error)
 
 	// Upsert objects by primary key, return rowids
-	Upsert(SQConnection, ...interface{}) ([]SQResult, error)
+	Upsert(SQConnection, ...interface{}) ([]SQResults, error)
 
 	// Delete objects from the database by primary key
-	Delete(SQConnection, ...interface{}) ([]SQResult, error)
+	Delete(SQConnection, ...interface{}) ([]SQResults, error)
 
 	// Set a foreign key reference to parent class and columns. Panic
 	// on error, and return same class

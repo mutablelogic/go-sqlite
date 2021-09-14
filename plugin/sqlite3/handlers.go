@@ -76,6 +76,8 @@ type SqlRequest struct {
 }
 
 type SqlResultResponse struct {
+	Schema       string        `json:"schema,omitempty"`
+	Table        string        `json:"table,omitempty"`
 	Sql          string        `json:"sql"`
 	LastInsertId int64         `json:"last_insert_id,omitempty"`
 	RowsAffected int           `json:"rows_affected,omitempty"`
@@ -93,6 +95,7 @@ type TokenizerResponse struct {
 var (
 	reRoutePing      = regexp.MustCompile(`^/?$`)
 	reRouteSchema    = regexp.MustCompile(`^/([a-zA-Z][a-zA-Z0-9_-]+)/?$`)
+	reRouteTable     = regexp.MustCompile(`^/([a-zA-Z][a-zA-Z0-9_-]+)/([^/]+)/?$`)
 	reRouteTokenizer = regexp.MustCompile(`^/-/tokenize/?$`)
 	reRouteQuery     = regexp.MustCompile(`^/-/q/?$`)
 )
@@ -115,6 +118,11 @@ func (p *plugin) AddHandlers(ctx context.Context, provider Provider) error {
 
 	// Add handler for schema
 	if err := provider.AddHandlerFuncEx(ctx, reRouteSchema, p.ServeSchema); err != nil {
+		return err
+	}
+
+	// Add handler for table
+	if err := provider.AddHandlerFuncEx(ctx, reRouteTable, p.ServeTable); err != nil {
 		return err
 	}
 
@@ -223,6 +231,65 @@ func (p *plugin) ServeSchema(w http.ResponseWriter, req *http.Request) {
 	router.ServeJSON(w, response, http.StatusOK, 2)
 }
 
+func (p *plugin) ServeTable(w http.ResponseWriter, req *http.Request) {
+	// Query parameters
+	var q struct {
+		Offset uint `json:"offset"`
+		Limit  uint `json:"limit"`
+	}
+
+	// Decode params, params[0] is the schema name and params[1] is the table name
+	params := router.RequestParams(req)
+
+	// Decode query
+	if err := router.RequestQuery(req, &q); err != nil {
+		router.ServeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Get a connection
+	conn := p.Get(req.Context())
+	if conn == nil {
+		router.ServeError(w, http.StatusBadGateway, "No connection")
+		return
+	}
+	defer p.Put(conn)
+
+	// Check for schema
+	if !stringSliceContainsElement(conn.Schemas(), params[0]) {
+		router.ServeError(w, http.StatusNotFound, "Schema not found", strconv.Quote(params[0]))
+		return
+	}
+	if !stringSliceContainsElement(conn.Tables(params[0]), params[1]) {
+		router.ServeError(w, http.StatusNotFound, "Table not found", strconv.Quote(params[1]))
+		return
+	}
+
+	// Populate response
+	var response SqlResultResponse
+	if err := conn.Do(req.Context(), SQLITE_TXN_DEFAULT, func(txn SQTransaction) error {
+		r, err := txn.Query(S(N(params[1]).WithSchema(params[0])).WithLimitOffset(q.Limit, q.Offset))
+		if err != nil {
+			return err
+		}
+		if r, err := results(r); err != nil {
+			return err
+		} else {
+			response = r
+			response.Schema = params[0]
+			response.Table = params[1]
+		}
+		// Return success
+		return nil
+	}); err != nil {
+		router.ServeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Serve response
+	router.ServeJSON(w, response, http.StatusOK, 2)
+}
+
 func (p *plugin) ServeTokenizer(w http.ResponseWriter, req *http.Request) {
 	// Decode request
 	query := SqlRequest{}
@@ -302,6 +369,9 @@ func (p *plugin) ServeQuery(w http.ResponseWriter, req *http.Request) {
 	router.ServeJSON(w, response, http.StatusOK, 2)
 }
 
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
 func results(r SQResults) (SqlResultResponse, error) {
 	result := SqlResultResponse{
 		Sql:          r.ExpandedSQL(),
@@ -326,9 +396,6 @@ func results(r SQResults) (SqlResultResponse, error) {
 	// Return success
 	return result, nil
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
 
 func stringSliceContainsElement(v []string, elem string) bool {
 	for _, v := range v {

@@ -96,7 +96,8 @@ type SQTransaction interface {
 type SQResults interface {
 	// Return next row, returns nil when all rows consumed
 	// if types are provided, then returned row is cast to
-	// appopriate types
+	// appopriate types. The returned row needs to be copied
+	// if not transient
 	Next(...reflect.Type) ([]interface{}, error)
 
 	// Return next map of values, or nil if no more rows
@@ -113,6 +114,12 @@ type SQResults interface {
 
 	// Return number of changes made of last statement
 	RowsAffected() int
+
+	// Columns returns the column definitions
+	Columns() []SQColumn
+
+	// ColumnTable returns the schema, table and column name for a column index
+	ColumnSource(int) (string, string, string)
 }
 
 // SQAuth is an interface for authenticating an action

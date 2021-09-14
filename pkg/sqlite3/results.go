@@ -8,8 +8,10 @@ import (
 
 	// Packages
 	sqlite3 "github.com/djthorpe/go-sqlite/sys/sqlite3"
+
 	// Namespace imports
-	//. "github.com/djthorpe/go-errors"
+	. "github.com/djthorpe/go-sqlite"
+	. "github.com/djthorpe/go-sqlite/pkg/lang"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,4 +97,27 @@ func (r *Results) RowsAffected() int {
 	} else {
 		return r.results.RowsAffected()
 	}
+}
+
+// Return the columns for the current results
+func (r *Results) Columns() []SQColumn {
+	if r.results == nil {
+		return nil
+	}
+	cols := make([]SQColumn, r.results.ColumnCount())
+	for i := range cols {
+		cols[i] = C(r.results.ColumnName(i)).WithType(r.results.ColumnDeclType(i))
+	}
+	return cols
+}
+
+func (r *Results) ColumnSource(i int) (string, string, string) {
+	if r.results == nil {
+		return "", "", ""
+	}
+	schema, table, name := r.results.ColumnDatabaseName(i), r.results.ColumnTableName(i), r.results.ColumnName(i)
+	if name == "" {
+		name = r.results.ColumnOriginName(i)
+	}
+	return schema, table, name
 }

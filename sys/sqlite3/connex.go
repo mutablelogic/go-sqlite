@@ -369,9 +369,10 @@ func (c *ConnEx) ExecEx(q string, fn ExecFunc, v ...interface{}) error {
 
 		// Cast row values to string
 		t := make([]reflect.Type, r.ColumnCount())
-		n := r.ColumnNames()
+		n := make([]string, r.ColumnCount())
 		v := make([]string, r.ColumnCount())
 		for i := range t {
+			n[i] = r.ColumnName(i)
 			t[i] = typeText
 		}
 

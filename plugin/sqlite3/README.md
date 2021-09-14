@@ -75,8 +75,13 @@ Errors are returned when the status code is not `200 OK`. A typical error respon
 }
 ```
 
+## Plugin Configuration
 
-## Ping Request and Response
+TODO
+
+## Requests and Responses
+
+### Ping Request and Response
 
 There are no query arguments for this call. Typically a response will look like this:
 
@@ -107,11 +112,20 @@ There are no query arguments for this call. Typically a response will look like 
 }
 ```
 
-## Schema Request and Response
+### Schema Request and Response
 
 There are no query arguments for this call. Typically a response will provide you with information
 in the schemas. For example, a typical response may look like this:
 
 TODO
 
-## Table Request and Response
+### Table Request and Response
+
+TODO
+
+### Query Request and Response
+
+TODO
+
+### Tokenizer Request and Response
+

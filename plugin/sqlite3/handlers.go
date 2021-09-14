@@ -58,11 +58,11 @@ type SchemaTableResponse struct {
 
 type SchemaColumnResponse struct {
 	Name     string `json:"name"`
-	Table    string `json:"table"`
-	Schema   string `json:"schema"`
-	Type     string `json:"type"`
-	Primary  bool   `json:"primary"`
-	Nullable bool   `json:"nullable"`
+	Table    string `json:"table,omitempty"`
+	Schema   string `json:"schema,omitempty"`
+	Type     string `json:"type,omitempty"`
+	Primary  bool   `json:"primary,omitempty"`
+	Nullable bool   `json:"nullable,omitempty"`
 }
 
 type SchemaIndexResponse struct {
@@ -76,12 +76,13 @@ type SqlRequest struct {
 }
 
 type SqlResultResponse struct {
-	Schema       string        `json:"schema,omitempty"`
-	Table        string        `json:"table,omitempty"`
-	Sql          string        `json:"sql"`
-	LastInsertId int64         `json:"last_insert_id,omitempty"`
-	RowsAffected int           `json:"rows_affected,omitempty"`
-	Result       []interface{} `json:"result,omitempty"`
+	Schema       string                 `json:"schema,omitempty"`
+	Table        string                 `json:"table,omitempty"`
+	Sql          string                 `json:"sql"`
+	LastInsertId int64                  `json:"last_insert_id,omitempty"`
+	RowsAffected int                    `json:"rows_affected,omitempty"`
+	Columns      []SchemaColumnResponse `json:"columns,omitempty"`
+	Results      []interface{}          `json:"results,omitempty"`
 }
 
 type TokenizerResponse struct {
@@ -213,16 +214,7 @@ func (p *plugin) ServeSchema(w http.ResponseWriter, req *http.Request) {
 			})
 		}
 		for _, column := range conn.ColumnsForTable(params[0], name) {
-			col := SchemaColumnResponse{
-				Name:   column.Name(),
-				Table:  name,
-				Schema: params[0],
-				Type:   column.Type(),
-			}
-			if column.Primary() != "" {
-				col.Primary = true
-			}
-			table.Columns = append(table.Columns, col)
+			table.Columns = append(table.Columns, schemaColumn(params[0], name, column))
 		}
 		response.Tables = append(response.Tables, table)
 	}
@@ -264,6 +256,9 @@ func (p *plugin) ServeTable(w http.ResponseWriter, req *http.Request) {
 		router.ServeError(w, http.StatusNotFound, "Table not found", strconv.Quote(params[1]))
 		return
 	}
+
+	// Fix limit to ensure we only steam up to 1K results
+	q.Limit = uintMin(q.Limit, maxResultLimit)
 
 	// Populate response
 	var response SqlResultResponse
@@ -372,29 +367,56 @@ func (p *plugin) ServeQuery(w http.ResponseWriter, req *http.Request) {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
+func schemaColumn(schema, table string, column SQColumn) SchemaColumnResponse {
+	result := SchemaColumnResponse{
+		Name:   column.Name(),
+		Table:  table,
+		Schema: schema,
+		Type:   column.Type(),
+	}
+	if column.Primary() != "" {
+		result.Primary = true
+	}
+	return result
+}
+
 func results(r SQResults) (SqlResultResponse, error) {
 	result := SqlResultResponse{
 		Sql:          r.ExpandedSQL(),
 		LastInsertId: r.LastInsertId(),
 		RowsAffected: r.RowsAffected(),
+		Columns:      []SchemaColumnResponse{},
+	}
+
+	// Set the columns
+	for i, column := range r.Columns() {
+		schema, table, _ := r.ColumnSource(i)
+		result.Columns = append(result.Columns, schemaColumn(schema, table, column))
 	}
 
 	// Iterate through the rows, break when maximum number of results is reached
 	for {
-		if row, err := r.Next(); errors.Is(err, io.EOF) {
+		row, err := r.Next()
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return result, err
 		} else {
-			result.Result = append(result.Result, row)
+			result.Results = append(result.Results, interfaceSliceCopy(row))
 		}
-		if len(result.Result) >= maxResultLimit {
+		if len(result.Results) >= maxResultLimit {
 			break
 		}
 	}
 
 	// Return success
 	return result, nil
+}
+
+func interfaceSliceCopy(v []interface{}) []interface{} {
+	result := make([]interface{}, len(v))
+	copy(result, v)
+	return result
 }
 
 func stringSliceContainsElement(v []string, elem string) bool {

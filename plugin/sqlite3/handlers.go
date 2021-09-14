@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"html/template"
@@ -75,10 +76,13 @@ type SqlRequest struct {
 }
 
 type SqlResultResponse struct {
-	Sql []string `json:"sql"`
+	Sql          string        `json:"sql"`
+	LastInsertId int64         `json:"last_insert_id,omitempty"`
+	RowsAffected int           `json:"rows_affected,omitempty"`
+	Result       []interface{} `json:"result,omitempty"`
 }
 
-type SyntaxResponse struct {
+type TokenizerResponse struct {
 	Html     []template.HTML `json:"html,omitempty"`
 	Complete bool            `json:"complete"`
 }
@@ -87,10 +91,10 @@ type SyntaxResponse struct {
 // ROUTES
 
 var (
-	reRoutePing     = regexp.MustCompile(`^/?$`)
-	reRouteSchema   = regexp.MustCompile(`^/([a-zA-Z][a-zA-Z0-9_-]+)/?$`)
-	reRouteSyntaxer = regexp.MustCompile(`^/-/syntax/?$`)
-	reRouteQuery    = regexp.MustCompile(`^/-/q/?$`)
+	reRoutePing      = regexp.MustCompile(`^/?$`)
+	reRouteSchema    = regexp.MustCompile(`^/([a-zA-Z][a-zA-Z0-9_-]+)/?$`)
+	reRouteTokenizer = regexp.MustCompile(`^/-/tokenize/?$`)
+	reRouteQuery     = regexp.MustCompile(`^/-/q/?$`)
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -114,8 +118,8 @@ func (p *plugin) AddHandlers(ctx context.Context, provider Provider) error {
 		return err
 	}
 
-	// Add handler for SQL syntax checker
-	if err := provider.AddHandlerFuncEx(ctx, reRouteSyntaxer, p.ServeSyntaxer, http.MethodPost); err != nil {
+	// Add handler for SQL tokenizer
+	if err := provider.AddHandlerFuncEx(ctx, reRouteTokenizer, p.ServeTokenizer, http.MethodPost); err != nil {
 		return err
 	}
 
@@ -219,7 +223,7 @@ func (p *plugin) ServeSchema(w http.ResponseWriter, req *http.Request) {
 	router.ServeJSON(w, response, http.StatusOK, 2)
 }
 
-func (p *plugin) ServeSyntaxer(w http.ResponseWriter, req *http.Request) {
+func (p *plugin) ServeTokenizer(w http.ResponseWriter, req *http.Request) {
 	// Decode request
 	query := SqlRequest{}
 	if err := router.RequestBody(req, &query); err != nil {
@@ -243,7 +247,7 @@ func (p *plugin) ServeSyntaxer(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Populate response
-	response := SyntaxResponse{
+	response := TokenizerResponse{
 		Html:     html,
 		Complete: sqlite3.IsComplete(query.Sql),
 	}
@@ -269,11 +273,23 @@ func (p *plugin) ServeQuery(w http.ResponseWriter, req *http.Request) {
 	defer p.Put(conn)
 
 	// Perform query
-	response := make([]SqlResultResponse, 0)
+	response := make([]SqlResultResponse, 0, 2)
 	if err := conn.Do(req.Context(), SQLITE_TXN_DEFAULT, func(txn SQTransaction) error {
-		_, err := txn.Query(Q(query.Sql))
+		r, err := txn.Query(Q(query.Sql))
 		if err != nil {
 			return err
+		}
+		for {
+			if r, err := results(r); err != nil {
+				return err
+			} else {
+				response = append(response, r)
+			}
+			if err := r.NextQuery(); errors.Is(err, io.EOF) {
+				break
+			} else if err != nil {
+				return err
+			}
 		}
 		// Return success
 		return nil
@@ -284,6 +300,31 @@ func (p *plugin) ServeQuery(w http.ResponseWriter, req *http.Request) {
 
 	// Serve response
 	router.ServeJSON(w, response, http.StatusOK, 2)
+}
+
+func results(r SQResults) (SqlResultResponse, error) {
+	result := SqlResultResponse{
+		Sql:          r.ExpandedSQL(),
+		LastInsertId: r.LastInsertId(),
+		RowsAffected: r.RowsAffected(),
+	}
+
+	// Iterate through the rows, break when maximum number of results is reached
+	for {
+		if row, err := r.Next(); errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			return result, err
+		} else {
+			result.Result = append(result.Result, row)
+		}
+		if len(result.Result) >= maxResultLimit {
+			break
+		}
+	}
+
+	// Return success
+	return result, nil
 }
 
 ///////////////////////////////////////////////////////////////////////////////

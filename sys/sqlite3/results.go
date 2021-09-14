@@ -2,6 +2,7 @@ package sqlite3
 
 import (
 	"fmt"
+	"io"
 	"reflect"
 
 	"github.com/hashicorp/go-multierror"
@@ -11,9 +12,11 @@ import (
 // TYPES
 
 type Results struct {
-	st   *Statement
-	err  error
-	cols []interface{}
+	st      *Statement
+	err     error
+	cols    []interface{}
+	rowid   int64
+	changes int
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -29,6 +32,12 @@ var (
 
 func (r *Results) String() string {
 	str := "<results"
+	if r.rowid != 0 {
+		str += fmt.Sprintf(" lastinsertid=%v", r.rowid)
+	}
+	if r.changes != 0 {
+		str += fmt.Sprintf(" rowsaffected=%v", r.changes)
+	}
 	if r.st != nil {
 		str += " " + r.st.String()
 	}
@@ -47,6 +56,8 @@ func results(st *Statement, err error) *Results {
 	r.st = st
 	r.err = err
 	r.cols = make([]interface{}, 0, st.ColumnCount())
+	r.rowid = st.Conn().LastInsertId()
+	r.changes = st.Conn().Changes()
 	return r
 }
 
@@ -57,12 +68,12 @@ func results(st *Statement, err error) *Results {
 func (r *Results) Next(t ...reflect.Type) ([]interface{}, error) {
 	var result error
 
-	// If no more results, return nil,nil
+	// If no more results, return nil,io.EOF
 	if r.err == SQLITE_DONE {
 		r.st.Reset()
 		r.st = nil
 		r.cols = nil
-		return nil, nil
+		return nil, io.EOF
 	}
 
 	// Check for SQLITE_ROW result, abort result if error occurred
@@ -100,6 +111,23 @@ func (r *Results) Next(t ...reflect.Type) ([]interface{}, error) {
 
 	// Return result
 	return r.cols, nil
+}
+
+func (r *Results) LastInsertId() int64 {
+	return r.rowid
+}
+
+func (r *Results) RowsAffected() int {
+	return r.changes
+}
+
+// Return the expanded SQL statement
+func (r *Results) ExpandedSQL() string {
+	if r.st == nil {
+		return ""
+	} else {
+		return r.st.ExpandedSQL()
+	}
 }
 
 // Return column names for the next row to be fetched

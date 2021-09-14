@@ -3,22 +3,21 @@ package sqlite3
 import (
 	"sync"
 
-	// Namespace Imports
-	. "github.com/djthorpe/go-errors"
+	// Packages
 	sqlite3 "github.com/djthorpe/go-sqlite/sys/sqlite3"
 	multierror "github.com/hashicorp/go-multierror"
+
+	// Namespace Imports
+	. "github.com/djthorpe/go-errors"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-// PoolCache caches prepared statements and profiling information for
-// statements so it's possible to see slow queries, etc.
-type PoolCache struct{}
-
 type ConnCache struct {
 	sync.Mutex
 	sync.Map
+	cap int // Capacity of the cache, defaults to 100 prepared statements
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,13 +30,17 @@ const (
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+func (cache *ConnCache) SetCap(cap int) {
+	cache.cap = intMax(0, cap)
+}
+
 // Return a prepared statement from the cache, or prepare a new statement
 // and put it in the cache before returning
 func (cache *ConnCache) Prepare(conn *sqlite3.ConnEx, q string) (*Results, error) {
 	if conn == nil {
 		return nil, ErrInternalAppError
 	}
-	st, _ := cache.Map.Load(q)
+	st := cache.load(q)
 	if st == nil {
 		// Prepare a statement and store in cache
 		var err error
@@ -48,11 +51,8 @@ func (cache *ConnCache) Prepare(conn *sqlite3.ConnEx, q string) (*Results, error
 		} else {
 			cache.Map.Store(q, st)
 		}
-	} else {
-		// Increment counter by one
-		st.(*sqlite3.StatementEx).Inc(1)
 	}
-	return NewResults(st.(*sqlite3.StatementEx)), nil
+	return NewResults(st), nil
 }
 
 // Close all conn cache prepared statements
@@ -67,4 +67,23 @@ func (cache *ConnCache) Close() error {
 
 	// Return any errors
 	return result
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+func (cache *ConnCache) load(key string) *sqlite3.StatementEx {
+	// If cache is switched off, then return nil
+	if cache.cap == 0 {
+		return nil
+	}
+	// Load statement from cache and return
+	st, _ := cache.Map.Load(key)
+	if st, ok := st.(*sqlite3.StatementEx); !ok {
+		return nil
+	} else {
+		// Increment counter by one
+		st.Inc(1)
+		return st
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 )
@@ -18,6 +19,7 @@ type StatementEx struct {
 	sync.Mutex
 	st []*Statement
 	n  uint32
+	ts int64
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -37,6 +39,9 @@ func (c *ConnEx) Prepare(q string) (*StatementEx, error) {
 		s.st = append(s.st, st)
 		q = strings.TrimSpace(extra)
 	}
+
+	// Set "last used" timestamp
+	s.ts = time.Now().UnixNano()
 
 	// Report on missing close
 	_, file, line, _ := runtime.Caller(1)
@@ -65,6 +70,7 @@ func (s *StatementEx) Close() error {
 
 	// Release resources
 	s.st = nil
+	s.ts = 0
 
 	// Return any errors
 	return result
@@ -102,15 +108,20 @@ func (s *StatementEx) Exec(n uint, v ...interface{}) (*Results, error) {
 	}
 }
 
-// Increment adds n to the statement counter and returns the previous value
-// so the first call to Inc returns 0 and so forth
-func (s *StatementEx) Inc(n uint32) uint32 {
-	return atomic.AddUint32(&s.n, n) - n
+// Increment adds n to the statement counter and updates the timestamp
+func (s *StatementEx) Inc(n uint32) {
+	atomic.StoreInt64(&s.ts, time.Now().UnixNano())
+	atomic.AddUint32(&s.n, n)
 }
 
 // Returns current count. Used to count the frequency of calls for caching purposes.
 func (s *StatementEx) Count() uint32 {
 	return atomic.LoadUint32(&s.n)
+}
+
+// Returns last accessed timestamp for caching purposes as an int64
+func (s *StatementEx) Timestamp() int64 {
+	return atomic.LoadInt64(&s.ts)
 }
 
 ///////////////////////////////////////////////////////////////////////////////

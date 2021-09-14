@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"reflect"
 	"strings"
 )
 
@@ -94,7 +95,9 @@ type SQTransaction interface {
 // SQResults increments over returned rows from a query
 type SQResults interface {
 	// Return next row, returns nil when all rows consumed
-	//Next() []interface{}
+	// if types are provided, then returned row is cast to
+	// appopriate types
+	Next(...reflect.Type) ([]interface{}, error)
 
 	// Return next map of values, or nil if no more rows
 	//NextMap() map[string]interface{}
@@ -102,11 +105,14 @@ type SQResults interface {
 	// NextQuery executes the next query or returns io.EOF
 	NextQuery(...interface{}) error
 
+	// Return the SQL for the last statement
+	ExpandedSQL() string
+
 	// Return Last RowID inserted of last statement
-	//LastInsertId() int64
+	LastInsertId() int64
 
 	// Return number of changes made of last statement
-	//RowsAffected() int64
+	RowsAffected() int
 }
 
 // SQAuth is an interface for authenticating an action

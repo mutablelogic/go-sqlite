@@ -57,7 +57,7 @@ var (
 		Trace:   false,
 		Create:  true,
 		Schemas: map[string]string{defaultSchema: defaultMemory},
-		Flags:   sqlite3.SQLITE_OPEN_CREATE | sqlite3.SQLITE_OPEN_READWRITE | sqlite3.SQLITE_OPEN_SHAREDCACHE,
+		Flags:   sqlite3.SQLITE_OPEN_CREATE | sqlite3.SQLITE_OPEN_SHAREDCACHE | sqlite3.SQLITE_OPEN_CONNCACHE,
 	}
 )
 

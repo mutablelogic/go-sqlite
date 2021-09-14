@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 
 	// Packages
 	sqlite3 "github.com/djthorpe/go-sqlite/sys/sqlite3"
@@ -56,8 +57,42 @@ func (r *Results) NextQuery(v ...interface{}) error {
 	} else {
 		r.results = results
 		r.n++
-		// TODO: Set LastInsertId, Changes, Columns, etc.
-		fmt.Println(r.results)
+		// TODO: Set Columns, etc.
 		return nil
+	}
+}
+
+// Return a row from the results, or return io.EOF if all results have been consumed
+func (r *Results) Next(t ...reflect.Type) ([]interface{}, error) {
+	if r.results == nil {
+		return nil, io.EOF
+	} else {
+		return r.results.Next(t...)
+	}
+}
+
+func (r *Results) ExpandedSQL() string {
+	if r.results == nil {
+		return ""
+	} else {
+		return r.results.ExpandedSQL()
+	}
+}
+
+// Return LastInsertId by last execute or -1 if no valid results
+func (r *Results) LastInsertId() int64 {
+	if r.results == nil {
+		return -1
+	} else {
+		return r.results.LastInsertId()
+	}
+}
+
+// Return RowsAffected by last execute or -1 if no valid results
+func (r *Results) RowsAffected() int {
+	if r.results == nil {
+		return -1
+	} else {
+		return r.results.RowsAffected()
 	}
 }

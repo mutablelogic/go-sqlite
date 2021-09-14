@@ -44,3 +44,11 @@ func stringToBool(v string) bool {
 		return false
 	}
 }
+
+// intMax returns the maximum of two ints
+func intMax(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}

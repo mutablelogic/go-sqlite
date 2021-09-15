@@ -1,2 +1,8 @@
 
 @import url('@djthorpe/js-framework/dist/index.css');
+
+/* For any action, use a pointer */
+.action,.schema {
+    cursor: pointer;
+}
+

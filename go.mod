@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/djthorpe/go-errors v1.0.2
 	github.com/djthorpe/go-marshaler v0.0.15
-	github.com/djthorpe/go-server v1.0.10
+	github.com/djthorpe/go-server v1.0.12
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/mattn/go-sqlite3 v1.14.8
 	github.com/rjeczalik/notify v0.9.2

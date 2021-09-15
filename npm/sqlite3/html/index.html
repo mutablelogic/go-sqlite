@@ -10,22 +10,12 @@
     <link rel="stylesheet" href="/index.css" media="all">
     <script src="/index.js"></script>
 </head>
+
 <body>
     <!-- NAVIGATION -->
     <nav class="navbar sticky-top navbar navbar-dark navbar-expand-md bg-primary border-bottom border-white" id="nav">
         <div class="container-fluid">
             <a class="navbar-brand" href="/"><strong>sqlite</strong></a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar-items"
-                aria-expanded="false">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbar-items">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item">
-                        <a class="nav-link" href="#">Home</a>
-                    </li>
-                </ul>
-            </div>
         </div>
     </nav>
     <!-- TOAST -->
@@ -38,6 +28,66 @@
             </div>
             <div class="toast-body _reason"></div>
         </div>
-    </div>    
+    </div>
+    <!-- LEFT/RIGHT NAVIGATION -->
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-10 mt-1" id="schema">
+                <!-- BODY CONTENT (SchemaView) -->
+                <div class="_title bg-light rounded p-2 mb-2">
+                    <h1 class="_name">[schema]</h1>
+                    <small class="_filename">[filename]</small> 
+                </div>
+                <ul class="nav nav-tabs" id="schema-table-list">
+                    <li class="nav-item _template">
+                      <a class="nav-link _name" aria-current="page" href="#">[table]</a>
+                    </li>
+               </ul>
+            </div>
+            <div class="col-md-2 d-md-block d-none bg-light border-start" id="database">
+                <!-- BODY CONTENT (DatabaseView) -->
+                <h5 class="_version pt-1"></h5>
+                <button class="btn btn-primary btn-sm m-1 action action-modules">List Modules</button>
+                <button class="btn btn-primary btn-sm m-1 action">Import</button>
+                <table class="table table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th>Database</th>
+                        </tr>
+                    </thead>
+                    <tbody id="database-schemas">
+                        <tr class="_template">
+                            <td class="schema">[schema]</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <!-- MODULE MODAL -->
+                <div class="modal" id="database-modules" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Modules</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"
+                                    aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form>
+                                    <table class="table table-sm">
+                                        <tbody id="database-modules-list">
+                                            <tr class="_template"><td class="module">[Module]</td></tr>
+                                        </tbody>
+                                    </table>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
+
 </html>

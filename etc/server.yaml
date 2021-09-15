@@ -3,7 +3,7 @@ plugins:
   - build/httpserver.plugin
   - build/log.plugin
   - build/sqlite3.plugin
-#  - build/static.plugin
+  - build/static.plugin
 
 # HTTP Server parameters
 httpserver:
@@ -18,11 +18,11 @@ handlers:
     # Requests are logged
     middleware:
       - log
-#  static:
-#    prefix: /api/static
-    
-#static:
-#  "/": npm/sqlite3/dist
+  static:
+    prefix: /api/static
+   
+static:
+  "/": npm/sqlite3/dist
 
 sqlite3:
   # Databases to load and/or create. Only the 'main' database is required.

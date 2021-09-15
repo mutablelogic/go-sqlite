@@ -97,7 +97,7 @@ var (
 	reRoutePing      = regexp.MustCompile(`^/?$`)
 	reRouteSchema    = regexp.MustCompile(`^/([a-zA-Z][a-zA-Z0-9_-]+)/?$`)
 	reRouteTable     = regexp.MustCompile(`^/([a-zA-Z][a-zA-Z0-9_-]+)/([^/]+)/?$`)
-	reRouteTokenizer = regexp.MustCompile(`^/-/tokenize/?$`)
+	reRouteTokenizer = regexp.MustCompile(`^/-/tokenizer/?$`)
 	reRouteQuery     = regexp.MustCompile(`^/-/q/?$`)
 )
 

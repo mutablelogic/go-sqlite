@@ -8,8 +8,8 @@ github.com/djthorpe/go-errors v1.0.2/go.mod h1:HtfrZnMd6HsX75Mtbv9Qcnn0BqOrrFArv
 github.com/djthorpe/go-marshaler v0.0.4/go.mod h1:xCXhTzj52UL3YStRsqUSfrKses7ofmfTXYQfVedn8Lw=
 github.com/djthorpe/go-marshaler v0.0.15 h1:ZXq5YHCsbREbbYJtc0ie9hz7HJ7vIeeDlMbe7cGh0C0=
 github.com/djthorpe/go-marshaler v0.0.15/go.mod h1:xCXhTzj52UL3YStRsqUSfrKses7ofmfTXYQfVedn8Lw=
-github.com/djthorpe/go-server v1.0.10 h1:9XSNwkP7Y7GnSWKmJgoKhB+47G+YkYoYAtGJrSgsy6E=
-github.com/djthorpe/go-server v1.0.10/go.mod h1:UiBRW6dbmRCVDUfzT5IZ0CCdnGChL3RpTTLjcmPICWI=
+github.com/djthorpe/go-server v1.0.12 h1:jhGpyG+qukXndAdgQgpzIdxMXg3gR2pXsPnmXmwbtFk=
+github.com/djthorpe/go-server v1.0.12/go.mod h1:UiBRW6dbmRCVDUfzT5IZ0CCdnGChL3RpTTLjcmPICWI=
 github.com/djthorpe/go-sqlite v1.0.28/go.mod h1:TiGX+dIFea54xxIBVmFemTI/8KUjVUlEoDN2A5HKaMs=
 github.com/go-asn1-ber/asn1-ber v1.5.1/go.mod h1:hEBeB/ic+5LoWskz+yKT7vGhhPYkProFKoKdwZRWMe0=
 github.com/go-ldap/ldap/v3 v3.4.1/go.mod h1:iYS1MdmrmceOJ1QOTnRXrIs7i3kloqtmGQjRvjKpyMg=

@@ -6,22 +6,38 @@ import (
 
 	// Namespace Imports
 	. "github.com/djthorpe/go-sqlite"
+	"github.com/hashicorp/go-multierror"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// Return a new decoder for the given mimetype
+// Return a new decoder for the given mimetype, or guess the mimetype when
+// opening the file
 func (this *Importer) Decoder(mimetype string) (SQImportDecoder, error) {
-	// Parse mediatype
-	mediatype, params, err := mime.ParseMediaType(mimetype)
+	// Open the data source
+	r, guessedmimetype, err := open(this.url)
 	if err != nil {
+		return nil, err
+	} else if mimetype != "" {
+		guessedmimetype = mimetype
+	}
+
+	// Parse mediatype
+	mediatype, params, err := mime.ParseMediaType(guessedmimetype)
+	if err != nil {
+		if err_ := r.Close(); err != nil {
+			err = multierror.Append(err, err_)
+		}
 		return nil, err
 	}
 
 	// Set charset
-	r, err := charsetReader(this.r, params["charset"])
+	cr, err := charsetReader(r, params["charset"])
 	if err != nil {
+		if err_ := r.Close(); err != nil {
+			err = multierror.Append(err, err_)
+		}
 		return nil, err
 	}
 
@@ -29,13 +45,13 @@ func (this *Importer) Decoder(mimetype string) (SQImportDecoder, error) {
 	// parameters
 	switch {
 	case mediatype == "text/csv":
-		return this.NewCSVDecoder(r, ',')
+		return this.NewCSVDecoder(r, cr, ',')
 	case mediatype == "text/tsv":
-		return this.NewCSVDecoder(r, '\t')
+		return this.NewCSVDecoder(r, cr, '\t')
 	case mediatype == "text/plain" && this.c.Ext == ".csv":
-		return this.NewCSVDecoder(r, ',')
+		return this.NewCSVDecoder(r, cr, ',')
 	case mediatype == "text/plain" && this.c.Ext == ".tsv":
-		return this.NewCSVDecoder(r, '\t')
+		return this.NewCSVDecoder(r, cr, '\t')
 	default:
 		return nil, fmt.Errorf("unsupported media type: %q (file extension %q)", mediatype, this.c.Ext)
 	}

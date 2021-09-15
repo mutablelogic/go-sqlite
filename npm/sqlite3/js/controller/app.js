@@ -17,6 +17,7 @@ const API_STATIC_PREFIX = '/api/static';
 const API_SQLITE_PREFIX = '/api/sqlite';
 const API_SQLITE_DELTA = 30 * 1000;
 const API_STATIC_DELTA = 30 * 1000;
+const DEFAULT_SCHEMA = 'main';
 
 export default class App extends Controller {
   constructor() {
@@ -49,17 +50,19 @@ export default class App extends Controller {
     const schemaNode = document.querySelector('#schema');
     super.define('schemaview', new SchemaView(schemaNode));
     this.schemaview.addEventListener(['schema:change'], () => {
-      // TODO: Set active as the first node
       console.log('schema:change');
+
+      // Set active table to the first table in the schema
     });
     this.schemaview.addEventListener(['schema:click'], (sender, target) => {
+      console.log(`schema:click ${target}`);
+
       // Set active
       this.schemaview.active = target;
+
       // Load the table data
-      console.log(`schema:click ${target}`);
       this.tabledata.do(`/${target.schema}/${target.name}`);
     });
-
 
     // PROVIDERS
     super.define('static', new Provider(Endpoint, API_STATIC_PREFIX));
@@ -80,8 +83,17 @@ export default class App extends Controller {
       this.sqlite.addEventListener('provider:error', (sender, error) => {
         this.toast.show(error);
       });
-      this.sqlite.addEventListener(['provider:added', 'provider:changed'], (sender, database) => {
-        console.log(`sqlite added or changed: ${database}`);
+      this.sqlite.addEventListener(['provider:added'], (sender, database) => {
+        console.log(`sqlite added: ${database}`);
+
+        // Set the database view
+        this.databaseview.database = database;
+
+        // Load the 'main' schema
+        this.schema.request(`/${DEFAULT_SCHEMA}`, null, API_SQLITE_DELTA);
+      });
+      this.sqlite.addEventListener(['provider:changed'], (sender, database) => {
+        console.log(`sqlite changed: ${database}`);
         this.databaseview.database = database;
       });
       this.sqlite.addEventListener('provider:deleted', (sender, database) => {

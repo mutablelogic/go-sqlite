@@ -6,7 +6,6 @@ import (
 	"io"
 
 	// Namespace Imports
-	. "github.com/djthorpe/go-errors"
 	. "github.com/djthorpe/go-sqlite"
 )
 
@@ -14,18 +13,18 @@ import (
 // TYPES
 
 type csvdecoder struct {
-	r            *csv.Reader
-	header       bool
-	name, schema string
-	cols         []string
+	c      io.Closer
+	r      *csv.Reader
+	header bool
+	cols   []string
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // NewCSVDecoder returns a CSV decoder setting options
-func (this *Importer) NewCSVDecoder(r io.Reader, delimiter rune) (SQImportDecoder, error) {
-	decoder := &csvdecoder{csv.NewReader(r), this.c.Header, this.c.Name, this.c.Schema, nil}
+func (this *Importer) NewCSVDecoder(c io.Closer, r io.Reader, delimiter rune) (SQImportDecoder, error) {
+	decoder := &csvdecoder{c, csv.NewReader(r), this.c.Header, nil}
 
 	// Set delimiter
 	if this.c.Delimiter != 0 {
@@ -46,17 +45,27 @@ func (this *Importer) NewCSVDecoder(r io.Reader, delimiter rune) (SQImportDecode
 	return decoder, nil
 }
 
-// Read reads a CSV record, and returns io.EOF on end of reading
-func (this *csvdecoder) Read(w SQWriter) error {
-	// Check arguments
-	if w == nil {
-		return ErrBadParameter.With("SQLWriter")
-	}
+func (dec *csvdecoder) Close() error {
+	return dec.c.Close()
+}
 
+///////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (dec *csvdecoder) String() string {
+	return fmt.Sprintf("<text/csv delimiter=%q>", dec.r.Comma)
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// METHODS
+
+// Read reads a CSV record, and returns io.EOF on end of reading.
+// May return nil for values to skip a write.
+func (this *csvdecoder) Read() (map[string]interface{}, error) {
 	// Read a row
 	row, err := this.r.Read()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Initialize the reader
@@ -70,7 +79,7 @@ func (this *csvdecoder) Read(w SQWriter) error {
 			}
 		}
 		if this.header {
-			return nil
+			return nil, nil
 		}
 	}
 
@@ -79,8 +88,8 @@ func (this *csvdecoder) Read(w SQWriter) error {
 		this.cols = append(this.cols, this.makeCol(len(this.cols)))
 	}
 
-	// Write the row
-	return w.Write(this.name, this.schema, this.cols[:len(row)], csvRow(row))
+	// Zip and return
+	return zip(this.cols[:len(row)], row), nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,11 +100,14 @@ func (this *csvdecoder) makeCol(i int) string {
 	return fmt.Sprintf("col_%02d", i)
 }
 
-// Return row as []interface{} from []string
-func csvRow(v []string) []interface{} {
-	result := make([]interface{}, len(v))
-	for i, s := range v {
-		result[i] = s
+// Return row as map[string]interface{}
+func zip(k, v []string) map[string]interface{} {
+	if len(k) != len(v) {
+		return nil
+	}
+	result := make(map[string]interface{}, len(v))
+	for i, v := range v {
+		result[k[i]] = v
 	}
 	return result
 }

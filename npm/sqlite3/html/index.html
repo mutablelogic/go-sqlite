@@ -36,17 +36,40 @@
                 <!-- BODY CONTENT (SchemaView) -->
                 <div class="_title bg-light rounded p-2 mb-2">
                     <h1 class="_name">[schema]</h1>
-                    <small class="_filename">[filename]</small> 
+                    <small class="_filename">[filename]</small>
                 </div>
                 <ul class="nav nav-tabs" id="schema-table-list">
                     <li class="nav-item _template">
-                      <a class="nav-link _name" aria-current="page" href="#">[table]</a>
+                        <a class="nav-link _name" aria-current="page" href="#">[table]</a>
                     </li>
-               </ul>
+                </ul>
+                <!-- TABLE CONTENT (TableView) -->
+                <div class="m-2">
+                    <table class="table table-hover table-sm table-striped" id="schema-table-data">
+                        <thead>
+                            <tr>
+                                <th>[col]</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>[row]</td>
+                            </tr>
+                            <tr>
+                                <td>[row]</td>
+                            </tr>
+                            <tr>
+                                <td>[row]</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
             <div class="col-md-2 d-md-block d-none bg-light border-start" id="database">
                 <!-- BODY CONTENT (DatabaseView) -->
                 <h5 class="_version pt-1"></h5>
+                <span class="badge bg-secondary badge-sm _pool">[pool]</span>
+                <hr>
                 <button class="btn btn-primary btn-sm m-1 action action-modules">List Modules</button>
                 <button class="btn btn-primary btn-sm m-1 action">Import</button>
                 <table class="table table-hover table-sm">
@@ -74,7 +97,9 @@
                                 <form>
                                     <table class="table table-sm">
                                         <tbody id="database-modules-list">
-                                            <tr class="_template"><td class="module">[Module]</td></tr>
+                                            <tr class="_template">
+                                                <td class="module">[Module]</td>
+                                            </tr>
                                         </tbody>
                                     </table>
                                 </form>

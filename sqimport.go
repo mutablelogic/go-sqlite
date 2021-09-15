@@ -1,6 +1,9 @@
 package sqlite
 
-import "net/url"
+import (
+	"io"
+	"net/url"
+)
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
@@ -43,7 +46,7 @@ type SQImporter interface {
 	// ReadWrite will read from the source, and write to destination. This function
 	// should be called multiple times until io.EOF is returned, indicating that
 	// no more data is available.
-	ReadWrite(SQImportDecoder, SQImportWriter) error
+	ReadWrite(SQImportDecoder, SQImportWriterFunc) error
 
 	// Return the URL of the source
 	URL() *url.URL
@@ -51,26 +54,28 @@ type SQImporter interface {
 	// Return the Table name for the destination
 	Name() string
 
-	// Return a decoder for a mimetype or file extension (when starts with a .)
+	// Return a decoder for a reader, mimetype or file extension (when starts with a .)
 	// Will return nil if no decoder is available. The mimetype can include
-	// the character set (e.g. text/csv;charset=utf-8)
-	Decoder(string) (SQImportDecoder, error)
+	// the character set (e.g. text/csv; charset=utf-8)
+	Decoder(io.Reader, string) (SQImportDecoder, error)
 }
 
-// SQWriterFunc callback invoked for each array of columns and values from decoder
-type SQImportWriterFunc func([]string, []interface{}) error
+// SQWriterFunc callback invoked for each row
+type SQImportWriterFunc func(map[string]interface{}) error
 
 // SQImportWriter is an interface for writing decoded rows to a destination
 type SQImportWriter interface {
 	// Begin the writer process for a destination and return a writer callback
-	Begin(name, schema string) (SQImportWriterFunc, error)
+	Begin(name, schema string, cols []string) (SQImportWriterFunc, error)
 
 	// End the transaction with success (true) or failure (false). On failure, rollback
 	End(bool) error
 }
 
 type SQImportDecoder interface {
+	io.Closer
+
 	// Read from the source, return column names and values. May
 	// return nil to skip a write. Returns io.EOF when no more data is available.
-	Read() ([]string, []interface{}, error)
+	Read() (map[string]interface{}, error)
 }

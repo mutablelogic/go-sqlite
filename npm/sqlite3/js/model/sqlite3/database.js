@@ -1,4 +1,5 @@
 import { Model } from '@djthorpe/js-framework';
+import { Pool } from './pool';
 
 export default class Database extends Model {
   static define() {
@@ -6,6 +7,7 @@ export default class Database extends Model {
       version: 'string',
       modules: '[]string',
       schemas: '[]string',
+      pool: 'Pool',
     }, 'Database');
   }
 }

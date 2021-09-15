@@ -3,7 +3,7 @@ import { Model } from '@djthorpe/js-framework';
 export default class Row extends Model {
   constructor(data) {
     super({});
-    console.log(data);
+    this.$data = data;
   }
 
   static define() {

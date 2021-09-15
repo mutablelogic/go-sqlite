@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -32,14 +31,15 @@ var (
 func main() {
 	flag.Parse()
 
+	// Name of tool, logger
+	name := filepath.Base(flag.CommandLine.Name())
+	log := logger(name + " ")
+
 	// Check number of arguments
 	if flag.NArg() < 2 {
-		fmt.Fprintln(os.Stderr, "Usage: importer <sqlite-database> <url>...")
+		fmt.Fprintf(os.Stderr, "Usage: %v <sqlite-database> <url>...\n", name)
 		os.Exit(1)
 	}
-
-	// Create log
-	log := logger(filepath.Base(flag.CommandLine.Name()) + " ")
 
 	// Open database
 	db, err := sqlite3.OpenPathEx(flag.Arg(0), sqlite3.SQLITE_OPEN_CREATE, "")
@@ -49,7 +49,8 @@ func main() {
 	}
 	defer db.Close()
 
-	log.Println("database:", db.Filename())
+	// Report on the database
+	log.Println("database:", db.Filename(sqlite3.DefaultSchema))
 
 	// Create a configuration
 	config := SQImportConfig{
@@ -74,34 +75,52 @@ func main() {
 	// Read files
 	for _, url := range flag.Args()[1:] {
 		// Create an importer
-		importer, err := importer.NewImporter(config, url, writer)
+		importer, err := importer.NewImporter(config, url)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, importer.URL(), ": ", err)
 			continue
 		}
 
+		// Create the decoder
+		decoder, err := importer.Decoder("")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, importer.URL(), ": ", err)
+			continue
+		}
+		defer decoder.Close()
+
 		// Reset the counter
-		log.Println("import:", importer.URL())
-		mark, start := time.Now(), time.Now()
+		log.Println(" import:", importer.URL())
+		log.Println("     ...decoder", decoder)
+
+		// Call Begin for writer to get writing function
+		fn, err := writer.Begin(importer.Name(), sqlite3.DefaultSchema, []string{"continent"})
+		if err != nil {
+			fmt.Fprintln(os.Stderr, importer.URL(), ": ", err)
+			continue
+		}
 
 		// Read and write rows
+		start, mark := time.Now(), time.Now()
 		for {
-			if err := importer.ReadWrite(); err == io.EOF {
+			if err := importer.ReadWrite(decoder, fn); err == io.EOF {
+				writer.End(true) // commit
 				break
 			} else if err != nil {
+				writer.End(false) // rollback
 				fmt.Fprintln(os.Stderr, importer.URL(), ": ", err)
 				break
 			}
 			if time.Since(mark) > 5*time.Second {
-				log.Printf("     ...written %d rows", writer.Count())
+				log.Printf("     ...written %d rows", 0)
 				mark = time.Now()
 			}
 		}
 
 		// Report
 		since := time.Since(start)
-		ops_per_sec := math.Round(float64(writer.Count()) * 1000 / float64(since.Milliseconds()))
-		log.Printf("     ...written %d rows in %v (%.0f ops/s)", writer.Count(), since.Truncate(time.Millisecond), ops_per_sec)
+		//ops_per_sec := math.Round(float64(writer.Count()) * 1000 / float64(since.Milliseconds()))
+		log.Printf("     ...written %d rows in %v (%.0f ops/s)", 0, since.Truncate(time.Millisecond), 0)
 	}
 }
 

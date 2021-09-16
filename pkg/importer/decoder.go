@@ -1,4 +1,4 @@
-package sqimport
+package importer
 
 import (
 	"fmt"
@@ -44,6 +44,16 @@ func (this *Importer) Decoder(mimetype string) (SQImportDecoder, error) {
 	// Set decoder based on mediatype and other possible
 	// parameters
 	switch {
+	case mediatype == "application/vnd.ms-excel":
+		return this.NewXLSDecoder(r)
+	case mediatype == "application/excel":
+		return this.NewXLSDecoder(r)
+	case mediatype == "application/x-excel":
+		return this.NewXLSDecoder(r)
+	case mediatype == "application/x-msexcel":
+		return this.NewXLSDecoder(r)
+	case mediatype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+		return this.NewXLSDecoder(r)
 	case mediatype == "text/csv":
 		return this.NewCSVDecoder(r, cr, ',')
 	case mediatype == "text/tsv":

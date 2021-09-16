@@ -1,21 +1,25 @@
-package sqimport
+package importer
 
 import (
+	"errors"
+	"io"
 	"net/url"
 	"path/filepath"
 	"strings"
 
 	// Namespace Imports
 	. "github.com/djthorpe/go-sqlite"
+	"github.com/hashicorp/go-multierror"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type Importer struct {
-	c        SQImportConfig
-	url      *url.URL
-	mimetype string
+	c   SQImportConfig
+	w   SQImportWriter
+	fn  SQImportWriterFunc
+	url *url.URL
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -33,14 +37,15 @@ var (
 // LIFECYCLE
 
 // Create an importer with default configuation
-func DefaultImporter(url string) (*Importer, error) {
-	return NewImporter(DefaultConfig, url)
+func DefaultImporter(url string, w SQImportWriter) (*Importer, error) {
+	return NewImporter(DefaultConfig, url, w)
 }
 
 // Create a new importer with a database writer
-func NewImporter(c SQImportConfig, u string) (*Importer, error) {
+func NewImporter(c SQImportConfig, u string, w SQImportWriter) (*Importer, error) {
 	this := &Importer{
 		c: c,
+		w: w,
 	}
 
 	// Set the URL source
@@ -74,23 +79,48 @@ func NewImporter(c SQImportConfig, u string) (*Importer, error) {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func (this *Importer) URL() *url.URL {
-	return this.url
+func (i *Importer) URL() *url.URL {
+	return i.url
 }
 
-func (this *Importer) Name() string {
-	return this.c.Name
+func (i *Importer) Name() string {
+	return i.c.Name
 }
 
 // Read a row from the source data and potentially insert into the table. On end
 // of data, returns io.EOF.
-func (this *Importer) ReadWrite(dec SQImportDecoder, fn SQImportWriterFunc) error {
-	row, err := dec.Read()
+func (i *Importer) ReadWrite(dec SQImportDecoder) error {
+	var result error
+
+	// Read next row, end transaction if at EOF or other error
+	cols, values, err := dec.Read()
 	if err != nil {
-		return err
-	} else if row != nil {
-		return fn(row)
-	} else {
+		result = multierror.Append(result, err)
+		if err := i.w.End(errors.Is(err, io.EOF)); err != nil {
+			result = multierror.Append(result, err)
+		}
+	} else if cols == nil || values == nil {
 		return nil
 	}
+
+	// Begin transaction, get function
+	if result == nil {
+		if i.fn == nil {
+			if fn, err := i.w.Begin(i.c.Name, i.c.Schema, cols); err != nil {
+				result = multierror.Append(result, err)
+			} else {
+				i.fn = fn
+			}
+		}
+	}
+
+	// Write row
+	if result == nil && i.fn != nil {
+		if err := i.fn(values); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+
+	// Return any errors
+	return result
 }

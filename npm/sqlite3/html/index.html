@@ -8,7 +8,7 @@
     <meta name="description" content="sqlite api">
     <link rel="icon" href="/assets/favicon/favicon.ico">
     <link rel="stylesheet" href="/index.css" media="all">
-    <script src="/index.js"></script>
+    <script src="/index.js" defer></script>
 </head>
 
 <body>
@@ -30,11 +30,11 @@
         </div>
     </div>
     <!-- LEFT/RIGHT NAVIGATION -->
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-md-10 mt-1" id="schema">
+    <div class="container-fluid p-0">
+        <div class="row m-0">
+            <div class="col-md-10 p-0" id="schema">
                 <!-- BODY CONTENT (SchemaView) -->
-                <div class="_title bg-light rounded p-2 mb-2">
+                <div class="_title bg-light border-bottom p-2">
                     <h1 class="_name">[schema]</h1>
                     <small class="_filename">[filename]</small>
                 </div>
@@ -45,24 +45,7 @@
                 </ul>
                 <!-- TABLE CONTENT (TableView) -->
                 <div class="m-2">
-                    <table class="table table-hover table-sm table-striped" id="schema-table-data">
-                        <thead>
-                            <tr>
-                                <th>[col]</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>[row]</td>
-                            </tr>
-                            <tr>
-                                <td>[row]</td>
-                            </tr>
-                            <tr>
-                                <td>[row]</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <table-view id="results" data-class="table-hover table-sm table-striped" data-columns="Col A, Col B, Col D" data-rows="4"></table-view>
                 </div>
             </div>
             <div class="col-md-2 d-md-block d-none bg-light border-start" id="database">

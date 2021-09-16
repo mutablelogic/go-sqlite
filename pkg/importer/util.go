@@ -1,4 +1,4 @@
-package sqimport
+package importer
 
 import (
 	"errors"

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"C"
 	"flag"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"unsafe"
 
 	// Modules
 	importer "github.com/djthorpe/go-sqlite/pkg/importer"
@@ -15,6 +17,10 @@ import (
 
 	// Namespace Imports
 	. "github.com/djthorpe/go-sqlite"
+)
+import (
+	"errors"
+	"math"
 )
 
 var (
@@ -49,6 +55,8 @@ func main() {
 	}
 	defer db.Close()
 
+	db.SetTraceHook(trace, sqlite3.SQLITE_TRACE_PROFILE)
+
 	// Report on the database
 	log.Println("database:", db.Filename(sqlite3.DefaultSchema))
 
@@ -75,52 +83,44 @@ func main() {
 	// Read files
 	for _, url := range flag.Args()[1:] {
 		// Create an importer
-		importer, err := importer.NewImporter(config, url)
+		importer, err := importer.NewImporter(config, url, writer)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, importer.URL(), ": ", err)
 			continue
 		}
 
-		// Create the decoder
+		// Create the decoder, guess mimetype instead of supplying it
 		decoder, err := importer.Decoder("")
 		if err != nil {
 			fmt.Fprintln(os.Stderr, importer.URL(), ": ", err)
 			continue
 		}
-		defer decoder.Close()
 
 		// Reset the counter
 		log.Println(" import:", importer.URL())
 		log.Println("     ...decoder", decoder)
 
-		// Call Begin for writer to get writing function
-		fn, err := writer.Begin(importer.Name(), sqlite3.DefaultSchema, []string{"continent"})
-		if err != nil {
-			fmt.Fprintln(os.Stderr, importer.URL(), ": ", err)
-			continue
-		}
-
 		// Read and write rows
 		start, mark := time.Now(), time.Now()
 		for {
-			if err := importer.ReadWrite(decoder, fn); err == io.EOF {
-				writer.End(true) // commit
+			if err := importer.ReadWrite(decoder); err == io.EOF {
+				break
+			} else if errors.Is(err, io.EOF) {
 				break
 			} else if err != nil {
-				writer.End(false) // rollback
 				fmt.Fprintln(os.Stderr, importer.URL(), ": ", err)
 				break
 			}
 			if time.Since(mark) > 5*time.Second {
-				log.Printf("     ...written %d rows", 0)
+				log.Printf("     ...written %d rows", writer.Count())
 				mark = time.Now()
 			}
 		}
 
 		// Report
 		since := time.Since(start)
-		//ops_per_sec := math.Round(float64(writer.Count()) * 1000 / float64(since.Milliseconds()))
-		log.Printf("     ...written %d rows in %v (%.0f ops/s)", 0, since.Truncate(time.Millisecond), 0)
+		ops_per_sec := math.Round(float64(writer.Count()) * 1000 / float64(since.Milliseconds()))
+		log.Printf("     ...written %d rows in %v (%.0f ops/s)", writer.Count(), since.Truncate(time.Millisecond), ops_per_sec)
 	}
 }
 
@@ -130,4 +130,18 @@ func logger(name string) *log.Logger {
 	} else {
 		return log.New(os.Stderr, name, 0)
 	}
+}
+func trace(t sqlite3.TraceType, a, b unsafe.Pointer) int {
+	switch t {
+	case sqlite3.SQLITE_TRACE_STMT:
+		fmt.Println("STMT => ", (*sqlite3.Statement)(a), C.GoString((*C.char)(b)))
+	case sqlite3.SQLITE_TRACE_PROFILE:
+		ms := time.Duration(time.Duration(*(*int64)(b)) * time.Nanosecond)
+		fmt.Println("PROF => ", (*sqlite3.Statement)(a), ms)
+	case sqlite3.SQLITE_TRACE_ROW:
+		fmt.Println("ROW  => ", (*sqlite3.Statement)(a))
+	case sqlite3.SQLITE_TRACE_CLOSE:
+		fmt.Println("CLSE => ", (*sqlite3.Conn)(a))
+	}
+	return 0
 }

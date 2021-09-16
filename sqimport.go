@@ -46,7 +46,7 @@ type SQImporter interface {
 	// ReadWrite will read from the source, and write to destination. This function
 	// should be called multiple times until io.EOF is returned, indicating that
 	// no more data is available.
-	ReadWrite(SQImportDecoder, SQImportWriterFunc) error
+	ReadWrite(SQImportDecoder) error
 
 	// Return the URL of the source
 	URL() *url.URL
@@ -60,22 +60,9 @@ type SQImporter interface {
 	Decoder(io.Reader, string) (SQImportDecoder, error)
 }
 
-// SQWriterFunc callback invoked for each row
-type SQImportWriterFunc func(map[string]interface{}) error
-
-// SQImportWriter is an interface for writing decoded rows to a destination
-type SQImportWriter interface {
-	// Begin the writer process for a destination and return a writer callback
-	Begin(name, schema string, cols []string) (SQImportWriterFunc, error)
-
-	// End the transaction with success (true) or failure (false). On failure, rollback
-	End(bool) error
-}
-
 type SQImportDecoder interface {
-	io.Closer
-
 	// Read from the source, return column names and values. May
-	// return nil to skip a write. Returns io.EOF when no more data is available.
-	Read() (map[string]interface{}, error)
+	// return nil values to skip a write. Returns io.EOF when no
+	// more data is available.
+	Read() ([]string, []interface{}, error)
 }

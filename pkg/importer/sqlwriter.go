@@ -1,9 +1,7 @@
-package sqimport
+package importer
 
 import (
 	// Modules
-
-	"fmt"
 
 	sqlite3 "github.com/djthorpe/go-sqlite/sys/sqlite3"
 	multierror "github.com/hashicorp/go-multierror"
@@ -33,41 +31,46 @@ func NewSQLWriter(c SQImportConfig, db *sqlite3.ConnEx) (*SQLWriter, error) {
 // PUBLIC METHODS
 
 // Begin a transaction, passing a writing function back to the caller
-func (this *SQLWriter) Begin(name, schema string, cols []string) (SQImportWriterFunc, error) {
+func (w *SQLWriter) Begin(name, schema string, cols []string) (SQImportWriterFunc, error) {
 	// Start transaction
-	if err := this.ConnEx.Begin(sqlite3.SQLITE_TXN_DEFAULT); err != nil {
+	if err := w.ConnEx.Begin(sqlite3.SQLITE_TXN_DEFAULT); err != nil {
 		return nil, err
 	}
 
+	// Set schema
+	if schema == "" {
+		schema = sqlite3.DefaultSchema
+	}
+
 	// Drop table if overwrite is enabled
-	if this.overwrite {
-		if err := this.dropTable(name, schema); err != nil {
-			this.ConnEx.Rollback()
+	if w.overwrite {
+		if err := w.dropTable(name, schema); err != nil {
+			w.ConnEx.Rollback()
 			return nil, err
 		}
 	}
 
 	// Create table if it doesn't exist
-	if err := this.createTable(name, schema, cols); err != nil {
-		this.ConnEx.Rollback()
+	if err := w.createTable(name, schema, cols); err != nil {
+		w.ConnEx.Rollback()
 		return nil, err
 	}
 
 	// Add columns
-	if err := this.addColumns(name, schema, cols); err != nil {
-		this.ConnEx.Rollback()
+	if err := w.addColumns(name, schema, cols); err != nil {
+		w.ConnEx.Rollback()
 		return nil, err
 	}
 
 	// Make function to write rows
-	fn := func(row map[string]interface{}) error {
-		changes, err := this.writer(name, schema, cols, row)
-		if err != nil {
-			return err
-		}
-		this.n += changes
-		return nil
+	fn := func(row []interface{}) error {
+		changes, err := w.writer(name, schema, cols, row)
+		w.n += changes
+		return err
 	}
+
+	// Reset counter
+	w.n = 0
 
 	// Return function
 	return fn, nil
@@ -81,21 +84,18 @@ func (w *SQLWriter) End(success bool) error {
 	}
 }
 
+func (w *SQLWriter) Count() int {
+	return w.n
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func (w *SQLWriter) writer(name, schema string, cols []string, row map[string]interface{}) (int, error) {
-	v := make([]interface{}, len(cols))
-	for i, col := range cols {
-		v[i] = row[col]
-	}
-	q := N(name).WithSchema(schema).Insert(cols...)
-	fmt.Println(q)
-	if err := w.ConnEx.ExecEx(q.Query(), nil, v); err != nil {
+func (w *SQLWriter) writer(name, schema string, cols []string, values []interface{}) (int, error) {
+	if err := w.ConnEx.ExecEx(N(name).WithSchema(schema).Insert(cols...).Query(), nil, values...); err != nil {
 		return int(w.ConnEx.LastInsertId()), err
 	} else {
-		fmt.Println(w.ConnEx.Changes())
-		return int(w.ConnEx.LastInsertId()), nil
+		return int(w.ConnEx.Changes()), nil
 	}
 }
 

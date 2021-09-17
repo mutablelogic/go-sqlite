@@ -49,9 +49,17 @@ type SQPool interface {
 
 // SQConnection is an sqlite connection to one or more databases
 type SQConnection interface {
+	SQTransaction
+
 	// Execute a transaction with context, rollback on any errors
 	// or cancelled context
 	Do(context.Context, SQFlag, func(SQTransaction) error) error
+}
+
+// SQTransaction is an sqlite transaction
+type SQTransaction interface {
+	// Query and return a set of results
+	Query(SQStatement, ...interface{}) (SQResults, error)
 
 	// Schemas returns a list of all the schemas in the database
 	Schemas() []string
@@ -83,14 +91,8 @@ type SQConnection interface {
 	// matched
 	Modules(...string) []string
 
-	// Return flags for connection
+	// Return flags for transaction or'd with connection flags
 	Flags() SQFlag
-}
-
-// SQTransaction is an sqlite transaction
-type SQTransaction interface {
-	// Query and return a set of results
-	Query(SQStatement, ...interface{}) (SQResults, error)
 }
 
 // SQResults increments over returned rows from a query

@@ -56,7 +56,7 @@ var (
 		Max:     5,
 		Trace:   false,
 		Create:  true,
-		Schemas: map[string]string{defaultSchema: defaultMemory},
+		Schemas: map[string]string{DefaultSchema: defaultMemory},
 		Flags:   SQFlag(sqlite3.SQLITE_OPEN_CREATE) | SQFlag(sqlite3.SQLITE_OPEN_SHAREDCACHE) | SQLITE_OPEN_CACHE,
 	}
 )
@@ -70,7 +70,7 @@ var (
 func NewPool(path string, errs chan<- error) (*Pool, error) {
 	cfg := defaultPoolConfig
 	if path != "" {
-		cfg.Schemas = map[string]string{defaultSchema: path}
+		cfg.Schemas = map[string]string{DefaultSchema: path}
 	}
 	return OpenPool(cfg, errs)
 }
@@ -226,9 +226,9 @@ func (p *Pool) Put(conn SQConnection) {
 // complete operation
 func (p *Pool) new() (*Conn, error) {
 	// Open connection to main schema, which is required
-	defaultPath := p.pathForSchema(defaultSchema)
+	defaultPath := p.pathForSchema(DefaultSchema)
 	if defaultPath == "" {
-		return nil, ErrNotFound.Withf("No default schema %q found", defaultSchema)
+		return nil, ErrNotFound.Withf("No default schema %q found", DefaultSchema)
 	}
 
 	// Always allow memory databases to be created and read/write
@@ -256,7 +256,7 @@ func (p *Pool) new() (*Conn, error) {
 	for schema := range p.Schemas {
 		schema = strings.TrimSpace(schema)
 		path := p.pathForSchema(schema)
-		if schema == defaultSchema {
+		if schema == DefaultSchema {
 			continue
 		}
 		if path == "" {
@@ -313,7 +313,7 @@ func (p *Pool) put(conn *Conn) {
 // or an empty string if the schema name is not valid
 func (p *Pool) pathForSchema(schema string) string {
 	if schema == "" {
-		return p.pathForSchema(defaultSchema)
+		return p.pathForSchema(DefaultSchema)
 	} else if !reSchemaName.MatchString(schema) {
 		return ""
 	} else if path, exists := p.Schemas[schema]; !exists {

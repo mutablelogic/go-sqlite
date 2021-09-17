@@ -10,6 +10,7 @@ import (
 	"github.com/djthorpe/go-sqlite/pkg/sqlite3"
 
 	// Namespace imports
+	. "github.com/djthorpe/go-sqlite"
 	. "github.com/djthorpe/go-sqlite/pkg/lang"
 	. "github.com/djthorpe/go-sqlite/pkg/sqobj"
 )
@@ -36,13 +37,19 @@ func Test_Class_001(t *testing.T) {
 	} else {
 		t.Log(class)
 	}
-	if err := class.Create(context.Background(), conn, ""); err != nil {
-		t.Error(err)
-	} else if err := class.Create(context.Background(), conn, ""); err != nil {
-		t.Error(err)
-	} else {
-		t.Log(conn.Tables(""))
-	}
+
+	conn.Do(context.Background(), 0, func(txn SQTransaction) error {
+		if err := class.Create(txn, ""); err != nil {
+			t.Error(err)
+			return err
+		} else if err := class.Create(txn, ""); err != nil {
+			t.Error(err)
+			return err
+		} else {
+			t.Log(conn.Tables(""))
+			return nil
+		}
+	})
 }
 
 type TestClassStructB struct {
@@ -74,22 +81,28 @@ func Test_Class_002(t *testing.T) {
 		}
 	})
 
-	// Create twice
-	if err := cFile.Create(context.Background(), db, "main"); err != nil {
-		t.Error(err)
-	} else if err := cFileMark.Create(context.Background(), db, "main"); err != nil {
-		t.Error(err)
-	} else {
-		t.Log("First pass:", db.Tables("main"))
-	}
+	db.Do(context.Background(), 0, func(txn SQTransaction) error {
+		// Create first time
+		if err := cFile.Create(txn, "main"); err != nil {
+			t.Error(err)
+		} else if err := cFileMark.Create(txn, "main"); err != nil {
+			t.Error(err)
+		} else {
+			t.Log("First pass:", db.Tables("main"))
+		}
 
-	if err := cFile.Create(context.Background(), db, "main"); err != nil {
-		t.Error(err)
-	} else if err := cFileMark.Create(context.Background(), db, "main"); err != nil {
-		t.Error(err)
-	} else {
-		t.Log("Second pass:", db.Tables("main"))
-	}
+		// Create second time
+		if err := cFile.Create(txn, "main"); err != nil {
+			t.Error(err)
+		} else if err := cFileMark.Create(txn, "main"); err != nil {
+			t.Error(err)
+		} else {
+			t.Log("Second pass:", db.Tables("main"))
+		}
+
+		// Return success
+		return nil
+	})
 }
 
 func Test_Class_003(t *testing.T) {
@@ -108,12 +121,24 @@ func Test_Class_003(t *testing.T) {
 		}
 	})
 
-	// Create
-	if err := cFile.Create(context.Background(), db, "main"); err != nil {
-		t.Error(err)
-	} else {
-		t.Log("First pass:", db.Tables("main"))
-	}
+	db.Do(context.Background(), 0, func(txn SQTransaction) error {
+		// Create first time
+		if err := cFile.Create(txn, "main"); err != nil {
+			t.Error(err)
+		} else {
+			t.Log("First pass:", db.Tables("main"))
+		}
+
+		// Create second time
+		if err := cFile.Create(txn, "main"); err != nil {
+			t.Error(err)
+		} else {
+			t.Log("Second pass:", db.Tables("main"))
+		}
+
+		// Return success
+		return nil
+	})
 
 	// Insert two rows
 	db.Do(context.Background(), 0, func(txn sqlite.SQTransaction) error {
@@ -149,17 +174,78 @@ func Test_Class_004(t *testing.T) {
 	})
 
 	// Create
-	if err := cKey.Create(context.Background(), db, "main"); err != nil {
+	db.Do(context.Background(), 0, func(txn SQTransaction) error {
+		if err := cKey.Create(txn, "main"); err != nil {
+			t.Error(err)
+			return err
+		}
+
+		// Return success
+		return nil
+	})
+
+	// Insert two rows - should NULL the auto increment value
+	db.Do(context.Background(), 0, func(txn sqlite.SQTransaction) error {
+		if rows, err := cKey.Insert(txn, TestClassStructD{}, TestClassStructD{}); err != nil {
+			t.Error(err)
+			return err
+		} else if n, err := cKey.DeleteRows(txn, rows); err != nil {
+			t.Error(err)
+			return err
+		} else if len(rows) != n {
+			t.Error("Expected", n, "rows deleted, got", len(rows))
+		} else {
+			t.Log("rows=", rows, " deleted=", n)
+		}
+		// Return success
+		return nil
+	})
+}
+
+func Test_Class_005(t *testing.T) {
+	cKey := MustRegisterClass(N("key"), TestClassStructD{})
+
+	db, err := sqlite3.New(sqlite.SQLITE_OPEN_OVERWRITE)
+	if err != nil {
 		t.Error(err)
+	}
+	defer db.Close()
+
+	// Set up tracing function
+	db.SetTraceHook(func(sql string, d time.Duration) {
+		if d >= 0 {
+			t.Log("EXEC:", sql, "=>", d)
+		}
+	})
+
+	// Create
+	db.Do(context.Background(), 0, func(txn SQTransaction) error {
+		if err := cKey.Create(txn, "main"); err != nil {
+			t.Error(err)
+			return err
+		}
+
+		// Return success
+		return nil
+	})
+
+	// Rows
+	r := []interface{}{
+		TestClassStructD{1}, TestClassStructD{2},
 	}
 
 	// Insert two rows - should NULL the auto increment value
 	db.Do(context.Background(), 0, func(txn sqlite.SQTransaction) error {
-		if rows, err := cKey.Insert(txn, TestClassStructD{1}, TestClassStructD{1}); err != nil {
+		if rows, err := cKey.Insert(txn, r...); err != nil {
 			t.Error(err)
 			return err
+		} else if n, err := cKey.DeleteKeys(txn, r...); err != nil {
+			t.Error(err)
+			return err
+		} else if len(rows) != n {
+			t.Error("Expected", n, "rows deleted, got", len(rows))
 		} else {
-			t.Log("rows=", rows)
+			t.Log("rows=", rows, " deleted=", n)
 		}
 		// Return success
 		return nil

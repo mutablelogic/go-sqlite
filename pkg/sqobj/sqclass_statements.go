@@ -2,6 +2,7 @@ package sqobj
 
 import (
 	// Import Namespaces
+
 	. "github.com/djthorpe/go-sqlite"
 	. "github.com/djthorpe/go-sqlite/pkg/lang"
 )
@@ -9,23 +10,24 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type sqpreparefunc func(*Class, SQConnection) SQStatement
+type sqpreparefunc func(*Class, SQTransaction) SQStatement
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 var (
 	statements = map[SQKey]sqpreparefunc{
-		SQKeySelect: sqSelect,
-		SQKeyInsert: sqInsert,
-		SQKeyDelete: sqDelete,
+		SQKeySelect:     sqSelect,
+		SQKeyInsert:     sqInsert,
+		SQKeyDeleteRows: sqDeleteRows,
+		SQKeyDeleteKeys: sqDeleteKeys,
 	}
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS - STATEMENTS
 
-func sqSelect(class *Class, _ SQConnection) SQStatement {
+func sqSelect(class *Class, _ SQTransaction) SQStatement {
 	cols := make([]SQSource, len(class.col)+1)
 	// first row is the rowid
 	cols[0] = N("rowid")
@@ -35,7 +37,7 @@ func sqSelect(class *Class, _ SQConnection) SQStatement {
 	return S(class.SQSource).To(cols...)
 }
 
-func sqInsert(class *Class, _ SQConnection) SQStatement {
+func sqInsert(class *Class, _ SQTransaction) SQStatement {
 	cols := make([]string, len(class.col))
 	for i, col := range class.col {
 		cols[i] = col.Col.Name()
@@ -43,18 +45,18 @@ func sqInsert(class *Class, _ SQConnection) SQStatement {
 	return class.SQSource.Insert(cols...)
 }
 
-func sqDelete(class *Class, _ SQConnection) SQStatement {
+func sqDeleteRows(class *Class, _ SQTransaction) SQStatement {
+	return class.SQSource.Delete("rowid=?")
+}
+
+func sqDeleteKeys(class *Class, _ SQTransaction) SQStatement {
 	cols := make([]interface{}, 0, len(class.col))
-	for _, col := range class.col {
-		if col.Primary {
-			cols = append(cols, Q(N(col.Name), "=", P))
+	for _, c := range class.col {
+		if c.Primary {
+			cols = append(cols, Q(N(c.Col.Name()), "=", P))
 		}
 	}
-	if len(cols) > 0 {
-		return class.SQSource.Delete(cols...)
-	} else {
-		return nil
-	}
+	return class.SQSource.Delete(cols...)
 }
 
 /*

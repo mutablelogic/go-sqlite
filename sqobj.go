@@ -1,7 +1,6 @@
 package sqlite
 
 import (
-	"context"
 	"strings"
 )
 
@@ -38,8 +37,8 @@ type SQObjects interface {
 
 // SQClass is a class definition, which can be a table or view
 type SQClass interface {
-	// Create class in the named database with modification flags
-	Create(context.Context, SQConnection, string) error
+	// Create class in the named database
+	Create(SQTransaction, string) error
 
 	// Read all objects from the class and return the iterator
 	// TODO: Need sort, filter, limit, offset
@@ -47,6 +46,12 @@ type SQClass interface {
 
 	// Insert objects, return rowids
 	Insert(SQTransaction, ...interface{}) ([]int64, error)
+
+	// Delete rows in table based on rowid. Returns number of deleted rows
+	DeleteRows(SQTransaction, []int64) (int, error)
+
+	// Delete keys in table based on primary keys. Returns number of deleted rows
+	DeleteKeys(SQTransaction, ...interface{}) (int, error)
 
 	// Update objects by primary key, return rowids
 	//Update(SQConnection, ...interface{}) ([]SQResults, error)
@@ -69,9 +74,6 @@ type SQIterator interface {
 
 	// RowId returns the last read row, should be called after Next()
 	RowId() int64
-
-	// Close releases any resources associated with the iterator
-	Close() error
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -92,8 +94,9 @@ const (
 	SQKeyNone SQKey = iota
 	SQKeyInsert
 	SQKeySelect
+	SQKeyDeleteRows
+	SQKeyDeleteKeys
 	SQKeyWrite
-	SQKeyDelete
 	SQKeyGetRowId
 	SQKeyMax
 )

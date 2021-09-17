@@ -14,8 +14,8 @@ import (
 const (
 	// DefaultFlags are the default flags for a new database connection
 	DefaultFlags  = SQFlag(sqlite3.SQLITE_OPEN_CREATE | sqlite3.SQLITE_OPEN_READWRITE)
+	DefaultSchema = sqlite3.DefaultSchema
 	defaultMemory = sqlite3.DefaultMemory
-	defaultSchema = sqlite3.DefaultSchema
 	tempSchema    = "temp"
 )
 

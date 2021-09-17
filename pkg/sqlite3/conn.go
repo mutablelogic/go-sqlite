@@ -31,6 +31,7 @@ type Conn struct {
 
 type Txn struct {
 	*Conn
+	f SQFlag
 }
 
 type ExecFunc sqlite3.ExecFunc
@@ -111,6 +112,11 @@ func (conn *Conn) Exec(st SQStatement, fn ExecFunc) error {
 	return conn.ConnEx.Exec(st.Query(), sqlite3.ExecFunc(fn))
 }
 
+// Execute SQL statement outside of transaction - currently not implemented
+func (conn *Conn) Query(st SQStatement, v ...interface{}) (SQResults, error) {
+	return nil, ErrNotImplemented.With("Query")
+}
+
 // Perform a transaction, rollback if error is returned
 func (conn *Conn) Do(ctx context.Context, flag SQFlag, fn func(SQTransaction) error) error {
 	conn.Mutex.Lock()
@@ -152,7 +158,7 @@ func (conn *Conn) Do(ctx context.Context, flag SQFlag, fn func(SQTransaction) er
 		conn.SetProgressHandler(100, func() bool {
 			return ctx != nil && ctx.Err() != nil
 		})
-		if err := fn(&Txn{conn}); err != nil {
+		if err := fn(&Txn{conn, flag}); err != nil {
 			result = multierror.Append(result, err)
 		}
 		conn.SetProgressHandler(0, nil)
@@ -188,7 +194,7 @@ func (txn *Txn) Query(st SQStatement, v ...interface{}) (SQResults, error) {
 	}
 
 	// Get a results object
-	r, err := txn.ConnCache.Prepare(txn.Conn.ConnEx, st.Query())
+	r, err := txn.Conn.ConnCache.Prepare(txn.Conn.ConnEx, st.Query())
 	if err != nil {
 		return nil, err
 	}
@@ -204,4 +210,9 @@ func (txn *Txn) Query(st SQStatement, v ...interface{}) (SQResults, error) {
 // Flags returns the Open Flags
 func (c *Conn) Flags() SQFlag {
 	return c.f
+}
+
+// Flags returns the Open Flags or'd with Transaction Flags
+func (t *Txn) Flags() SQFlag {
+	return t.f | t.Conn.f
 }

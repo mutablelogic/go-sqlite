@@ -11,16 +11,30 @@ import (
 // TYPES
 
 type sqpreparefunc func(*Class, SQTransaction) SQStatement
+type stkey uint
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
+const (
+	SQKeyNone stkey = iota
+	SQKeySelect
+	SQKeyInsert
+	SQKeyDeleteRows
+	SQKeyDeleteKeys
+	SQKeyUpdateKeys
+	SQKeyUpsertKeys
+	SQKeyMax = SQKeyUpdateKeys
+)
+
 var (
-	statements = map[SQKey]sqpreparefunc{
+	statements = map[stkey]sqpreparefunc{
 		SQKeySelect:     sqSelect,
 		SQKeyInsert:     sqInsert,
 		SQKeyDeleteRows: sqDeleteRows,
 		SQKeyDeleteKeys: sqDeleteKeys,
+		SQKeyUpdateKeys: sqUpdateKeys,
+		SQKeyUpsertKeys: sqUpsertKeys,
 	}
 )
 
@@ -59,99 +73,27 @@ func sqDeleteKeys(class *Class, _ SQTransaction) SQStatement {
 	return class.SQSource.Delete(cols...)
 }
 
-/*
-
-func (this *sqclass) addStatements(flags SQFlag) error {
-	this.RWMutex.Lock()
-	defer this.RWMutex.Unlock()
-
-	// Create statments for create,insert and delete
-	this.addStatement(SQKeyCreate, this.sqCreate())
-	this.addStatement(SQKeyWrite, this.sqInsert(flags))
-	this.addStatement(SQKeyRead, this.sqSelect())
-
-	// If we have primary keys, other operations are possible
-	if len(this.PrimaryColumnNames()) > 0 {
-		this.addStatement(SQKeyDelete, this.sqDelete())
-		this.addStatement(SQKeyGetRowId, this.sqGetRowId())
-	}
-
-	// Create index statements
-	for _, index := range this.indexes {
-		this.addStatement(SQKeyCreate, this.sqIndex(index))
-	}
-
-	// Return success
-	return nil
-}
-
-func (this *sqclass) addStatement(key SQKey, st SQStatement) {
-	this.s[key] = append(this.s[key], st)
-}
-
-func (this *sqclass) sqCreate() SQTable {
-	st := this.CreateTable(this.Columns()...).IfNotExists()
-	for _, column := range this.columns {
-		if column.Unique {
-			st = st.WithUnique(column.Field.Name)
-		} else if column.Index {
-			st = st.WithIndex(column.Field.Name)
+func sqUpdateKeys(class *Class, _ SQTransaction) SQStatement {
+	values := make([]string, 0, len(class.col))
+	keys := make([]interface{}, 0, len(class.col))
+	for _, c := range class.col {
+		if !c.Primary {
+			values = append(values, c.Col.Name())
+		} else {
+			keys = append(keys, Q(N(c.Col.Name()), "=", P))
 		}
 	}
-	return st
+	return class.SQSource.Update(values...).Where(keys...)
 }
 
-func (this *sqclass) sqIndex(index *sqindex) SQStatement {
-	st := N(this.Name()+"_"+index.name).
-		WithSchema(this.Schema()).
-		CreateIndex(this.Name(), index.cols...).IfNotExists()
-	if index.unique {
-		st = st.WithUnique()
-	}
-	return st
-}
-
-func (this *sqclass) sqInsert(flags SQFlag) SQStatement {
-	st := this.Insert(this.ColumnNames()...)
-
-	// Add conflict resolution for any primary key field
-	st = st.WithConflictUpdate(this.PrimaryColumnNames()...)
-
-	// Add conflict resolution for any unique fields
-	for _, column := range this.columns {
-		if column.Unique && flags&SQLITE_FLAG_UPDATEONINSERT != 0 {
-			st = st.WithConflictUpdate(column.Field.Name)
+func sqUpsertKeys(class *Class, _ SQTransaction) SQStatement {
+	cols := make([]string, len(class.col))
+	keys := make([]string, 0, len(class.col))
+	for i, col := range class.col {
+		cols[i] = col.Col.Name()
+		if col.Primary {
+			keys = append(keys, col.Col.Name())
 		}
 	}
-
-	// Add conflict for any unique indexes
-	for _, index := range this.indexes {
-		if index.unique && flags&SQLITE_FLAG_UPDATEONINSERT != 0 {
-			st = st.WithConflictUpdate(index.cols...)
-		}
-	}
-
-	// Return success
-	return st
+	return class.SQSource.Insert(cols...).WithConflictUpdate(keys...)
 }
-
-func (this *sqclass) sqDelete() SQStatement {
-	expr := []interface{}{}
-	for _, name := range this.PrimaryColumnNames() {
-		expr = append(expr, Q(N(name), "=", P))
-	}
-	return this.Delete(expr...)
-}
-
-func (this *sqclass) sqGetRowId() SQStatement {
-	expr := []interface{}{}
-	for _, name := range this.PrimaryColumnNames() {
-		expr = append(expr, Q(N(name), "=", P))
-	}
-	return S(this.SQSource).To(N("rowid")).Where(expr...)
-}
-
-func (this *sqclass) sqSelect() SQStatement {
-	return S(this.SQSource).To(this.ColumnSources()...)
-}
-*/

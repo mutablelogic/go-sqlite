@@ -64,7 +64,7 @@ func (i *Iterator) Next() interface{} {
 	i.class.unboundValues(i.proto, v[1:])
 
 	// Return the prototype object
-	return i.proto
+	return i.proto.Interface()
 }
 
 func (i *Iterator) RowId() int64 {

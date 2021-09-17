@@ -1,14 +1,9 @@
 package sqlite
 
-import (
-	"strings"
-)
-
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type SQKey uint
-type SQWriteHook func(SQResults, interface{}) error
+//type SQWriteHook func(SQResults, interface{}) error
 
 ///////////////////////////////////////////////////////////////////////////////
 // INTERFACES
@@ -42,7 +37,7 @@ type SQClass interface {
 
 	// Read all objects from the class and return the iterator
 	// TODO: Need sort, filter, limit, offset
-	//Read(SQConnection) (SQIterator, error)
+	Read(SQTransaction) (SQIterator, error)
 
 	// Insert objects, return rowids
 	Insert(SQTransaction, ...interface{}) ([]int64, error)
@@ -53,18 +48,11 @@ type SQClass interface {
 	// Delete keys in table based on primary keys. Returns number of deleted rows
 	DeleteKeys(SQTransaction, ...interface{}) (int, error)
 
-	// Update objects by primary key, return rowids
-	//Update(SQConnection, ...interface{}) ([]SQResults, error)
+	// Update objects by primary key, return number of updated rows
+	UpdateKeys(SQTransaction, ...interface{}) (int, error)
 
-	// Upsert objects by primary key, return rowids
-	//Upsert(SQConnection, ...interface{}) ([]SQResults, error)
-
-	// Delete objects from the database by primary key
-	//Delete(SQConnection, ...interface{}) ([]SQResults, error)
-
-	// Set a foreign key reference to parent class and columns. Panic
-	// on error
-	ForeignKey(SQClass, ...string) SQClass
+	// Upsert (insert or update) objects by primary key, return rowids
+	UpsertKeys(SQTransaction, ...interface{}) ([]int64, error)
 }
 
 // SQIterator is an iterator for a Read operation
@@ -74,56 +62,4 @@ type SQIterator interface {
 
 	// RowId returns the last read row, should be called after Next()
 	RowId() int64
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// CONSTANTS
-
-const (
-	// Create flags
-	SQLITE_FLAG_DELETEIFEXISTS SQFlag = 1 << iota // Delete existing database objects if they already exist
-	SQLITE_FLAG_UPDATEONINSERT                    // Update existing object if a unique constraint fails
-
-	// Other constants
-	SQLITE_FLAG_NONE SQFlag = 0
-	SQLITE_FLAG_MIN         = SQLITE_FLAG_DELETEIFEXISTS
-	SQLITE_FLAG_MAX         = SQLITE_FLAG_UPDATEONINSERT
-)
-
-const (
-	SQKeyNone SQKey = iota
-	SQKeyInsert
-	SQKeySelect
-	SQKeyDeleteRows
-	SQKeyDeleteKeys
-	SQKeyWrite
-	SQKeyGetRowId
-	SQKeyMax
-)
-
-///////////////////////////////////////////////////////////////////////////////
-// STRINGIFY
-
-func (f SQFlag) String() string {
-	if f == SQLITE_FLAG_NONE {
-		return f.FlagString()
-	}
-	str := ""
-	for v := SQLITE_FLAG_MIN; v <= SQLITE_FLAG_MAX; v <<= 1 {
-		if f&v == v {
-			str += v.FlagString() + "|"
-		}
-	}
-	return strings.TrimSuffix(str, "|")
-}
-
-func (v SQFlag) FlagString() string {
-	switch v {
-	case SQLITE_FLAG_NONE:
-		return "SQLITE_FLAG_NONE"
-	case SQLITE_FLAG_DELETEIFEXISTS:
-		return "SQLITE_FLAG_DELETEIFEXISTS"
-	default:
-		return "[?? Invalid SQFlag]"
-	}
 }

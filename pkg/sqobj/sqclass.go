@@ -17,7 +17,7 @@ type Class struct {
 	SQSource
 
 	// Prepared statements and in-place parameters
-	s map[SQKey]SQStatement
+	s map[stkey]SQStatement
 	p []interface{}
 }
 
@@ -38,7 +38,7 @@ func MustRegisterClass(source SQSource, proto interface{}) *Class {
 // any errors
 func RegisterClass(source SQSource, proto interface{}) (*Class, error) {
 	this := new(Class)
-	this.s = make(map[SQKey]SQStatement)
+	this.s = make(map[stkey]SQStatement)
 
 	// Check name
 	if source.Name() == "" {
@@ -165,7 +165,7 @@ func (c *Class) Insert(txn SQTransaction, v ...interface{}) ([]int64, error) {
 		if !rv.IsValid() || rv.Type() != c.t {
 			return nil, ErrBadParameter.Withf("Insert: %v", v)
 		}
-		r, err := txn.Query(st, c.boundValues(rv, true)...)
+		r, err := txn.Query(st, c.boundValues(rv, true, false)...)
 		if err != nil {
 			return nil, err
 		}
@@ -244,24 +244,101 @@ func (c *Class) DeleteKeys(txn SQTransaction, v ...interface{}) (int, error) {
 	return n, nil
 }
 
+// Update objects by primary key, return number of updated rows
+func (c *Class) UpdateKeys(txn SQTransaction, v ...interface{}) (int, error) {
+	// Retrieve prepared statement
+	st, exists := c.s[SQKeyUpdateKeys]
+	if !exists {
+		return 0, ErrOutOfOrder.Withf("UpdateKeys: %q", c.Name())
+	}
+
+	// Update each object
+	var n int
+	for _, v := range v {
+		rv := ValueOf(v)
+		if !rv.IsValid() || rv.Type() != c.t {
+			return 0, ErrBadParameter.Withf("UpdateKeys: %v", v)
+		}
+		r, err := txn.Query(st, c.boundValues(rv, false, true)...)
+		if err != nil {
+			return 0, err
+		}
+		n += r.RowsAffected()
+	}
+
+	// Return success
+	return n, nil
+}
+
+func (c *Class) UpsertKeys(txn SQTransaction, v ...interface{}) ([]int64, error) {
+	result := make([]int64, 0, len(v))
+
+	// Retrieve prepared statement
+	st, exists := c.s[SQKeyUpsertKeys]
+	if !exists {
+		return nil, ErrOutOfOrder.Withf("UpdateKeys: %q", c.Name())
+	}
+
+	// Update each object
+	for _, v := range v {
+		rv := ValueOf(v)
+		if !rv.IsValid() || rv.Type() != c.t {
+			return nil, ErrBadParameter.Withf("UpdateKeys: %v", v)
+		}
+		r, err := txn.Query(st, c.boundValues(rv, true, false)...)
+		if err != nil {
+			return nil, err
+		}
+		if r.RowsAffected() > 0 {
+			if r.LastInsertId() == 0 {
+				fmt.Println("TODO: Set last insert id as rows affected (was an update)")
+				result = append(result, -1)
+			} else {
+				result = append(result, r.LastInsertId())
+			}
+		} else {
+			result = append(result, 0)
+		}
+	}
+
+	// Return success
+	return result, nil
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
 // boundValues returns sqlite-compatible values for a struct value. If autonull
 // argument is true, then any zero-value column is set to NULL. This is so inserts
-// can be performed.
-func (this *Class) boundValues(v reflect.Value, autonull bool) []interface{} {
+// can be performed. If primarylast is true, then primary values are put behind non-
+// primary values.
+func (this *Class) boundValues(v reflect.Value, autonull bool, primarylast bool) []interface{} {
 	// Set length of parameters
 	this.p = this.p[:len(this.col)]
 
-	// Iterate over columns
-	for i, col := range this.col {
-		field := v.Field(col.Field.Index)
-		if autonull && col.Auto && field.IsZero() {
-			this.p[i] = nil
-		} else {
-			this.p[i] = field.Interface()
+	// First iteration sets values
+	j := 0
+	if primarylast {
+		for _, col := range this.col {
+			field := v.Field(col.Field.Index)
+			if !col.Primary {
+				this.p[j] = field.Interface()
+				j++
+			}
 		}
+	}
+
+	for _, col := range this.col {
+		field := v.Field(col.Field.Index)
+		if primarylast && !col.Primary {
+			continue
+		}
+		if autonull && col.Auto && field.IsZero() {
+			this.p[j] = nil
+		} else {
+			this.p[j] = field.Interface()
+		}
+		j++
 	}
 
 	// Return success

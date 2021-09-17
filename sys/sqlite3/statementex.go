@@ -93,6 +93,9 @@ func (s *StatementEx) Exec(n uint, v ...interface{}) (*Results, error) {
 		return nil, err
 	}
 
+	// Reset the LastInsertId
+	st.Conn().SetLastInsertId(0)
+
 	// Bind parameters
 	if len(v) > 0 {
 		if err := st.Bind(v...); err != nil {

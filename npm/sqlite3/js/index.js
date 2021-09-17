@@ -6,6 +6,9 @@ import '../css/index.css';
 import App from './controller/app';
 
 // Views
+import './view/nav-view';
+import './view/nav-item-view';
+
 import './view/table-view';
 import './view/table-head-view';
 import './view/table-body-view';

@@ -92,3 +92,25 @@ func (obj *Objects) String() string {
 	str += " " + obj.Conn.String()
 	return str + ">"
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// WRITE OBJECTS
+
+// Write objects (insert or update) to the database
+func (obj *Objects) Write(ctx context.Context, v ...interface{}) error {
+	return obj.Conn.Do(ctx, SQLITE_NONE, func(txn SQTransaction) error {
+		for _, v := range v {
+			rv := ValueOf(v)
+			class, exists := obj.m[rv.Type()]
+			if !exists {
+				return ErrBadParameter.Withf("Write: %v", v)
+			}
+			if r, err := class.UpsertKeys(txn, v); err != nil {
+				return err
+			} else {
+				fmt.Println(r[0])
+			}
+		}
+		return nil
+	})
+}

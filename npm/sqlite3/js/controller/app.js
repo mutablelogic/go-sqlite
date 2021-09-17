@@ -23,6 +23,9 @@ export default class App extends Controller {
   constructor() {
     super();
 
+    // Get nodes for the web components
+    const schemaTableNav = document.querySelector('#schema-table-nav');
+
     // VIEWS
     const navNode = document.querySelector('#nav');
     if (navNode) {
@@ -51,7 +54,6 @@ export default class App extends Controller {
     super.define('schemaview', new SchemaView(schemaNode));
     this.schemaview.addEventListener(['schema:change'], () => {
       console.log('schema:change');
-
       // Set active table to the first table in the schema
     });
     this.schemaview.addEventListener(['schema:click'], (sender, target) => {
@@ -108,6 +110,17 @@ export default class App extends Controller {
     this.schema.addEventListener(['provider:added', 'provider:changed'], (sender, schema) => {
       console.log(`schema added: ${schema}`);
       this.schemaview.schema = schema;
+      // Add the tabs
+      if (schemaTableNav) {
+        schema.tables.forEach((table) => {
+          const tab = document.createElement('nav-item-view');
+          tab.textContent = table.name;
+          tab.id = table.key;
+          tab.classList.add('nav-link');
+          schemaTableNav.appendChild(tab);
+        });
+        schemaTableNav.update();
+      }
     });
     this.schema.addEventListener('provider:deleted', (sender, schema) => {
       console.log(`schema deleted: ${schema}`);
@@ -120,6 +133,24 @@ export default class App extends Controller {
     this.tabledata.addEventListener(['provider:added', 'provider:changed'], (sender, data) => {
       console.log(`data added: ${data}`);
     });
+
+    // NEW STUFF    
+    if (schemaTableNav) {
+      schemaTableNav.addEventListener('nav-view:click', (evt) => {
+        // When click on a tab, make it active
+        schemaTableNav.active = evt.detail;
+      });
+      schemaTableNav.addEventListener('nav-view:active', (evt) => {
+        // Fire when the tab is active
+        console.log(`schema-table-nav active: ${evt.detail}`);
+      });
+      schemaTableNav.addEventListener('nav-view:deactive', (evt) => {
+        // Fire when the tab has been deactivated
+        console.log(`schema-table-nav deactive: ${evt.detail}`);
+        // Disconnect from parent
+        //schemaTableNav.removeChild(evt.detail);
+      });
+    }
   }
 
   main() {

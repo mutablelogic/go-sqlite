@@ -251,3 +251,152 @@ func Test_Class_005(t *testing.T) {
 		return nil
 	})
 }
+
+type TestClassStructE struct {
+	KeyA  int `sqlite:"key_a,primary"`
+	KeyB  int `sqlite:"key_b,primary"`
+	Value string
+}
+
+func Test_Class_006(t *testing.T) {
+	cKey := MustRegisterClass(N("key"), TestClassStructE{})
+
+	db, err := sqlite3.New(sqlite.SQLITE_OPEN_OVERWRITE)
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+
+	// Set up tracing function
+	db.SetTraceHook(func(sql string, d time.Duration) {
+		if d >= 0 {
+			t.Log("EXEC:", t.Name(), sql, "=>", d)
+		}
+	})
+
+	// Rows
+	r := []interface{}{
+		&TestClassStructE{0, 0, "Row 1"}, &TestClassStructE{1, 1, "Row 2"}, &TestClassStructE{2, 2, "Row 3"},
+	}
+
+	db.Do(context.Background(), 0, func(txn SQTransaction) error {
+		if err := cKey.Create(txn, "main"); err != nil {
+			t.Error(err)
+			return err
+		}
+		if _, err := cKey.Insert(txn, r...); err != nil {
+			t.Error(err)
+			return err
+		}
+
+		// Update values
+		for _, r := range r {
+			r.(*TestClassStructE).Value = "Updated " + r.(*TestClassStructE).Value
+		}
+
+		if n, err := cKey.UpdateKeys(txn, r...); err != nil {
+			t.Error(err)
+			return err
+		} else if n != len(r) {
+			t.Error("Expected", len(r), "rows updated, got", n)
+		} else {
+			t.Log("Updated =>", n, "rows affected")
+		}
+		iter, err := cKey.Read(txn)
+		if err != nil {
+			t.Error(err)
+			return err
+		}
+		for {
+			v := iter.Next()
+			if v == nil {
+				break
+			}
+			t.Log(v)
+		}
+		// Return success
+		return nil
+	})
+}
+
+func Test_Class_007(t *testing.T) {
+	cKey := MustRegisterClass(N("key"), TestClassStructE{})
+
+	db, err := sqlite3.New(sqlite.SQLITE_OPEN_OVERWRITE)
+	if err != nil {
+		t.Error(err)
+	}
+	defer db.Close()
+
+	// Set up tracing function
+	db.SetTraceHook(func(sql string, d time.Duration) {
+		if d >= 0 {
+			t.Log("EXEC:", t.Name(), sql, "=>", d)
+		}
+	})
+
+	// Rows
+	r := []interface{}{
+		&TestClassStructE{0, 0, "Row 1"}, &TestClassStructE{1, 1, "Row 2"}, &TestClassStructE{2, 2, "Row 3"},
+	}
+
+	db.Do(context.Background(), 0, func(txn SQTransaction) error {
+		if err := cKey.Create(txn, "main"); err != nil {
+			t.Error(err)
+			return err
+		}
+
+		// Upsert values - does an insert
+		if r, err := cKey.UpsertKeys(txn, r...); err != nil {
+			t.Error(err)
+			return err
+		} else {
+			t.Log("insert => ", r)
+		}
+
+		// Update values - does not do an update
+		if r, err := cKey.UpsertKeys(txn, r...); err != nil {
+			t.Error(err)
+			return err
+		} else {
+			t.Log("not update => ", r)
+		}
+
+		// Update the second object
+		r[1].(*TestClassStructE).Value = "Updated " + r[1].(*TestClassStructE).Value
+
+		// Update values - only update the second one
+		if r, err := cKey.UpsertKeys(txn, r...); err != nil {
+			t.Error(err)
+			return err
+		} else {
+			t.Log("update 2nd => ", r)
+		}
+
+		// Update values
+		for _, r := range r {
+			r.(*TestClassStructE).Value = "Updated " + r.(*TestClassStructE).Value
+		}
+		// Add another
+		r = append(r, &TestClassStructE{3, 3, "Row 4"})
+
+		// Update values
+		if r, err := cKey.UpsertKeys(txn, r...); err != nil {
+			t.Error(err)
+			return err
+		} else {
+			t.Log("update 1st and 3rd and insert 4th => ", r)
+		}
+
+		// Update values - does not do an update
+		if r, err := cKey.UpsertKeys(txn, r...); err != nil {
+			t.Error(err)
+			return err
+		} else {
+			t.Log("not update => ", r)
+		}
+
+		// Return success
+		return nil
+	})
+}

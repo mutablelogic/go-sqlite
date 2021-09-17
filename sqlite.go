@@ -141,6 +141,7 @@ type SQAuth interface {
 // GLOBALS
 
 const (
+	SQLITE_NONE                          SQFlag = 0
 	SQLITE_TXN_DEFAULT                   SQFlag = (1 << 16) // Default transaction flag
 	SQLITE_TXN_IMMEDIATE                 SQFlag = (1 << 17) // Immediate transaction
 	SQLITE_TXN_EXCLUSIVE                 SQFlag = (1 << 18) // Exclusive transaction

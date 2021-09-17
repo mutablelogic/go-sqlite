@@ -333,7 +333,7 @@ func (c *ConnEx) Exec(q string, fn ExecFunc) error {
 	// Call exec
 	var result error
 	if err := SQError(C._sqlite3_exec((*C.sqlite3)(c.Conn), cQuery, C.uintptr_t(c.userInfo()), &cErrmsg)); err != SQLITE_OK {
-		result = multierror.Append(result, err)
+		result = multierror.Append(result, err.With(C.GoString(C.sqlite3_errmsg((*C.sqlite3)(c.Conn)))))
 	}
 
 	// Check errmsg

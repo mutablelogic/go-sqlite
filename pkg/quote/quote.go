@@ -45,10 +45,11 @@ func QuoteIdentifiers(v ...string) string {
 	if len(v) == 1 {
 		return QuoteIdentifier(v[0])
 	}
+	result := make([]string, len(v))
 	for i, v_ := range v {
-		v[i] = QuoteIdentifier(v_)
+		result[i] = QuoteIdentifier(v_)
 	}
-	return strings.Join(v, ",")
+	return strings.Join(result, ",")
 }
 
 // QuoteDeclType returns a supported type or quotes type

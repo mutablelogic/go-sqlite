@@ -15,7 +15,6 @@ import (
 // PRIVATE FUNCTIONS
 
 func (p *Pool) auth(ctx context.Context, action sqlite3.SQAction, args [4]string) error {
-	//fmt.Printf("auth %v %q\n", action, args)
 	switch action {
 	case sqlite3.SQLITE_CREATE_INDEX:
 		return p.Auth.CanExec(ctx, SQLITE_AUTH_INDEX|SQLITE_AUTH_CREATE, args[2], args[1], args[0])

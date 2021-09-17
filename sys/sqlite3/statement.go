@@ -85,7 +85,7 @@ func (c *Conn) Prepare(query string) (*Statement, string, error) {
 
 	// Prepare statement
 	if err := SQError(C.sqlite3_prepare_v2((*C.sqlite3)(c), cQuery, -1, &s, &cExtra)); err != SQLITE_OK {
-		return nil, "", err
+		return nil, "", err.With(C.GoString(C.sqlite3_errmsg((*C.sqlite3)(c))))
 	}
 
 	// Return prepared statement and extra string
@@ -125,7 +125,7 @@ func (s *Statement) Conn() *Conn {
 // Reset statement
 func (s *Statement) Reset() error {
 	if err := SQError(C.sqlite3_reset((*C.sqlite3_stmt)(s))); err != SQLITE_OK {
-		return err
+		return err.With(C.GoString(C.sqlite3_errmsg((*C.sqlite3)(s.Conn()))))
 	} else {
 		return nil
 	}

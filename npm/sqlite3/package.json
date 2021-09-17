@@ -40,6 +40,7 @@
     "dist/**/*.{js,map,woff,woff2,txt,ttf,css,html,jpg,jpeg,png,gif,svg}"
   ],
   "dependencies": {
-    "@djthorpe/js-framework": "^0.0.47"
+    "@djthorpe/js-framework": "^0.0.47",
+    "lit-html": "^1.4.1"
   }
 }

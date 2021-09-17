@@ -51,9 +51,6 @@ const (
 	//	SQLITE_OPEN_NOFOLLOW     OpenFlags = C.SQLITE_OPEN_NOFOLLOW                         // The database filename is not allowed to be a symbolic link
 	SQLITE_OPEN_MIN = SQLITE_OPEN_READONLY
 	SQLITE_OPEN_MAX = SQLITE_OPEN_PRIVATECACHE
-
-	// Custom flag for using a connection cache
-	SQLITE_OPEN_CONNCACHE OpenFlags = SQLITE_OPEN_MAX << 4
 )
 
 const (
@@ -113,8 +110,6 @@ func (v OpenFlags) StringFlag() string {
 		return "SQLITE_OPEN_SHAREDCACHE"
 	case SQLITE_OPEN_PRIVATECACHE:
 		return "SQLITE_OPEN_PRIVATECACHE"
-	case SQLITE_OPEN_CONNCACHE:
-		return "SQLITE_OPEN_CONNCACHE"
 	default:
 		return "[?? Invalid OpenFlags value]"
 	}
@@ -186,13 +181,13 @@ func OpenPath(path string, flags OpenFlags, vfs string) (*Conn, error) {
 		if c != nil {
 			C.sqlite3_close_v2(c)
 		}
-		return nil, err
+		return nil, err.With(C.GoString(C.sqlite3_errmsg((*C.sqlite3)(c))))
 	}
 
 	// Set extended error codes
 	if err := SQError(C.sqlite3_extended_result_codes(c, 1)); err != SQLITE_OK {
 		C.sqlite3_close_v2(c)
-		return nil, err
+		return nil, err.With(C.GoString(C.sqlite3_errmsg((*C.sqlite3)(c))))
 	}
 
 	return (*Conn)(c), nil

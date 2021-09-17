@@ -32,7 +32,7 @@ type PoolConfig struct {
 	Trace   bool              `yaml:"trace"`     // Profiling for statements
 	Create  bool              `yaml:"create"`    // When false, do not allow creation of new file-based databases
 	Auth    SQAuth            // Authentication and Authorization interface
-	Flags   sqlite3.OpenFlags // Flags for opening connections
+	Flags   SQFlag            // Flags for opening connections
 }
 
 // Pool is a connection pool object
@@ -57,7 +57,7 @@ var (
 		Trace:   false,
 		Create:  true,
 		Schemas: map[string]string{defaultSchema: defaultMemory},
-		Flags:   sqlite3.SQLITE_OPEN_CREATE | sqlite3.SQLITE_OPEN_SHAREDCACHE | sqlite3.SQLITE_OPEN_CONNCACHE,
+		Flags:   SQFlag(sqlite3.SQLITE_OPEN_CREATE) | SQFlag(sqlite3.SQLITE_OPEN_SHAREDCACHE) | SQLITE_OPEN_CACHE,
 	}
 )
 
@@ -94,9 +94,9 @@ func OpenPool(config PoolConfig, errs chan<- error) (*Pool, error) {
 
 	// Update create flag
 	if config.Create {
-		config.Flags |= sqlite3.SQLITE_OPEN_CREATE
+		config.Flags |= SQFlag(sqlite3.SQLITE_OPEN_CREATE)
 	} else {
-		config.Flags &^= sqlite3.SQLITE_OPEN_CREATE
+		config.Flags &^= SQFlag(sqlite3.SQLITE_OPEN_CREATE)
 	}
 
 	// Set up pool
@@ -234,7 +234,7 @@ func (p *Pool) new() (*Conn, error) {
 	// Always allow memory databases to be created and read/write
 	flags := p.Flags
 	if defaultPath == defaultMemory {
-		flags |= (sqlite3.SQLITE_OPEN_CREATE | sqlite3.SQLITE_OPEN_READWRITE)
+		flags |= SQFlag(sqlite3.SQLITE_OPEN_CREATE | sqlite3.SQLITE_OPEN_READWRITE)
 	}
 
 	// Perform the open
@@ -245,7 +245,7 @@ func (p *Pool) new() (*Conn, error) {
 
 	// Set trace
 	if p.PoolConfig.Trace {
-		conn.SetTraceHook(func(_ sqlite3.TraceType, a, b unsafe.Pointer) int {
+		conn.ConnEx.SetTraceHook(func(_ sqlite3.TraceType, a, b unsafe.Pointer) int {
 			p.trace(conn, (*sqlite3.Statement)(a), *(*int64)(b))
 			return 0
 		}, sqlite3.SQLITE_TRACE_PROFILE)
@@ -357,11 +357,11 @@ func (p *Pool) attach(conn *Conn, schema, path string) error {
 
 // Create a database before attaching
 func (p *Pool) attachCreate(path string) error {
-	if p.PoolConfig.Flags&sqlite3.SQLITE_OPEN_CREATE == 0 {
+	if p.PoolConfig.Flags&SQFlag(sqlite3.SQLITE_OPEN_CREATE) == 0 {
 		return ErrBadParameter.Withf("Database does not exist: %q", path)
 	}
 	// Open then close database before attaching
-	if conn, err := sqlite3.OpenPath(path, p.PoolConfig.Flags, ""); err != nil {
+	if conn, err := sqlite3.OpenPath(path, sqlite3.OpenFlags(p.PoolConfig.Flags), ""); err != nil {
 		return err
 	} else if err := conn.Close(); err != nil {
 		return err

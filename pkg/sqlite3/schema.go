@@ -3,6 +3,7 @@ package sqlite3
 import (
 
 	// Namespace imports
+
 	"strconv"
 
 	. "github.com/djthorpe/go-sqlite"
@@ -107,7 +108,7 @@ func (c *Conn) IndexesForTable(schema, table string) []SQIndexView {
 		return c.IndexesForTable(defaultSchema, table)
 	}
 	result := []SQIndexView{}
-	if err := c.ExecEx(Q("PRAGMA ", N(schema), ".index_list(", N(table), ")").Query(), func(row, _ []string) bool {
+	if err := c.ExecEx(Q("PRAGMA ", N(schema), ".index_list(", N(table), ")").Query(), func(row, col []string) bool {
 		// columns are is "seq" "name" "unique" "origin" "partial"
 
 		// Get index column names, abort if error
@@ -124,7 +125,8 @@ func (c *Conn) IndexesForTable(schema, table string) []SQIndexView {
 		if stringToBool(row[2]) || row[3] == "u" || row[3] == "pk" {
 			index = index.WithUnique()
 		}
-		if row[3] != "c" {
+		if row[3] == "pk" {
+			// If primary key set index as "auto"
 			index = index.WithAuto()
 		}
 		result = append(result, index)

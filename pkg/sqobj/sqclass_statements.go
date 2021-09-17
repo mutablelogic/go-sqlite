@@ -1,8 +1,6 @@
 package sqobj
 
 import (
-	// Modules
-
 	// Import Namespaces
 	. "github.com/djthorpe/go-sqlite"
 	. "github.com/djthorpe/go-sqlite/pkg/lang"
@@ -11,7 +9,7 @@ import (
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type sqpreparefunc func(*sqclass, SQFlag) SQStatement
+type sqpreparefunc func(*Class, SQConnection) SQStatement
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -27,7 +25,7 @@ var (
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS - STATEMENTS
 
-func sqSelect(class *sqclass, _ SQFlag) SQStatement {
+func sqSelect(class *Class, _ SQConnection) SQStatement {
 	cols := make([]SQSource, len(class.col)+1)
 	// first row is the rowid
 	cols[0] = N("rowid")
@@ -37,7 +35,7 @@ func sqSelect(class *sqclass, _ SQFlag) SQStatement {
 	return S(class.SQSource).To(cols...)
 }
 
-func sqInsert(class *sqclass, _ SQFlag) SQStatement {
+func sqInsert(class *Class, _ SQConnection) SQStatement {
 	cols := make([]string, len(class.col))
 	for i, col := range class.col {
 		cols[i] = col.Col.Name()
@@ -45,7 +43,7 @@ func sqInsert(class *sqclass, _ SQFlag) SQStatement {
 	return class.SQSource.Insert(cols...)
 }
 
-func sqDelete(class *sqclass, _ SQFlag) SQStatement {
+func sqDelete(class *Class, _ SQConnection) SQStatement {
 	cols := make([]interface{}, 0, len(class.col))
 	for _, col := range class.col {
 		if col.Primary {

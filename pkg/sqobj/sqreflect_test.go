@@ -53,12 +53,12 @@ func Test_Reflect_003(t *testing.T) {
 
 type TestStructC struct {
 	A int  `sqlite:"a,text,auto"`
-	B int  `sqlite:"b,timestamp,not null"`
+	B bool `sqlite:"b,bool,not null"`
 	C bool `sqlite:"c,primary"`
 }
 
 func Test_Reflect_004(t *testing.T) {
-	r, err := NewReflect(TestStructC{A: 1, B: 2, C: true})
+	r, err := NewReflect(TestStructC{A: 1, B: true, C: true})
 	if err != nil {
 		t.Error(err)
 	}
@@ -75,7 +75,7 @@ func Test_Reflect_004(t *testing.T) {
 		t.Log(cola)
 	}
 	colb := r.Column("b")
-	if decltype := colb.Type(); decltype != "TIMESTAMP" {
+	if decltype := colb.Type(); decltype != "BOOL" {
 		t.Error("Unexpected type", decltype)
 	} else if colb.Nullable() {
 		t.Error("Unexpected nullable", colb)

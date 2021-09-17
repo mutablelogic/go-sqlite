@@ -6,6 +6,7 @@ package sqlite3
 #include <stdlib.h>
 */
 import "C"
+import "fmt"
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
@@ -54,4 +55,8 @@ const (
 
 func (e SQError) Error() string {
 	return C.GoString(C.sqlite3_errstr(C.int(e)))
+}
+
+func (e SQError) With(suffix string) error {
+	return fmt.Errorf("%w: %v", e, suffix)
 }

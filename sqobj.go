@@ -1,11 +1,13 @@
 package sqlite
 
-import "strings"
+import (
+	"context"
+	"strings"
+)
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-type SQFlag uint
 type SQKey uint
 type SQWriteHook func(SQResults, interface{}) error
 
@@ -13,11 +15,12 @@ type SQWriteHook func(SQResults, interface{}) error
 // INTERFACES
 
 // SQObjects is an sqlite connection but adds ability to read, write and delete
+/*
 type SQObjects interface {
 	SQConnection
 
-	// Create classes with named database and modification flags
-	Create(string, SQFlag, ...SQClass) error
+	// Create classes with named database
+	Create(context.Context, string, ...SQClass) error
 
 	// Write objects to database
 	Write(v ...interface{}) ([]SQResults, error)
@@ -31,30 +34,31 @@ type SQObjects interface {
 	// Delete objects from the database
 	Delete(v ...interface{}) ([]SQResults, error)
 }
+*/
 
 // SQClass is a class definition, which can be a table or view
 type SQClass interface {
 	// Create class in the named database with modification flags
-	Create(SQConnection, string, SQFlag) error
+	Create(context.Context, SQConnection, string) error
 
 	// Read all objects from the class and return the iterator
 	// TODO: Need sort, filter, limit, offset
-	Read(SQConnection) (SQIterator, error)
+	//Read(SQConnection) (SQIterator, error)
 
 	// Insert objects, return rowids
-	Insert(SQConnection, ...interface{}) ([]SQResults, error)
+	Insert(SQTransaction, ...interface{}) ([]int64, error)
 
 	// Update objects by primary key, return rowids
-	Update(SQConnection, ...interface{}) ([]SQResults, error)
+	//Update(SQConnection, ...interface{}) ([]SQResults, error)
 
 	// Upsert objects by primary key, return rowids
-	Upsert(SQConnection, ...interface{}) ([]SQResults, error)
+	//Upsert(SQConnection, ...interface{}) ([]SQResults, error)
 
 	// Delete objects from the database by primary key
-	Delete(SQConnection, ...interface{}) ([]SQResults, error)
+	//Delete(SQConnection, ...interface{}) ([]SQResults, error)
 
 	// Set a foreign key reference to parent class and columns. Panic
-	// on error, and return same class
+	// on error
 	ForeignKey(SQClass, ...string) SQClass
 }
 

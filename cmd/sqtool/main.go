@@ -55,7 +55,7 @@ func main() {
 	}
 	defer db.Close()
 
-	db.SetTraceHook(trace, sqlite3.SQLITE_TRACE_PROFILE)
+	//db.SetTraceHook(trace, sqlite3.SQLITE_TRACE_PROFILE)
 
 	// Report on the database
 	log.Println("database:", db.Filename(sqlite3.DefaultSchema))

@@ -19,11 +19,10 @@ import (
 
 func Test_Cache_001(t *testing.T) {
 	// Create a connection and enable the connection cache (which caches prepared statements)
-	conn, err := OpenPath(":memory:", sqlite3.DefaultFlags|sqlite3.SQLITE_OPEN_CONNCACHE)
+	conn, err := OpenPath(":memory:", SQFlag(sqlite3.DefaultFlags)|SQLITE_OPEN_CACHE)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer conn.Close()
 
 	// Perform caching in a transaction
 	conn.Do(context.Background(), 0, func(txn SQTransaction) error {

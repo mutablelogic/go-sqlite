@@ -6,17 +6,9 @@ import '../css/index.css';
 import App from './controller/app';
 
 // Views
-import ComponentView from './view/component-view';
-import BadgeView from './view/badge-view';
-import TableView from './view/table-view';
-import TableHeadView from './view/table-head-view';
-import TableBodyView from './view/table-body-view';
-
-// Define tag names
-ComponentView.define('badge-view', BadgeView);
-ComponentView.define('table-view', TableView);
-ComponentView.define('table-head-view', TableHeadView);
-ComponentView.define('table-body-view', TableBodyView);
+import './view/table-view';
+import './view/table-head-view';
+import './view/table-body-view';
 
 // Import js-framework
 const jsf = require('@djthorpe/js-framework');
@@ -29,4 +21,3 @@ window.addEventListener('DOMContentLoaded', () => {
   console.log('Running application', app.constructor.name);
   app.main();
 });
-

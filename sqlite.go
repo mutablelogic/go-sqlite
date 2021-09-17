@@ -148,6 +148,7 @@ const (
 	SQLITE_TXN_NO_FOREIGNKEY_CONSTRAINTS SQFlag = (1 << 19) // Drop foreign key constraints on this transaction
 	SQLITE_OPEN_CACHE                    SQFlag = (1 << 20) // Cache prepared statements
 	SQLITE_OPEN_OVERWRITE                SQFlag = (1 << 21) // Overwrite objects
+	SQLITE_OPEN_FOREIGNKEYS              SQFlag = (1 << 22) // Enable foreign key support
 )
 
 const (

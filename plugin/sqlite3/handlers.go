@@ -311,7 +311,7 @@ func (p *plugin) ServeTokenizer(w http.ResponseWriter, req *http.Request) {
 	// Populate response
 	response := TokenizerResponse{
 		Html:     html,
-		Complete: sqlite3.IsComplete(query.Sql),
+		Complete: tokenizer.IsComplete(query.Sql),
 	}
 
 	// Serve response

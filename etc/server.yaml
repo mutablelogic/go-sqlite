@@ -3,6 +3,7 @@ plugins:
   - build/httpserver.plugin
   - build/log.plugin
   - build/sqlite3.plugin
+  - build/sqaccess.plugin
   - build/static.plugin
 
 # HTTP Server parameters
@@ -41,3 +42,8 @@ sqlite3:
 
   # Set max number of connections that can be simultaneously opened
   max: 50
+
+sqaccess:
+  # Set database to store usernames and passwords in
+  database: main
+

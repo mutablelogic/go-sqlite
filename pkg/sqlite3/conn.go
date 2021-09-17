@@ -80,6 +80,14 @@ func OpenPath(path string, flags SQFlag) (*Conn, error) {
 		conn.SetCap(0)
 	}
 
+	// Set foreign keys
+	if flags&SQLITE_OPEN_FOREIGNKEYS != 0 {
+		if err := conn.SetForeignKeyConstraints(true); err != nil {
+			conn.ConnEx.Close()
+			return nil, err
+		}
+	}
+
 	// Finalizer to panic when connection not closed before garbage collection
 	_, file, line, _ := runtime.Caller(1)
 	runtime.SetFinalizer(conn, func(conn *Conn) {

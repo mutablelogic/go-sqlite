@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	. "github.com/djthorpe/go-sqlite/pkg/lang"
+	. "github.com/mutablelogic/go-sqlite/pkg/lang"
 )
 
 func Test_Create_000(t *testing.T) {

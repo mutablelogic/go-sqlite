@@ -5,7 +5,7 @@ import (
 	"unsafe"
 
 	// Modules
-	"github.com/djthorpe/go-sqlite/sys/sqlite3"
+	"github.com/mutablelogic/go-sqlite/sys/sqlite3"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

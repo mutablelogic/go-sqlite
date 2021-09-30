@@ -6,8 +6,8 @@ to and from SQLite databases. Not exactly a full "Object Relational Database" bu
 to reduce the amount of boilerplate code and error handling need to keep a database
 in syncronization with objects.
 
-This package is part of a wider project, `github.com/djthorpe/go-sqlite`.
-Please see the [module documentation](https://github.com/djthorpe/go-sqlite/blob/master/README.md)
+This package is part of a wider project, `github.com/mutablelogic/go-sqlite`.
+Please see the [module documentation](https://github.com/mutablelogic/go-sqlite/blob/master/README.md)
 for more information.
 
 The general method is:

@@ -12,11 +12,11 @@ import (
 	"unsafe"
 
 	// Modules
-	importer "github.com/djthorpe/go-sqlite/pkg/importer"
-	sqlite3 "github.com/djthorpe/go-sqlite/sys/sqlite3"
+	importer "github.com/mutablelogic/go-sqlite/pkg/importer"
+	sqlite3 "github.com/mutablelogic/go-sqlite/sys/sqlite3"
 
 	// Namespace Imports
-	. "github.com/djthorpe/go-sqlite"
+	. "github.com/mutablelogic/go-sqlite"
 )
 import (
 	"errors"

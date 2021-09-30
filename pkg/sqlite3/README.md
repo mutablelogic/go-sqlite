@@ -3,8 +3,8 @@
 This package provides a high-level interface for [sqlite3](http://sqlite.org/)
 including connection pooling, transaction and execution management.
 
-This package is part of a wider project, `github.com/djthorpe/go-sqlite`.
-Please see the [module documentation](https://github.com/djthorpe/go-sqlite/blob/master/README.md)
+This package is part of a wider project, `github.com/mutablelogic/go-sqlite`.
+Please see the [module documentation](https://github.com/mutablelogic/go-sqlite/blob/master/README.md)
 for more information.
 
 ## Building
@@ -45,7 +45,7 @@ the package, and various pseudo examples in this document.
 
 ## Contributing & Distribution
 
-Please do file feature requests and bugs [here](https://github.com/djthorpe/go-sqlite/issues).
+Please do file feature requests and bugs [here](https://github.com/mutablelogic/go-sqlite/issues).
 The license is Apache 2 so feel free to redistribute. Redistributions in either source
 code or binary form must reproduce the copyright notice, and please link back to this
 repository for more information:
@@ -72,7 +72,7 @@ method:
 package main
 
 import (
-    sqlite "github.com/djthorpe/go-sqlite/pkg/sqlite3"
+    sqlite "github.com/mutablelogic/go-sqlite/pkg/sqlite3"
 )
 
 func main() {

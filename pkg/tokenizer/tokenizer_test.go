@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	// Namespace Imports
-	. "github.com/djthorpe/go-sqlite/pkg/tokenizer"
+	. "github.com/mutablelogic/go-sqlite/pkg/tokenizer"
 )
 
 func Test_Tokenizer_001(t *testing.T) {

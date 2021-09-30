@@ -3,8 +3,8 @@ package sqobj
 import (
 	// Import Namespaces
 
-	. "github.com/djthorpe/go-sqlite"
-	. "github.com/djthorpe/go-sqlite/pkg/lang"
+	. "github.com/mutablelogic/go-sqlite"
+	. "github.com/mutablelogic/go-sqlite/pkg/lang"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

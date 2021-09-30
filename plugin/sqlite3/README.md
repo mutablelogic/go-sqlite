@@ -1,12 +1,12 @@
 # sqlite3 API plugin
 
 The API plugin provides an interface into the database through HTTP calls. It is a plugin to
-the monolithic server [`github.com/djthorpe/go-server`](github.com/djthorpe/go-server) 
+the monolithic server [`github.com/mutablelogic/go-server`](github.com/mutablelogic/go-server) 
 and as such the server needs to be installed in addition to the plugin. Instructions on how
 to install the server and necessary plugins is described below.
 
-This package is part of a wider project, `github.com/djthorpe/go-sqlite`.
-Please see the [module documentation](https://github.com/djthorpe/go-sqlite/blob/master/README.md)
+This package is part of a wider project, `github.com/mutablelogic/go-sqlite`.
+Please see the [module documentation](https://github.com/mutablelogic/go-sqlite/blob/master/README.md)
 for more information.
 
 ## Running the API backend
@@ -14,7 +14,7 @@ for more information.
 The simplest way to install the backend is to run the following commands:
 
 ```bash
-[bash] git clone github.com/djthorpe/go-sqlite.git
+[bash] git clone github.com/mutablelogic/go-sqlite.git
 [bash] cd go-sqlite
 [bash] make server plugins
 ```

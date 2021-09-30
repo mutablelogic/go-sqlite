@@ -9,8 +9,8 @@ in a more golang pattern. They are bindings afterall. It is assumed that
 a separate package would be used to provide a more useful API, including
 connection pooling, transaction and execution management, and so forth.
 
-This package is part of a wider project, `github.com/djthorpe/go-sqlite`.
-Please see the [module documentation](https://github.com/djthorpe/go-sqlite/blob/master/README.md)
+This package is part of a wider project, `github.com/mutablelogic/go-sqlite`.
+Please see the [module documentation](https://github.com/mutablelogic/go-sqlite/blob/master/README.md)
 for more information.
 
 ## Building
@@ -36,7 +36,7 @@ the bindings, and various pseudo examples in this document.
 
 ## Contributing & Distribution
 
-Please do file feature requests and bugs [here](https://github.com/djthorpe/go-sqlite/issues).
+Please do file feature requests and bugs [here](https://github.com/mutablelogic/go-sqlite/issues).
 The license is Apache 2 so feel free to redistribute. Redistributions in either source
 code or binary form must reproduce the copyright notice, and please link back to this
 repository for more information:
@@ -57,7 +57,7 @@ To open a connection to a database:
 package main
 
 import (
-    "github.com/djthorpe/go-sqlite/sys/sqlite3"
+    "github.com/mutablelogic/go-sqlite/sys/sqlite3"
 )
 
 func main() {
@@ -127,7 +127,7 @@ on the statement when you are finished with it. For example,
 package main
 
 import (
-    "github.com/djthorpe/go-sqlite/sys/sqlite3"
+    "github.com/mutablelogic/go-sqlite/sys/sqlite3"
 )
 
 func main() {
@@ -160,7 +160,7 @@ For example,
 package main
 
 import (
-    "github.com/djthorpe/go-sqlite/sys/sqlite3"
+    "github.com/mutablelogic/go-sqlite/sys/sqlite3"
 )
 
 func main() {
@@ -221,7 +221,7 @@ where N is an integer and V is an alpha-numeric string. For example,
 package main
 
 import (
-    "github.com/djthorpe/go-sqlite/sys/sqlite3"
+    "github.com/mutablelogic/go-sqlite/sys/sqlite3"
 )
 
 func main() {

@@ -9,11 +9,11 @@ import (
 	"time"
 
 	// Modules
-	sqlite3 "github.com/djthorpe/go-sqlite/pkg/sqlite3"
+	sqlite3 "github.com/mutablelogic/go-sqlite/pkg/sqlite3"
 
 	// Namespace importst
-	. "github.com/djthorpe/go-sqlite/pkg/lang"
-	. "github.com/djthorpe/go-sqlite/pkg/sqobj"
+	. "github.com/mutablelogic/go-sqlite/pkg/lang"
+	. "github.com/mutablelogic/go-sqlite/pkg/sqobj"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

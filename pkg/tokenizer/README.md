@@ -6,8 +6,8 @@ This package parses SQL statements to do two specific things:
     text within the SQL statement;
   * Can determine if a statement "is complete - that is, has a trailing semicolon on a statement.
 
-This package is part of a wider project, `github.com/djthorpe/go-sqlite`.
-Please see the [module documentation](https://github.com/djthorpe/go-sqlite/blob/master/README.md)
+This package is part of a wider project, `github.com/mutablelogic/go-sqlite`.
+Please see the [module documentation](https://github.com/mutablelogic/go-sqlite/blob/master/README.md)
 for more information.
 
 ## Using the tokenizer
@@ -17,7 +17,7 @@ Here's an example of using the tokenizer:
 
 ```go
 import (
-	"github.com/djthorpe/go-sqlite/pkg/tokenizer"
+	"github.com/mutablelogic/go-sqlite/pkg/tokenizer"
 )
 
 func Tokenize(q string) ([]interface{},error) {

@@ -5,8 +5,8 @@ import (
 	"mime"
 
 	// Namespace Imports
-	. "github.com/djthorpe/go-sqlite"
 	"github.com/hashicorp/go-multierror"
+	. "github.com/mutablelogic/go-sqlite"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

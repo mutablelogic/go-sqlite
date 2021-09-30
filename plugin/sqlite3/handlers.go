@@ -247,12 +247,11 @@ func (p *plugin) ServeTable(w http.ResponseWriter, req *http.Request) {
 	}
 	defer p.Put(conn)
 
-	// Check for schema
+	// Check for schema and table
 	if !stringSliceContainsElement(conn.Schemas(), params[0]) {
 		router.ServeError(w, http.StatusNotFound, "Schema not found", strconv.Quote(params[0]))
 		return
-	}
-	if !stringSliceContainsElement(conn.Tables(params[0]), params[1]) {
+	} else if !stringSliceContainsElement(conn.Tables(params[0]), params[1]) {
 		router.ServeError(w, http.StatusNotFound, "Table not found", strconv.Quote(params[1]))
 		return
 	}

@@ -3,6 +3,7 @@ package sqlite3
 import (
 	"strconv"
 	"strings"
+	"time"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,8 +46,40 @@ func stringToBool(v string) bool {
 	}
 }
 
-// intMax returns the maximum of two ints
+// intMax returns the maximum of two int values
 func intMax(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// intMin returns the minimum of two int values
+func intMin(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// maxInt32 returns the maximum of two int32 values
+func maxInt32(a, b int32) int32 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+// durationMin returns the minimum of two time.Duration values
+func durationMin(a, b time.Duration) time.Duration {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// durationMax returns the maximum of two time.Duration values
+func durationMax(a, b time.Duration) time.Duration {
 	if a > b {
 		return a
 	}

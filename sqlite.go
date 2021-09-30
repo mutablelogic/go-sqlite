@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"time"
 )
 
 const (
@@ -45,6 +46,10 @@ type SQPool interface {
 	// the maximum instantly, it will settle to this value over time. Set as value
 	// zero to disable opening new connections
 	SetMax(int32)
+
+	// SlowQueries returns the slowest N queries if tracing is switched on, returns
+	// nil if no tracing has been turned on
+	SlowQueries(n int) []SQSlowQuery
 }
 
 // SQConnection is an sqlite connection to one or more databases
@@ -135,6 +140,27 @@ type SQAuth interface {
 
 	// CanExec is called to authenticate an operation other then SELECT
 	CanExec(context.Context, SQAuthFlag, string, ...string) error
+}
+
+// SQSlowQuery returns a profile for a query
+type SQSlowQuery interface {
+	// Return the query text
+	SQL() string
+
+	// Return the minimum query time
+	Min() time.Duration
+
+	// Return the maximum query time
+	Max() time.Duration
+
+	// Return the mean average query time
+	Mean() time.Duration
+
+	// Return the number of samples
+	Count() int
+
+	// Return the period over which the samples were taken
+	Delta() time.Duration
 }
 
 ///////////////////////////////////////////////////////////////////////////////

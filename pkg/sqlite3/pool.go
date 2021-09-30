@@ -45,6 +45,7 @@ type Pool struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	n      int32
+	q      *profilearray
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,6 +120,11 @@ func OpenPool(config PoolConfig, errs chan<- error) (*Pool, error) {
 		p.Pool.Put(conn)
 	}
 
+	// If trace is enabled, create a profile array
+	if config.Trace {
+		p.q = NewProfileArray(0, 0, 0)
+	}
+
 	// Return success
 	return p, nil
 }
@@ -131,6 +137,12 @@ func (p *Pool) Close() error {
 	p.SetMax(0)
 	p.cancel()
 	p.Wait()
+
+	// Close tracing
+	if p.q != nil {
+		p.q.Close()
+		p.q = nil
+	}
 
 	// Return success
 	return nil
@@ -217,6 +229,18 @@ func (p *Pool) Put(conn SQConnection) {
 	} else {
 		panic(ErrBadParameter.With("Put"))
 	}
+}
+
+// Return up to n slow queries
+func (p *Pool) SlowQueries(n int) []SQSlowQuery {
+	if p.q == nil {
+		return nil
+	}
+	results := make([]SQSlowQuery, 0, intMax(0, n))
+	for _, q := range p.q.SlowQueries(n) {
+		results = append(results, q)
+	}
+	return results
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -372,13 +396,7 @@ func (p *Pool) attachCreate(path string) error {
 
 // Trace
 func (p *Pool) trace(c *Conn, s *sqlite3.Statement, ns int64) {
-	fmt.Printf("TRACE %q => %v\n", s, time.Duration(ns)*time.Nanosecond)
-}
-
-// maxInt32 returns the maximum of two values
-func maxInt32(a, b int32) int32 {
-	if a > b {
-		return a
+	if p.q != nil {
+		p.q.Add(s.SQL(), time.Duration(ns)*time.Nanosecond)
 	}
-	return b
 }

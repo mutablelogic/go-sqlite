@@ -3,7 +3,6 @@ package walkfs
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -26,6 +25,7 @@ type WalkFS struct {
 	inext   map[string]bool
 	exext   map[string]bool
 	expath  map[string]bool
+	exname  map[string]bool
 	count   int
 	visitfn VisitFunc
 }
@@ -47,6 +47,7 @@ func New(fn VisitFunc) *WalkFS {
 	walkfs.inext = make(map[string]bool)
 	walkfs.exext = make(map[string]bool)
 	walkfs.expath = make(map[string]bool)
+	walkfs.exname = make(map[string]bool)
 	walkfs.visitfn = fn
 	return walkfs
 }
@@ -78,7 +79,7 @@ func (walkfs *WalkFS) Include(ext string) error {
 // Exclude adds a path or file extension exclusion to the indexer.
 // If it begins with a '.' then a file extension exlusion is added,
 // If it begins with a '/' then a path extension exclusion is added.
-// Path exclusions are case-sensitive, file extension exclusions are not.
+// Path and name exclusions are case-sensitive, file extension exclusions are not.
 func (walkfs *WalkFS) Exclude(v string) error {
 	v = strings.TrimSpace(v)
 	if strings.HasPrefix(v, ".") && v != "." {
@@ -87,6 +88,8 @@ func (walkfs *WalkFS) Exclude(v string) error {
 	} else if strings.HasPrefix(v, pathSeparator) && v != pathSeparator {
 		v = pathSeparator + strings.Trim(v, pathSeparator)
 		walkfs.expath[v] = true
+	} else if !strings.Contains(v, pathSeparator) && v != "" {
+		walkfs.exname[v] = true
 	} else {
 		return ErrBadParameter.Withf("invalid exclusion: %q", v)
 	}
@@ -130,15 +133,12 @@ func (walkfs *WalkFS) Walk(ctx context.Context, path string) error {
 // on exclusions or else returns false
 func (walkfs *WalkFS) ShouldVisit(relpath string, info fs.FileInfo) bool {
 	if !walkfs.shouldVisit(info) {
-		fmt.Println("Not visiting shouldVisit", relpath)
 		return false
 	}
-	if info.IsDir() && walkfs.shouldExcludePath(relpath) {
-		fmt.Println("Not visiting shouldExcludePath", relpath)
+	if walkfs.shouldExcludePath(relpath) {
 		return false
 	}
 	if info.Mode().IsRegular() && walkfs.shouldExcludeFile(info) {
-		fmt.Println("Not visiting shouldExcludeFile", relpath)
 		return false
 	}
 	return true
@@ -234,31 +234,44 @@ func (walkfs *WalkFS) shouldExcludePath(relpath string) bool {
 	if len(walkfs.expath) == 0 {
 		return false
 	}
+	// Exclude by path prefix
 	relpath = pathSeparator + strings.Trim(relpath, pathSeparator) + pathSeparator
 	for path := range walkfs.expath {
 		if strings.HasPrefix(relpath, path) {
-			fmt.Println("excluding due to relpath=", relpath, " and path=", path)
 			return true
 		}
 	}
-	return false
-}
-
-// shouldExcludeFile returns true if the given file should not be visited
-// based on file extension
-func (walkfs *WalkFS) shouldExcludeFile(info fs.FileInfo) bool {
-	// Include all files if no inclusions are specified
+	// Exclude by extension
 	if len(walkfs.exext) == 0 {
 		return false
 	}
-	// Ignore anything which isn't a regular file
-	if !info.Mode().IsRegular() {
-		return false
-	}
-	ext := strings.ToUpper(filepath.Ext(info.Name()))
+	ext := strings.ToUpper(filepath.Ext(relpath))
 	if _, exists := walkfs.exext[ext]; exists {
 		return true
 	} else {
 		return false
 	}
+}
+
+// shouldExcludeFile returns true if the given file should not be visited
+// based on file extension
+func (walkfs *WalkFS) shouldExcludeFile(info fs.FileInfo) bool {
+	// Ignore anything which isn't a regular file
+	if !info.Mode().IsRegular() {
+		return false
+	}
+	// Include all files if no inclusions are specified
+	if len(walkfs.exext) > 0 {
+		ext := strings.ToUpper(filepath.Ext(info.Name()))
+		if _, exists := walkfs.exext[ext]; exists {
+			return true
+		}
+	}
+	if len(walkfs.exname) > 0 {
+		if _, exists := walkfs.exname[info.Name()]; exists {
+			return true
+		}
+	}
+	// Return false - no exclusions
+	return false
 }

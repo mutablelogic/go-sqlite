@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	TEST_PATH_1 = "../../.."
+	TEST_PATH_1 = "../../../.."
 )
 
 func Test_Indexer_000(t *testing.T) {
@@ -48,7 +48,12 @@ func Test_Indexer_001(t *testing.T) {
 	}()
 
 	// Queue up an indexing operation
-	indexer.Exclude("/waveshare")
+	indexer.Exclude("/Library")
+	indexer.Exclude("/go")
+	indexer.Exclude("/Work")
+	indexer.Exclude("/bin")
+	indexer.Exclude("/Projects")
+	indexer.Exclude("/Documents")
 	if err := indexer.Walk(ctx); err != nil {
 		t.Error(err)
 	}

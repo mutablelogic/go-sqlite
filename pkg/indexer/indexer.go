@@ -74,7 +74,7 @@ func (i *Indexer) Run(ctx context.Context, errs chan<- error) error {
 
 	in := make(chan notify.EventInfo, defaultCapacity)
 	if err := notify.Watch(filepath.Join(i.path, "..."), in, notify.Create, notify.Remove, notify.Write, notify.Rename); err != nil {
-		fmt.Println("err", err)
+		senderr(errs, err)
 		return err
 	}
 
@@ -156,13 +156,34 @@ func (i *Indexer) Walk(ctx context.Context) error {
 
 // event is used to process an event from the notify
 func (i *Indexer) event(ctx context.Context, evt notify.EventInfo) error {
-	fmt.Println("event", evt)
+	relpath, err := filepath.Rel(i.path, evt.Path())
+	if err != nil {
+		return err
+	}
+	switch evt.Event() {
+	case notify.Create, notify.Write:
+		info, err := os.Stat(evt.Path())
+		if err == nil && info.Mode().IsRegular() && i.ShouldVisit(relpath, info) {
+			fmt.Println("INDEX ", relpath)
+		}
+	case notify.Remove, notify.Rename:
+		info, err := os.Stat(evt.Path())
+		if err == nil && info.Mode().IsRegular() && i.ShouldVisit(relpath, info) {
+			fmt.Println("INDEX ", relpath)
+		} else {
+			// Always attempt removal from index
+			fmt.Println("REMOVE ", relpath)
+		}
+	}
+	// Return success
 	return nil
 }
 
 // visit is used to index a file from the indexer
 func (i *Indexer) visit(ctx context.Context, abspath, relpath string, info fs.FileInfo) error {
-	fmt.Println("visited", abspath, relpath, info.IsDir())
+	if info.Mode().IsRegular() {
+		fmt.Println("INDEX ", relpath)
+	}
 	return nil
 }
 
@@ -178,73 +199,3 @@ func senderr(ch chan<- error, err error) {
 		}
 	}
 }
-
-/*
-// Return an indexer event or nil if no event should be sent
-func (this *Indexer) process(e EventType, path string, info fs.FileInfo, out chan<- IndexerEvent, block bool) error {
-	// Normalize the path
-	relpath, err := filepath.Rel(this.path, path)
-	if err != nil {
-		return err
-	} else {
-		relpath = pathSeparator + relpath
-	}
-
-	// Deal with exclusions
-	if e&EVENT_TYPE_ADDED > 0 {
-		// Check for path exclusions
-		for exclusion := range this.expath {
-			if strings.HasPrefix(relpath, exclusion) {
-				return nil
-			}
-		}
-		// Check for extension exclusions
-		if info != nil && info.Mode().IsRegular() {
-			ext := strings.ToUpper(filepath.Ext(info.Name()))
-			if _, exists := this.exext[ext]; exists {
-				return nil
-			}
-		}
-	}
-
-	// Send event
-	if block {
-		out <- NewEvent(e, this.name, relpath, info)
-	} else {
-		select {
-		case out <- NewEvent(e, this.name, relpath, info):
-			// No-op
-		default:
-			return ErrChannelBlocked.With(this.name)
-		}
-	}
-
-	// Return success
-	return nil
-}
-
-// Translate notify types to internal types
-func toEventType(e notify.Event, info fs.FileInfo) EventType {
-	switch e {
-	case notify.Create:
-		if info != nil {
-			return EVENT_TYPE_ADDED
-		}
-	case notify.Remove:
-		return EVENT_TYPE_REMOVED
-	case notify.Rename:
-		if info != nil {
-			return EVENT_TYPE_ADDED | EVENT_TYPE_RENAMED
-		} else {
-			return EVENT_TYPE_REMOVED | EVENT_TYPE_RENAMED
-		}
-	case notify.Write:
-		if info != nil {
-			return EVENT_TYPE_ADDED | EVENT_TYPE_CHANGED
-		}
-	}
-
-	// Ignore unhandled cases
-	return EVENT_TYPE_NONE
-}
-*/

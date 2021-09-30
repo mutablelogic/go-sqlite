@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/djthorpe/go-sqlite/sys/sqlite3"
+	"github.com/mutablelogic/go-sqlite/sys/sqlite3"
 )
 
 const (

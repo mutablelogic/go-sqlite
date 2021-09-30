@@ -4,8 +4,8 @@ import (
 	"sync"
 
 	// Packages
-	sqlite3 "github.com/djthorpe/go-sqlite/sys/sqlite3"
 	multierror "github.com/hashicorp/go-multierror"
+	sqlite3 "github.com/mutablelogic/go-sqlite/sys/sqlite3"
 
 	// Namespace Imports
 	. "github.com/djthorpe/go-errors"

@@ -4,10 +4,10 @@ import (
 	"fmt"
 
 	// Namespace Imports
-	//. "github.com/djthorpe/go-sqlite"
+	//. "github.com/mutablelogic/go-sqlite"
 
 	// Modules
-	"github.com/djthorpe/go-sqlite/pkg/sqobj"
+	"github.com/mutablelogic/go-sqlite/pkg/sqobj"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

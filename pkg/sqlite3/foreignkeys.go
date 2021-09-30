@@ -2,7 +2,7 @@ package sqlite3
 
 import (
 	// Import namespaces
-	. "github.com/djthorpe/go-sqlite/pkg/lang"
+	. "github.com/mutablelogic/go-sqlite/pkg/lang"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

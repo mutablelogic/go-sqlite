@@ -6,8 +6,8 @@ import (
 
 	// Modules
 	. "github.com/djthorpe/go-errors"
-	. "github.com/djthorpe/go-sqlite/pkg/lang"
-	. "github.com/djthorpe/go-sqlite/pkg/sqobj"
+	. "github.com/mutablelogic/go-sqlite/pkg/lang"
+	. "github.com/mutablelogic/go-sqlite/pkg/sqobj"
 )
 
 type TestStruct struct {

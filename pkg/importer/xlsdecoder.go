@@ -6,7 +6,7 @@ import (
 
 	// Namespace Imports
 	. "github.com/djthorpe/go-errors"
-	. "github.com/djthorpe/go-sqlite"
+	. "github.com/mutablelogic/go-sqlite"
 
 	// Package imports
 	excelize "github.com/xuri/excelize/v2"

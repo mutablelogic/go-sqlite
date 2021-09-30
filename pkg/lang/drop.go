@@ -3,7 +3,7 @@ package lang
 import (
 	"strings"
 
-	sqlite "github.com/djthorpe/go-sqlite"
+	sqlite "github.com/mutablelogic/go-sqlite"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

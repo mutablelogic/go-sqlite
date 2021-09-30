@@ -18,16 +18,16 @@ Presently the module is in development and the API is subject to change.
 
 | If you want to...                    |  Folder         | Documentation |
 |--------------------------------------|-----------------|---------------|
-| Use the lower-level sqlite3 bindings similar to the [C API](https://www.sqlite.org/capi3ref.html) | [sys/sqlite3](https://github.com/djthorpe/go-sqlite/tree/master/sys/sqlite3) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/sys/sqlite3/README.md) |
-| Use high-concurrency high-level interface including statement caching and connection pool | [pkg/sqlite3](https://github.com/djthorpe/go-sqlite/tree/master/pkg/sqlite3) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/pkg/sqlite3/README.md) |
-| Implement or use a REST API to sqlite3 | [plugin/sqlite3](https://github.com/djthorpe/go-sqlite/tree/master/plugin/sqlite3) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/plugin/sqlite3/README.md) |
-| Develop or use a front-end web service to the REST API backend | [npm/sqlite3](https://github.com/djthorpe/go-sqlite/tree/master/npm/sqlite3) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/npm/sqlite3/README.md) |
-| Use an "object" interface to persist structured data | [pkg/sqobj](https://github.com/djthorpe/go-sqlite/tree/master/pkg/sqobj) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/pkg/sqobj/README.md) |
-| Use a statement builder to programmatically write SQL statements | [pkg/lang](https://github.com/djthorpe/go-sqlite/tree/master/pkg/lang) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/pkg/lang/README.md) |
-| Implement a generalized data importer from CSV, JSON, Excel, etc | [pkg/importer](https://github.com/djthorpe/go-sqlite/tree/master/pkg/importer) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/pkg/importer/README.md) |
-| Implement a search indexer | [pkg/indexer](https://github.com/djthorpe/go-sqlite/tree/master/pkg/indexer) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/pkg/indexer/README.md) |
-| Tokenize SQL statements for syntax colouring (for example) | [pkg/tokenizer](https://github.com/djthorpe/go-sqlite/tree/master/pkg/tokenizer) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/pkg/tokenizer/README.md) |
-| See example command-line tools | [cmd](https://github.com/djthorpe/go-sqlite/tree/master/cmd) | [README.md](https://github.com/djthorpe/go-sqlite/blob/master/cmd/README.md) |
+| Use the lower-level sqlite3 bindings similar to the [C API](https://www.sqlite.org/capi3ref.html) | [sys/sqlite3](https://github.com/mutablelogic/go-sqlite/tree/master/sys/sqlite3) | [README.md](https://github.com/mutablelogic/go-sqlite/blob/master/sys/sqlite3/README.md) |
+| Use high-concurrency high-level interface including statement caching and connection pool | [pkg/sqlite3](https://github.com/mutablelogic/go-sqlite/tree/master/pkg/sqlite3) | [README.md](https://github.com/mutablelogic/go-sqlite/blob/master/pkg/sqlite3/README.md) |
+| Implement or use a REST API to sqlite3 | [plugin/sqlite3](https://github.com/mutablelogic/go-sqlite/tree/master/plugin/sqlite3) | [README.md](https://github.com/mutablelogic/go-sqlite/blob/master/plugin/sqlite3/README.md) |
+| Develop or use a front-end web service to the REST API backend | [npm/sqlite3](https://github.com/mutablelogic/go-sqlite/tree/master/npm/sqlite3) | [README.md](https://github.com/mutablelogic/go-sqlite/blob/master/npm/sqlite3/README.md) |
+| Use an "object" interface to persist structured data | [pkg/sqobj](https://github.com/mutablelogic/go-sqlite/tree/master/pkg/sqobj) | [README.md](https://github.com/mutablelogic/go-sqlite/blob/master/pkg/sqobj/README.md) |
+| Use a statement builder to programmatically write SQL statements | [pkg/lang](https://github.com/mutablelogic/go-sqlite/tree/master/pkg/lang) | [README.md](https://github.com/mutablelogic/go-sqlite/blob/master/pkg/lang/README.md) |
+| Implement a generalized data importer from CSV, JSON, Excel, etc | [pkg/importer](https://github.com/mutablelogic/go-sqlite/tree/master/pkg/importer) | [README.md](https://github.com/mutablelogic/go-sqlite/blob/master/pkg/importer/README.md) |
+| Implement a search indexer | [pkg/indexer](https://github.com/mutablelogic/go-sqlite/tree/master/pkg/indexer) | [README.md](https://github.com/mutablelogic/go-sqlite/blob/master/pkg/indexer/README.md) |
+| Tokenize SQL statements for syntax colouring (for example) | [pkg/tokenizer](https://github.com/mutablelogic/go-sqlite/tree/master/pkg/tokenizer) | [README.md](https://github.com/mutablelogic/go-sqlite/blob/master/pkg/tokenizer/README.md) |
+| See example command-line tools | [cmd](https://github.com/mutablelogic/go-sqlite/tree/master/cmd) | [README.md](https://github.com/mutablelogic/go-sqlite/blob/master/cmd/README.md) |
 
 ## Requirements
 
@@ -88,7 +88,7 @@ the package. The various make targets are:
 
 __This module is currently in development and subject to change.__
 
-Please do file feature requests and bugs [here](https://github.com/djthorpe/go-sqlite/issues).
+Please do file feature requests and bugs [here](https://github.com/mutablelogic/go-sqlite/issues).
 The license is Apache 2 so feel free to redistribute. Redistributions in either source
 code or binary form must reproduce the copyright notice, and please link back to this
 repository for more information:

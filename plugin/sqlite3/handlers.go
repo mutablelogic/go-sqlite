@@ -12,14 +12,14 @@ import (
 	"strconv"
 
 	// Packages
-	router "github.com/djthorpe/go-server/pkg/httprouter"
-	sqlite3 "github.com/djthorpe/go-sqlite/pkg/sqlite3"
-	tokenizer "github.com/djthorpe/go-sqlite/pkg/tokenizer"
+	router "github.com/mutablelogic/go-server/pkg/httprouter"
+	sqlite3 "github.com/mutablelogic/go-sqlite/pkg/sqlite3"
+	tokenizer "github.com/mutablelogic/go-sqlite/pkg/tokenizer"
 
 	// Namespace imports
-	. "github.com/djthorpe/go-server"
-	. "github.com/djthorpe/go-sqlite"
-	. "github.com/djthorpe/go-sqlite/pkg/lang"
+	. "github.com/mutablelogic/go-server"
+	. "github.com/mutablelogic/go-sqlite"
+	. "github.com/mutablelogic/go-sqlite/pkg/lang"
 
 	// Some sort of hack
 	_ "gopkg.in/yaml.v3"

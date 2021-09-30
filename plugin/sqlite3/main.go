@@ -5,11 +5,11 @@ import (
 	"fmt"
 
 	// Packages
-	sqlite3 "github.com/djthorpe/go-sqlite/pkg/sqlite3"
+	sqlite3 "github.com/mutablelogic/go-sqlite/pkg/sqlite3"
 
 	// Namespace imports
-	. "github.com/djthorpe/go-server"
-	. "github.com/djthorpe/go-sqlite"
+	. "github.com/mutablelogic/go-server"
+	. "github.com/mutablelogic/go-sqlite"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

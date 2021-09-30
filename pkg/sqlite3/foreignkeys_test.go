@@ -7,7 +7,7 @@ import (
 	// Module imports
 
 	// Namespace Imports
-	. "github.com/djthorpe/go-sqlite/pkg/sqlite3"
+	. "github.com/mutablelogic/go-sqlite/pkg/sqlite3"
 )
 
 func Test_ForeignKeys_001(t *testing.T) {

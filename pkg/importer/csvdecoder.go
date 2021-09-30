@@ -6,7 +6,7 @@ import (
 	"io"
 
 	// Namespace Imports
-	. "github.com/djthorpe/go-sqlite"
+	. "github.com/mutablelogic/go-sqlite"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

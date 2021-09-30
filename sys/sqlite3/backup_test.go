@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/djthorpe/go-sqlite/sys/sqlite3"
+	"github.com/mutablelogic/go-sqlite/sys/sqlite3"
 )
 
 func Test_Backup_001(t *testing.T) {

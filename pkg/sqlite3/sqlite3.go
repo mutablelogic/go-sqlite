@@ -2,10 +2,10 @@ package sqlite3
 
 import (
 	// Modules
-	"github.com/djthorpe/go-sqlite/sys/sqlite3"
+	"github.com/mutablelogic/go-sqlite/sys/sqlite3"
 
 	// Namespace imports
-	. "github.com/djthorpe/go-sqlite"
+	. "github.com/mutablelogic/go-sqlite"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

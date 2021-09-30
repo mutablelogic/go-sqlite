@@ -4,11 +4,11 @@ import (
 	// Modules
 	"context"
 
-	sqlite3 "github.com/djthorpe/go-sqlite/sys/sqlite3"
+	sqlite3 "github.com/mutablelogic/go-sqlite/sys/sqlite3"
 
 	// Namespace Imports
 	. "github.com/djthorpe/go-errors"
-	. "github.com/djthorpe/go-sqlite"
+	. "github.com/mutablelogic/go-sqlite"
 )
 
 ////////////////////////////////////////////////////////////////////////////////

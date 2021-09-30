@@ -12,9 +12,9 @@ import (
 
 	// Import namespaces
 	. "github.com/djthorpe/go-errors"
-	. "github.com/djthorpe/go-sqlite"
-	. "github.com/djthorpe/go-sqlite/pkg/lang"
-	. "github.com/djthorpe/go-sqlite/pkg/quote"
+	. "github.com/mutablelogic/go-sqlite"
+	. "github.com/mutablelogic/go-sqlite/pkg/lang"
+	. "github.com/mutablelogic/go-sqlite/pkg/quote"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

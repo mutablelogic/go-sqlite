@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	// Namespace Imports
-	. "github.com/djthorpe/go-sqlite/pkg/lang"
-	. "github.com/djthorpe/go-sqlite/pkg/sqlite3"
+	. "github.com/mutablelogic/go-sqlite/pkg/lang"
+	. "github.com/mutablelogic/go-sqlite/pkg/sqlite3"
 )
 
 func Test_Schema_001(t *testing.T) {

@@ -7,10 +7,10 @@ import (
 
 	// Import Namespaces
 	. "github.com/djthorpe/go-errors"
-	. "github.com/djthorpe/go-sqlite"
+	. "github.com/mutablelogic/go-sqlite"
 
 	// Packages
-	sqlite3 "github.com/djthorpe/go-sqlite/pkg/sqlite3"
+	sqlite3 "github.com/mutablelogic/go-sqlite/pkg/sqlite3"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -230,6 +230,14 @@ func (walkfs *WalkFS) shouldVisit(info fs.FileInfo) bool {
 
 // shouldExcludePath returns true if the given relative path should be excluded
 func (walkfs *WalkFS) shouldExcludePath(relpath string) bool {
+	// Exclude any paths which have a .<folder> as part of their path
+	if relpath != "." {
+		for _, path := range strings.Split(relpath, pathSeparator) {
+			if strings.HasPrefix(path, ".") {
+				return true
+			}
+		}
+	}
 	// Include all files if no inclusions are specified
 	if len(walkfs.expath) == 0 {
 		return false

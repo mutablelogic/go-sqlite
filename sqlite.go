@@ -17,6 +17,7 @@ const (
 type (
 	SQAuthFlag uint32
 	SQFlag     uint32
+	SQTxnFunc  func(SQTransaction) error
 	SQExecFunc func(row, col []string) bool
 )
 
@@ -41,10 +42,6 @@ type SQPool interface {
 	// SetMax allowed connections released from pool. Note this does not change
 	// the maximum instantly, it will settle to this value over time.
 	SetMax(int)
-
-	// SlowQueries returns the slowest N queries if tracing is switched on, returns
-	// nil if no tracing has been turned on
-	//SlowQueries(n int) []SQSlowQuery
 }
 
 // SQConnection is an sqlite connection to one or more databases
@@ -139,29 +136,6 @@ type SQAuth interface {
 	// CanExec is called to authenticate an operation other then SELECT
 	CanExec(context.Context, SQAuthFlag, string, ...string) error
 }
-
-/*
-// SQSlowQuery returns a profile for a query
-type SQSlowQuery interface {
-	// Return the query text
-	SQL() string
-
-	// Return the minimum query time
-	Min() time.Duration
-
-	// Return the maximum query time
-	Max() time.Duration
-
-	// Return the mean average query time
-	Mean() time.Duration
-
-	// Return the number of samples
-	Count() int
-
-	// Return the period over which the samples were taken
-	Delta() time.Duration
-}
-*/
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS

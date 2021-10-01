@@ -1,8 +1,8 @@
 package sqlite3_test
 
 import (
-	"context"
 	"testing"
+	"time"
 
 	// Module imports
 
@@ -11,24 +11,23 @@ import (
 )
 
 func Test_ForeignKeys_001(t *testing.T) {
-	errs, cancel := catchErrors(t)
-	defer cancel()
-
-	// Create the pool
-	pool, err := OpenPool(PoolConfig{
-		Schemas: map[string]string{"main": ":memory:"},
-		Trace:   true,
-	}, errs)
+	errs, cancel := handleErrors(t)
+	cfg := NewConfig().WithTrace(func(sql string, d time.Duration) {
+		if d > 0 {
+			t.Log(sql, "=>", d)
+		}
+	})
+	pool, err := OpenPool(cfg, errs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
+	} else {
+		t.Log(pool)
 	}
 	defer pool.Close()
+	defer cancel()
 
-	// Get conn
-	conn := pool.Get(context.Background())
-	if conn == nil {
-		t.Fatal("conn is nil")
-	}
+	// Get connection
+	conn := pool.Get()
 	defer pool.Put(conn)
 
 	if err := conn.(*Conn).SetForeignKeyConstraints(true); err != nil {

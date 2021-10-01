@@ -113,7 +113,7 @@ func (conn *Conn) Close() error {
 
 // Execute SQL statement without preparing, and invoke a callback for each row of results
 // which may return true to abort
-func (conn *Conn) Exec(st SQStatement, fn ExecFunc) error {
+func (conn *Conn) Exec(st SQStatement, fn SQExecFunc) error {
 	if st == nil {
 		return ErrBadParameter.With("Exec")
 	}

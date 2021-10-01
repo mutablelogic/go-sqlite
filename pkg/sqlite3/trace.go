@@ -16,7 +16,7 @@ import (
 // SQL statement. If the second argument is less than zero, the callback is preparing
 // a statement for execution. If the second argument is non-zero, the
 // callback is invoked when the statement is completed.
-func (c *Conn) SetTraceHook(fn func(q string, delta time.Duration)) {
+func (c *Conn) SetTraceHook(fn TraceFunc) {
 	if fn == nil {
 		c.ConnEx.SetTraceHook(nil, 0)
 	} else {

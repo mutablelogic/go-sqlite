@@ -15,24 +15,19 @@ import (
 )
 
 func Test_Auth_001(t *testing.T) {
-	errs, cancel := catchErrors(t)
-	defer cancel()
-
-	// Create the pool
-	pool, err := OpenPool(PoolConfig{
-		Schemas: map[string]string{"main": ":memory:"},
-		Auth:    NewAuth(t),
-	}, errs)
+	errs, cancel := handleErrors(t)
+	cfg := NewConfig().WithAuth(NewAuth(t))
+	pool, err := OpenPool(cfg, errs)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
+	} else {
+		t.Log(pool)
 	}
 	defer pool.Close()
+	defer cancel()
 
-	// Get conn
-	conn := pool.Get(context.Background())
-	if conn == nil {
-		t.Fatal("conn is nil")
-	}
+	// Get connection
+	conn := pool.Get()
 	defer pool.Put(conn)
 
 	// Make various requests

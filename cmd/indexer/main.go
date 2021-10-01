@@ -134,7 +134,7 @@ func main() {
 		wg.Add(1)
 		go func(i uint) {
 			defer wg.Done()
-			conn := pool.Get(ctx)
+			conn := pool.Get()
 			if conn == nil {
 				return
 			}
@@ -176,7 +176,7 @@ func sep(r rune) bool {
 }
 
 func CreateSchema(ctx context.Context, pool SQPool) error {
-	conn := pool.Get(ctx)
+	conn := pool.Get()
 	if conn == nil {
 		return errors.New("Unable to get a connection from pool")
 	}
@@ -202,7 +202,7 @@ func Process(ctx context.Context, conn SQConnection, evt *indexer.QueueEvent) er
 			if result, err := txn.Query(Q(`REPLACE INTO files (name, path) VALUES (?, ?)`), evt.Name, evt.Path); err != nil {
 				return err
 			} else if result.LastInsertId() > 0 {
-				fmt.Println("ADDED:", evt)
+				//fmt.Println("ADDED:", evt)
 			}
 		case indexer.EventRemove:
 			if result, err := txn.Query(Q(`DELETE FROM files WHERE name=? AND path=?`), evt.Name, evt.Path); err != nil {

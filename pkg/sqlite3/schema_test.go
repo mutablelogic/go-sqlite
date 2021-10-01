@@ -1,11 +1,10 @@
 package sqlite3_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
+	"time"
 
 	// Namespace Imports
 	. "github.com/mutablelogic/go-sqlite/pkg/lang"
@@ -13,18 +12,27 @@ import (
 )
 
 func Test_Schema_001(t *testing.T) {
-	errs, cancel := catchErrors(t)
-	defer cancel()
-
-	// Create the pool
-	pool, err := NewPool("", errs)
+	errs, cancel := handleErrors(t)
+	cfg := NewConfig().WithTrace(func(sql string, d time.Duration) {
+		if d > 0 {
+			t.Log(sql, "=>", d)
+		}
+	})
+	pool, err := OpenPool(cfg, errs)
 	if err != nil {
 		t.Fatal(err)
+	} else {
+		t.Log(pool)
 	}
 	defer pool.Close()
+	defer cancel()
 
-	// Make schema request
-	schemas := pool.Get(context.Background()).Schemas()
+	// Get connection
+	conn := pool.Get()
+	defer pool.Put(conn)
+
+	// Get schemas
+	schemas := conn.Schemas()
 	if schemas == nil {
 		t.Error("Unexpected return from schemas")
 	} else if len(schemas) != 1 {
@@ -35,30 +43,42 @@ func Test_Schema_001(t *testing.T) {
 }
 
 func Test_Schema_002(t *testing.T) {
-	errs, cancel := catchErrors(t)
-	defer cancel()
+	// Create error channel
+	errs, cancel := handleErrors(t)
 
+	// Make folder of temp files
 	tmpdir, err := os.MkdirTemp("", "sqlite")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpdir)
 
-	// Create the pool, open file schema
-	pool, err := OpenPool(PoolConfig{
-		Schemas: map[string]string{
-			"main": filepath.Join(tmpdir, "main.sqlite"),
-			"test": filepath.Join(tmpdir, "test.sqlite"),
-		},
-		Create: true,
-	}, errs)
+	// Make configuration
+	cfg := NewConfig().WithTrace(func(sql string, d time.Duration) {
+		if d > 0 {
+			t.Log(sql, "=>", d)
+		}
+	}).
+		WithSchema("main", filepath.Join(tmpdir, "main.sqlite")).
+		WithSchema("test", filepath.Join(tmpdir, "test.sqlite"))
+
+	// Create pool
+	pool, err := OpenPool(cfg, errs)
 	if err != nil {
 		t.Fatal(err)
+	} else {
+		t.Log(pool)
 	}
 	defer pool.Close()
+	defer cancel()
+
+	// Get connection
+	conn := pool.Get()
+	defer pool.Put(conn)
 
 	// Make schema request
-	schemas := pool.Get(context.Background()).Schemas()
+	schemas := conn.Schemas()
+
 	if schemas == nil {
 		t.Errorf("Unexpected return from schemas: %q", schemas)
 	} else if len(schemas) != 2 {
@@ -69,30 +89,40 @@ func Test_Schema_002(t *testing.T) {
 }
 
 func Test_Schema_003(t *testing.T) {
-	errs, cancel := catchErrors(t)
-	defer cancel()
+	// Create error channel
+	errs, cancel := handleErrors(t)
 
+	// Make folder of temp files
 	tmpdir, err := os.MkdirTemp("", "sqlite")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpdir)
 
-	// Create the pool, open file schema
-	pool, err := OpenPool(PoolConfig{
-		Schemas: map[string]string{
-			"main": filepath.Join(tmpdir, "main.sqlite"),
-			"test": filepath.Join(tmpdir, "test.sqlite"),
-		},
-		Create: true,
-	}, errs)
+	// Make configuration
+	cfg := NewConfig().WithTrace(func(sql string, d time.Duration) {
+		if d > 0 {
+			t.Log(sql, "=>", d)
+		}
+	}).
+		WithSchema("main", filepath.Join(tmpdir, "main.sqlite")).
+		WithSchema("test", filepath.Join(tmpdir, "test.sqlite"))
+
+	// Create pool
+	pool, err := OpenPool(cfg, errs)
 	if err != nil {
 		t.Fatal(err)
+	} else {
+		t.Log(pool)
 	}
 	defer pool.Close()
+	defer cancel()
+
+	// Get connection
+	conn := pool.Get()
+	defer pool.Put(conn)
 
 	// Create table_a and table_b in main schema
-	conn := pool.Get(context.Background()).(*Conn)
 	if conn == nil {
 		t.Fatal("Unexpected nil connection")
 	}
@@ -133,33 +163,38 @@ func Test_Schema_003(t *testing.T) {
 }
 
 func Test_Schema_004(t *testing.T) {
-	errs, cancel := catchErrors(t)
-	defer cancel()
+	// Create error channel
+	errs, cancel := handleErrors(t)
 
+	// Make folder of temp files
 	tmpdir, err := os.MkdirTemp("", "sqlite")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpdir)
 
-	// Create the pool, open file schema
-	pool, err := OpenPool(PoolConfig{
-		Schemas: map[string]string{
-			"main": filepath.Join(tmpdir, "main.sqlite"),
-			"test": filepath.Join(tmpdir, "test.sqlite"),
-		},
-		Create: true,
-	}, errs)
+	// Make configuration
+	cfg := NewConfig().WithTrace(func(sql string, d time.Duration) {
+		if d > 0 {
+			t.Log(sql, "=>", d)
+		}
+	}).
+		WithSchema("main", filepath.Join(tmpdir, "main.sqlite")).
+		WithSchema("test", filepath.Join(tmpdir, "test.sqlite"))
+
+	// Create pool
+	pool, err := OpenPool(cfg, errs)
 	if err != nil {
 		t.Fatal(err)
+	} else {
+		t.Log(pool)
 	}
 	defer pool.Close()
+	defer cancel()
 
 	// Get connection
-	conn := pool.Get(context.Background())
-	if conn == nil {
-		t.Fatal("Unexpected nil connection")
-	}
+	conn := pool.Get()
+	defer pool.Put(conn)
 
 	// Get full module list
 	modules := conn.Modules()
@@ -182,32 +217,28 @@ func Test_Schema_004(t *testing.T) {
 }
 
 func Test_Schema_006(t *testing.T) {
-	errs, cancel := catchErrors(t)
-	defer cancel()
+	// Create error channel
+	errs, cancel := handleErrors(t)
 
-	tmpdir, err := os.MkdirTemp("", "sqlite")
+	// Make configuration
+	cfg := NewConfig().WithTrace(func(sql string, d time.Duration) {
+		if d > 0 {
+			t.Log(sql, "=>", d)
+		}
+	})
+
+	// Create pool
+	pool, err := OpenPool(cfg, errs)
 	if err != nil {
 		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpdir)
-
-	// Create the pool, open file schema
-	pool, err := OpenPool(PoolConfig{
-		Schemas: map[string]string{
-			"main": filepath.Join(tmpdir, "main.sqlite"),
-		},
-		Create: true,
-	}, errs)
-	if err != nil {
-		t.Fatal(err)
+	} else {
+		t.Log(pool)
 	}
 	defer pool.Close()
+	defer cancel()
 
-	// Create table_a and table_b in main schema
-	conn := pool.Get(context.Background()).(*Conn)
-	if conn == nil {
-		t.Fatal("Unexpected nil connection")
-	}
+	// Get connection
+	conn := pool.Get()
 	defer pool.Put(conn)
 
 	// Create a table
@@ -231,33 +262,37 @@ func Test_Schema_006(t *testing.T) {
 }
 
 func Test_Schema_007(t *testing.T) {
-	errs, cancel := catchErrors(t)
-	defer cancel()
+	// Create error channel
+	errs, cancel := handleErrors(t)
 
+	// Make folder of temp files
 	tmpdir, err := os.MkdirTemp("", "sqlite")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpdir)
 
-	// Create the pool, open file schema
-	pool, err := OpenPool(PoolConfig{
-		Schemas: map[string]string{
-			"main": filepath.Join(tmpdir, "main.sqlite"),
-		},
-		Trace:  true,
-		Create: true,
-	}, errs)
+	// Make configuration
+	cfg := NewConfig().WithTrace(func(sql string, d time.Duration) {
+		if d > 0 {
+			t.Log(sql, "=>", d)
+		}
+	}).
+		WithSchema("main", filepath.Join(tmpdir, "main.sqlite")).
+		WithSchema("test", filepath.Join(tmpdir, "test.sqlite"))
+
+	// Create pool
+	pool, err := OpenPool(cfg, errs)
 	if err != nil {
 		t.Fatal(err)
+	} else {
+		t.Log(pool)
 	}
 	defer pool.Close()
+	defer cancel()
 
-	// Create table_a and table_b in main schema
-	conn := pool.Get(context.Background()).(*Conn)
-	if conn == nil {
-		t.Fatal("Unexpected nil connection")
-	}
+	// Get connection
+	conn := pool.Get()
 	defer pool.Put(conn)
 
 	// Create a table
@@ -282,35 +317,5 @@ func Test_Schema_007(t *testing.T) {
 		t.Errorf("Unexpected return from indexes: %q", indexes)
 	} else {
 		t.Logf("indexes: %q", indexes)
-	}
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-// catchErrors returns an error channel and a function to cancel catching the errors
-func catchErrors(t *testing.T) (chan<- error, context.CancelFunc) {
-	var wg sync.WaitGroup
-
-	errs := make(chan error)
-	ctx, cancel := context.WithCancel(context.Background())
-	wg.Add(1)
-	go func(ctx context.Context) {
-		defer wg.Done()
-		for {
-			select {
-			case err := <-errs:
-				if err != nil {
-					t.Error(err)
-				}
-			case <-ctx.Done():
-				return
-			}
-		}
-	}(ctx)
-
-	return errs, func() {
-		cancel()
-		wg.Wait()
 	}
 }

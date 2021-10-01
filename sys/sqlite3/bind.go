@@ -21,6 +21,7 @@ import "C"
 
 import (
 	"math"
+	"time"
 	"unsafe"
 )
 
@@ -44,9 +45,9 @@ func (s *Statement) BindNamedInterface(name string, value interface{}) error {
 	}
 }
 
-// Bind int, uint, float, bool, string, []byte, or nil to a statement,
+// Bind int, uint, float, bool, string, []byte, time.Time or nil to a statement,
 // return any errors
-// TODO: Also accept time.Time, maybe custom types with Marshal and Unmarshal
+// TODO: Also accept custom types with Marshal and Unmarshal
 func (s *Statement) BindInterface(index int, value interface{}) error {
 	if value == nil {
 		return s.BindNull(index)
@@ -86,6 +87,12 @@ func (s *Statement) BindInterface(index int, value interface{}) error {
 		return s.BindText(index, v)
 	case []byte:
 		return s.BindBlob(index, v)
+	case time.Time:
+		if v.IsZero() {
+			return s.BindNull(index)
+		} else {
+			return s.BindText(index, v.Format(time.RFC3339))
+		}
 	default:
 		return SQLITE_MISMATCH
 	}

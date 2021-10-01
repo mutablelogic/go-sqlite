@@ -86,7 +86,7 @@ static int _sqlite3_blocking_prepare_v2(
 		if ((rc & 0xFF) != SQLITE_LOCKED) {
 			return rc;
 		}
-		rc = _wait_for_unlock_notify(sqlite3_db_handle(stmt));
+		rc = _wait_for_unlock_notify(db);
 		if (rc != SQLITE_OK) {
 			return rc;
 		}

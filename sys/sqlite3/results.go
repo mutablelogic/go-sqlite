@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 )
@@ -25,6 +26,7 @@ type Results struct {
 var (
 	typeText = reflect.TypeOf("")
 	typeBlob = reflect.TypeOf([]byte{})
+	typeTime = reflect.TypeOf(time.Time{})
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -61,7 +63,7 @@ func results(st *Statement, err error) *Results {
 	return r
 }
 
-// Return next row of values, or nil if there are no more rows.
+// Return next row of values, or (nil, io.EOF) if there are no more rows.
 // If arguments t are provided, then the values will be
 // cast to the types in t if that is possible, or else an error
 // will occur
@@ -206,9 +208,9 @@ func (r *Results) value(index int) (interface{}, error) {
 func (r *Results) castvalue(index int, t reflect.Type) (interface{}, error) {
 	st := r.st.ColumnType(index)
 
-	// Check for null
+	// Do NULL cases
 	if st == SQLITE_NULL {
-		return nil, nil
+		return reflect.Zero(t).Interface(), nil
 	}
 
 	// Do simple cases first
@@ -239,6 +241,14 @@ func (r *Results) castvalue(index int, t reflect.Type) (interface{}, error) {
 	}
 	// Do types
 	switch t {
+	case typeTime:
+		if st == SQLITE_TEXT {
+			return time.Parse(time.RFC3339, r.st.ColumnText(index))
+		} else if st == SQLITE_FLOAT {
+			return nil, fmt.Errorf("Cannot convert julian day number to time (at this time)")
+		} else if st == SQLITE_INTEGER {
+			return time.Unix(r.st.ColumnInt64(index), 0), nil
+		}
 	case typeBlob:
 		if st == SQLITE_BLOB {
 			return r.st.ColumnBlob(index), nil

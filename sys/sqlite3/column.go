@@ -8,6 +8,7 @@ package sqlite3
 import "C"
 
 import (
+	"fmt"
 	"reflect"
 	"unsafe"
 )
@@ -109,4 +110,22 @@ func (s *Statement) ColumnBlob(index int) []byte {
 
 	// Return slice
 	return *(*[]byte)(unsafe.Pointer(&data))
+}
+
+// Return column as interface
+func (s *Statement) ColumnInterface(index int) interface{} {
+	t := s.ColumnType(index)
+	switch t {
+	case SQLITE_INTEGER:
+		return s.ColumnInt64(index)
+	case SQLITE_FLOAT:
+		return s.ColumnDouble(index)
+	case SQLITE_TEXT:
+		return s.ColumnText(index)
+	case SQLITE_NULL:
+		return nil
+	case SQLITE_BLOB:
+		return s.ColumnBlob(index)
+	}
+	panic(fmt.Sprint("Bad type returned for column:", t))
 }

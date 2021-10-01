@@ -185,8 +185,8 @@ func CreateSchema(ctx context.Context, pool SQPool) error {
 	// Create table
 	return conn.Do(ctx, 0, func(txn SQTransaction) error {
 		if _, err := txn.Query(Q(`CREATE TABLE IF NOT EXISTS files (
-			name TEXT NOT NULL,
-			path TEXT NOT NULL,
+			name       TEXT NOT NULL,
+			path       TEXT NOT NULL,
 			PRIMARY KEY (name, path)
 		)`)); err != nil {
 			return err

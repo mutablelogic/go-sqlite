@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"time"
 
 	// Packages
 	sqlite3 "github.com/mutablelogic/go-sqlite/pkg/sqlite3"
@@ -10,13 +11,23 @@ import (
 	// Namespace imports
 	. "github.com/mutablelogic/go-server"
 	. "github.com/mutablelogic/go-sqlite"
+
+	// Some sort of hack
+	_ "gopkg.in/yaml.v3"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
+type Config struct {
+	Databases map[string]string `yaml:"databases"`
+	Max       int               `yaml:"max"`
+	Create    bool              `yaml:"create"`
+	Trace     bool              `yaml:"trace"`
+}
+
 type plugin struct {
-	SQPool
+	pool SQPool
 	errs chan error
 }
 
@@ -28,21 +39,42 @@ func New(ctx context.Context, provider Provider) Plugin {
 	p := new(plugin)
 
 	// Get configuration
-	cfg := sqlite3.PoolConfig{}
+	var cfg Config
 	if err := provider.GetConfig(ctx, &cfg); err != nil {
 		provider.Print(ctx, err)
 		return nil
+	}
+	// Check for databases
+	if len(cfg.Databases) == 0 {
+		provider.Print(ctx, fmt.Errorf("no databases defined"))
+		return nil
+	}
+	// Create the pool
+	poolcfg := sqlite3.NewConfig().
+		WithMaxConnections(cfg.Max).
+		WithCreate(cfg.Create)
+	for name, path := range cfg.Databases {
+		poolcfg = poolcfg.WithSchema(name, path)
+	}
+	if cfg.Trace {
+		poolcfg = poolcfg.WithTrace(func(q string, d time.Duration) {
+			if d >= 0 {
+				provider.Printf(ctx, "TRACE %q => %v", q, d)
+			}
+		})
 	}
 
 	// Create a channel for errors
 	p.errs = make(chan error)
 
 	// Create a pool
-	if pool, err := sqlite3.OpenPool(cfg, p.errs); err != nil {
+	if pool, err := sqlite3.OpenPool(poolcfg, p.errs); err != nil {
 		provider.Print(ctx, err)
+		close(p.errs)
+		p.errs = nil
 		return nil
 	} else {
-		p.SQPool = pool
+		p.pool = pool
 	}
 
 	// Return success
@@ -53,7 +85,11 @@ func New(ctx context.Context, provider Provider) Plugin {
 // STRINGIFY
 
 func (p *plugin) String() string {
-	return fmt.Sprint(p.SQPool)
+	str := "<sqlite3"
+	if p.pool != nil {
+		str += fmt.Sprint(" ", p.pool)
+	}
+	return str + ">"
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -83,7 +119,7 @@ FOR_LOOP:
 	}
 
 	// Close the pool
-	if err := p.SQPool.Close(); err != nil {
+	if err := p.pool.Close(); err != nil {
 		provider.Print(ctx, err)
 	}
 
@@ -92,4 +128,15 @@ FOR_LOOP:
 
 	// Return success
 	return nil
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - PUT AND GET
+
+func (p *plugin) Get() SQConnection {
+	return p.pool.Get()
+}
+
+func (p *plugin) Put(conn SQConnection) {
+	p.pool.Put(conn)
 }

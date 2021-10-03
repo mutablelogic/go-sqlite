@@ -80,6 +80,12 @@ func (cfg PoolConfig) WithTrace(fn TraceFunc) PoolConfig {
 	return cfg
 }
 
+// Enable or disable creation of database files
+func (cfg PoolConfig) WithCreate(create bool) PoolConfig {
+	cfg.Create = create
+	return cfg
+}
+
 // Set maxmimum concurrent connections
 func (cfg PoolConfig) WithMaxConnections(n int) PoolConfig {
 	if n >= 0 {
@@ -184,7 +190,7 @@ func (p *Pool) String() string {
 	str += fmt.Sprintf(" ver=%q", Version())
 	str += fmt.Sprint(" flags=", p.cfg.Flags)
 	str += fmt.Sprint(" cur=", p.Cur())
-	str += fmt.Sprint(" max=", p.cfg.Max)
+	str += fmt.Sprint(" max=", p.Max())
 	for schema := range p.cfg.Schemas {
 		str += fmt.Sprintf(" <schema %s=%q>", strings.TrimSpace(schema), p.pathForSchema(schema))
 	}
@@ -215,6 +221,11 @@ func (p *Pool) Put(conn SQConnection) {
 // Return number of "checked out" (used) connections
 func (p *Pool) Cur() int {
 	return int(atomic.LoadInt32(&p.n))
+}
+
+// Return maximum allowed connections
+func (p *Pool) Max() int {
+	return int(p.cfg.Max)
 }
 
 // Set maximum number of "checked out" connections

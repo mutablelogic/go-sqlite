@@ -39,6 +39,9 @@ type SQPool interface {
 	// Cur returns the current number of used connections
 	Cur() int
 
+	// Max returns the maximum allowed number of used connections
+	Max() int
+
 	// SetMax allowed connections released from pool. Note this does not change
 	// the maximum instantly, it will settle to this value over time.
 	SetMax(int)

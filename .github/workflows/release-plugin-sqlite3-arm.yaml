@@ -7,6 +7,11 @@ jobs:
     runs-on: [self-hosted, linux, arm]
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: '12.x'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@mutablelogic'      
       - name: Install Go for ARM
         run: |
           install -d ${RUNNER_TEMP}/go

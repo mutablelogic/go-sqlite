@@ -18,6 +18,9 @@ jobs:
           curl -s -L https://golang.org/dl/go1.17.linux-armv6l.tar.gz | tar -C ${RUNNER_TEMP} -xz
           echo ${RUNNER_TEMP}/go/bin >> $GITHUB_PATH
           echo ${HOME}/go/bin >> $GITHUB_PATH
+      - name: Install libsqlite3-dev
+        run: |
+          apt -y update && apt -y install libsqlite3-dev
       - name: Build for Linux on ARM
         run: |
           make deb

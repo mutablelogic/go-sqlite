@@ -31,7 +31,9 @@ Presently the module is in development and the API is subject to change.
 
 ## Requirements
 
-  * A [sqlite3 installation](https://www.sqlite.org/capi3ref.html), with library and header files;
+  * A [sqlite3 installation](https://www.sqlite.org/capi3ref.html), with library and header files.
+    The minimal version of sqlite3 is 3.24.0 (2018-06-04) and it requires a build with
+    `-DSQLITE_ENABLE_UNLOCK_NOTIFY` for concurrent lock support.
   * [go1.17](https://golang.org/dl/) or later;
   * [npm](https://www.npmjs.com/) in order to build the frontend;
   * Tested on Debian Linux (32- and 64- bit) on ARM and macOS on x64

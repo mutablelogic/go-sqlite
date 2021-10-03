@@ -1,0 +1,24 @@
+name: Release
+on:
+  release:
+    types: [ created ]
+jobs:
+  build-arm:
+    runs-on: [self-hosted, linux, arm]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Go for ARM
+        run: |
+          install -d ${RUNNER_TEMP}/go
+          curl -s -L https://golang.org/dl/go1.17.linux-armv6l.tar.gz | tar -C ${RUNNER_TEMP} -xz
+          echo ${RUNNER_TEMP}/go/bin >> $GITHUB_PATH
+          echo ${HOME}/go/bin >> $GITHUB_PATH
+      - name: Build for Linux on ARM
+        run: |
+          make deb
+      - name: Upload DEBs to release
+        run: |
+          TAG=`git describe --abbrev=0 --tags`
+          gh release upload ${TAG} build/*.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

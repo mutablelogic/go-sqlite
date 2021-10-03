@@ -1,0 +1,30 @@
+# Plugins to load, the order of these is important
+plugins:
+  - plugin/sqlite3.plugin
+  - plugin/log.plugin
+
+# Handlers for sqlite3
+handlers:
+  sqlite3:
+    # The sqlite3 plugin can be viewed at http://localhost/api/sqlite3
+    prefix: /api/sqlite3
+    # Requests are logged
+    middleware:
+      - log
+
+sqlite3:
+  # Databases to load and/or create. Only the 'main' database is required.
+  databases:
+    main: ":memory:"
+
+  # Set create to true to allow databases which don't exist to be created, or
+  # else error will be reported on server start. In-memory databases can always
+  # be created.
+  create: true
+
+  # Set trace to true to enable the ability to profile queries. Profiling information
+  # can be displayed through the API.
+  trace: false
+
+  # Set max number of connections that can be simultaneously opened
+  max: 5

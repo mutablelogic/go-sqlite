@@ -1,0 +1,23 @@
+name: "go-server-sqlite3"
+arch: ""
+version: ""
+section: "default"
+priority: "extra"
+maintainer: "David Thorpe <djt@mutablelogic.com>"
+description: |
+  Plugggable go-server monolith: sqlite3
+vendor: "mutablelogic.com"
+homepage: "https://github.com/mutablelogic/go-sqlite3"
+depends:
+  - go-server-httpserver
+
+contents:
+  - src: ./build/sqlite3.plugin
+    dst: /opt/go-server/plugin/sqlite3.plugin
+  - src: ./etc/nfpm/go-server-sqlite3/go-server-30-sqlite3.yaml
+    dst: /opt/go-server/etc/go-server-30-sqlite3.yaml
+    type: config    
+
+scripts:
+  postinstall: ./etc/nfpm/go-server-sqlite3/postinstall.deb.sh
+  postremove: ./etc/nfpm/go-server-sqlite3/postremove.deb.sh

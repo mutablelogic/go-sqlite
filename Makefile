@@ -1,6 +1,5 @@
 # Paths to packages
 GO=$(shell which go)
-SED=$(shell which sed)
 NPM=$(shell which npm)
 
 # Paths to locations, etc
@@ -53,18 +52,6 @@ $(PLUGIN_DIR): FORCE
 
 FORCE:
 
-
-deb: nfpm go-server-sqlite3-deb
-
-go-server-sqlite3-deb: plugin/sqlite3
-	@echo Package go-server-sqlite3 deb
-	@${SED} \
-		-e 's/^version:.*$$/version: $(BUILD_VERSION)/'  \
-		-e 's/^arch:.*$$/arch: $(BUILD_ARCH)/' \
-		-e 's/^platform:.*$$/platform: $(BUILD_PLATFORM)/' \
-		etc/nfpm/go-server-sqlite3/nfpm.yaml > $(BUILD_DIR)/go-server-sqlite3-nfpm.yaml
-	@nfpm pkg -f $(BUILD_DIR)/go-server-sqlite3-nfpm.yaml --packager deb --target $(BUILD_DIR)
-
 test:
 	@echo Test sys/sqlite3
 	@${GO} test ./sys/sqlite3
@@ -84,20 +71,12 @@ test:
 	@${GO} test ./pkg/sqobj
 
 
-nfpm:
-	@echo Installing nfpm
-	@${GO} mod tidy
-	@${GO} install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.3.1	
-
 dependencies:
 ifeq (,${GO})
         $(error "Missing go binary")
 endif
 ifeq (,${NPM})
         $(error "Missing npm binary")
-endif
-ifeq (,${SED})
-        $(error "Missing sed binary")
 endif
 
 mkdir:

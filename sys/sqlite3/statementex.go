@@ -3,7 +3,6 @@ package sqlite3
 import (
 	"errors"
 	"fmt"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -19,7 +18,7 @@ type StatementEx struct {
 	sync.Mutex
 	st     []*Statement
 	cached bool
-	n      uint32
+	n      uint64
 	ts     int64
 }
 
@@ -45,13 +44,15 @@ func (c *ConnEx) Prepare(q string) (*StatementEx, error) {
 	s.ts = time.Now().UnixNano()
 
 	// Report on missing close
-	_, file, line, _ := runtime.Caller(2)
-	runtime.SetFinalizer(s, func(s *StatementEx) {
-		if s.st != nil {
-			fmt.Println(s, s.cached)
-			panic(fmt.Sprintf("%s:%d: Prepare() missing call to Close()", file, line))
-		}
-	})
+	/*
+		_, file, line, _ := runtime.Caller(2)
+		runtime.SetFinalizer(s, func(s *StatementEx) {
+			if s.st != nil {
+				fmt.Println(s, s.cached)
+				panic(fmt.Sprintf("%s:%d: Prepare() missing call to Close()", file, line))
+			}
+		})
+	*/
 
 	// Return statement
 	return s, nil
@@ -142,14 +143,14 @@ func (s *StatementEx) Exec(n uint, v ...interface{}) (*Results, error) {
 }
 
 // Increment adds n to the statement counter and updates the timestamp
-func (s *StatementEx) Inc(n uint32) uint32 {
+func (s *StatementEx) Inc(n uint64) uint64 {
 	atomic.StoreInt64(&s.ts, time.Now().UnixNano())
-	return atomic.AddUint32(&s.n, n)
+	return atomic.AddUint64(&s.n, n)
 }
 
 // Returns current count. Used to count the frequency of calls for caching purposes.
-func (s *StatementEx) Count() uint32 {
-	return atomic.LoadUint32(&s.n)
+func (s *StatementEx) Count() uint64 {
+	return atomic.LoadUint64(&s.n)
 }
 
 // Returns last accessed timestamp for caching purposes as an int64

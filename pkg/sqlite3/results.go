@@ -38,7 +38,7 @@ func (r *Results) Close() error {
 	if !r.st.Cached() {
 		return r.st.Close()
 	} else {
-		return nil
+		return r.st.Close()
 	}
 }
 

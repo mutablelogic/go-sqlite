@@ -33,11 +33,11 @@ func Test_Pool_002(t *testing.T) {
 	} else {
 		t.Log(pool)
 	}
-	pool.SetMax(5000)
+	pool.SetMax(500)
 
 	// Get/put connections
 	var wg sync.WaitGroup
-	for i := 0; i < 5000; i++ {
+	for i := 0; i < 500; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()

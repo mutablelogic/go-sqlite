@@ -1,7 +1,8 @@
 package sqlite3
 
 /*
-#cgo pkg-config: sqlite3
+#cgo CFLAGS: -I../../c
+#cgo LDFLAGS: -L../../c -lsqlite3
 #include <stdlib.h>
 #include <sqlite3.h>
 #include <pthread.h>
@@ -214,7 +215,7 @@ func (s *Statement) Conn() *Conn {
 func (s *Statement) Reset() error {
 	err := SQError(C.sqlite3_reset((*C.sqlite3_stmt)(s)))
 	if (err & 0xFF) == SQLITE_LOCKED {
-		fmt.Println("Locked")
+		fmt.Println("TODO: Locked")
 	}
 	if err != SQLITE_OK {
 		return err.With(C.GoString(C.sqlite3_errmsg((*C.sqlite3)(s.Conn()))))
@@ -253,7 +254,7 @@ func (s *Statement) Finalize() error {
 func (s *Statement) Step() error {
 	err := SQError(C._sqlite3_blocking_step((*C.sqlite3_stmt)(s)))
 	if (err & 0xFF) == SQLITE_LOCKED {
-		fmt.Println("Locked (Step)")
+		fmt.Println("TODO Locked (Step)")
 	}
 	return err
 }

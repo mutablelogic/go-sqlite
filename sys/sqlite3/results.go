@@ -87,7 +87,7 @@ func (r *Results) Next(t ...reflect.Type) ([]interface{}, error) {
 	}
 
 	// Adjust size of columns
-	n := r.st.DataCount()
+	n := r.st.ColumnCount()
 	r.cols = r.cols[:n]
 
 	// Cast values into columns. If type t is defined also cast
@@ -100,11 +100,7 @@ func (r *Results) Next(t ...reflect.Type) ([]interface{}, error) {
 				r.cols[i] = v
 			}
 		} else {
-			if v, err := r.value(i); err != nil {
-				result = multierror.Append(result, err)
-			} else {
-				r.cols[i] = v
-			}
+			r.cols[i] = r.value(i)
 		}
 	}
 
@@ -188,21 +184,8 @@ func (r *Results) ColumnOriginName(i int) string {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func (r *Results) value(index int) (interface{}, error) {
-	switch r.st.ColumnType(index) {
-	case SQLITE_INTEGER:
-		return r.st.ColumnInt64(index), nil
-	case SQLITE_FLOAT:
-		return r.st.ColumnDouble(index), nil
-	case SQLITE_TEXT:
-		return r.st.ColumnText(index), nil
-	case SQLITE_BLOB:
-		return r.st.ColumnBlob(index), nil
-	case SQLITE_NULL:
-		return nil, nil
-	default:
-		return nil, fmt.Errorf("Unsupported column type %d", r.st.ColumnType(index))
-	}
+func (r *Results) value(index int) interface{} {
+	return r.st.ColumnInterface(index)
 }
 
 func (r *Results) castvalue(index int, t reflect.Type) (interface{}, error) {

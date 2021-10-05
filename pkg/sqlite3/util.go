@@ -70,6 +70,14 @@ func maxInt32(a, b int32) int32 {
 	return b
 }
 
+// maxUnt32 returns the maximum of two int32 values
+func maxUnt32(a, b uint32) uint32 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 // durationMin returns the minimum of two time.Duration values
 func durationMin(a, b time.Duration) time.Duration {
 	if a < b {

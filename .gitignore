@@ -1,21 +1,21 @@
 *.exe
-*.exe~
+*~
 *.dll
 *.so
 *.dylib
 *.test
 *.out
 *.pb.go
+*.o
+*.a
 .vscode
 .DS_Store
 
-# Build files
-build
-
-# sqlie files
-.sqlite
-.sqlite-journal
-
-# NPM ignores
+# folders
+build/
 dist/
 node_modules/
+
+# sqlite files
+.sqlite
+.sqlite-journal

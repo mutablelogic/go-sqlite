@@ -1,7 +1,8 @@
 package sqlite3
 
 /*
-#cgo pkg-config: sqlite3
+#cgo CFLAGS: -I../../c
+#cgo LDFLAGS: -L../../c -lsqlite3
 #include <sqlite3.h>
 #include <stdlib.h>
 */
@@ -198,16 +199,17 @@ func (c *Conn) Close() error {
 	var result error
 
 	// Close any active statements
-	var s *Statement
+	/*var s *Statement
 	for {
 		s = c.NextStatement(s)
 		if s == nil {
 			break
 		}
+		fmt.Println("finalizing", uintptr(unsafe.Pointer(s)))
 		if err := s.Finalize(); err != nil {
 			result = multierror.Append(result, err)
 		}
-	}
+	}*/
 
 	// Close database connection
 	if err := SQError(C.sqlite3_close_v2((*C.sqlite3)(c))); err != SQLITE_OK {

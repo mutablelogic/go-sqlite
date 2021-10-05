@@ -17,13 +17,14 @@ import (
 
 type StatementEx struct {
 	sync.Mutex
-	st []*Statement
-	n  uint32
-	ts int64
+	st     []*Statement
+	cached bool
+	n      uint32
+	ts     int64
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
+// LIFECYCLE
 
 // Prepare query string and return prepared statements
 func (c *ConnEx) Prepare(q string) (*StatementEx, error) {
@@ -44,15 +45,30 @@ func (c *ConnEx) Prepare(q string) (*StatementEx, error) {
 	s.ts = time.Now().UnixNano()
 
 	// Report on missing close
-	_, file, line, _ := runtime.Caller(1)
+	_, file, line, _ := runtime.Caller(2)
 	runtime.SetFinalizer(s, func(s *StatementEx) {
 		if s.st != nil {
+			fmt.Println(s, s.cached)
 			panic(fmt.Sprintf("%s:%d: Prepare() missing call to Close()", file, line))
 		}
 	})
 
 	// Return statement
 	return s, nil
+}
+
+// Prepare query string and return prepared statements, mark as a
+// statement managed by the cache
+func (c *ConnEx) PrepareCached(q string, cached bool) (*StatementEx, error) {
+	st, err := c.Prepare(q)
+	if err != nil {
+		return nil, err
+	}
+	if cached {
+		st.cached = true
+	}
+	// Return success
+	return st, nil
 }
 
 // Release resources for statements
@@ -75,6 +91,20 @@ func (s *StatementEx) Close() error {
 	// Return any errors
 	return result
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (s *StatementEx) String() string {
+	str := "[statements"
+	for _, st := range s.st {
+		str += fmt.Sprint(" " + st.String())
+	}
+	return str + "]"
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
 
 // Execute prepared statement n, when called with arguments, this
 // calls Bind() first
@@ -112,9 +142,9 @@ func (s *StatementEx) Exec(n uint, v ...interface{}) (*Results, error) {
 }
 
 // Increment adds n to the statement counter and updates the timestamp
-func (s *StatementEx) Inc(n uint32) {
+func (s *StatementEx) Inc(n uint32) uint32 {
 	atomic.StoreInt64(&s.ts, time.Now().UnixNano())
-	atomic.AddUint32(&s.n, n)
+	return atomic.AddUint32(&s.n, n)
 }
 
 // Returns current count. Used to count the frequency of calls for caching purposes.
@@ -127,13 +157,7 @@ func (s *StatementEx) Timestamp() int64 {
 	return atomic.LoadInt64(&s.ts)
 }
 
-///////////////////////////////////////////////////////////////////////////////
-// STRINGIFY
-
-func (s *StatementEx) String() string {
-	str := "[statements"
-	for _, st := range s.st {
-		str += fmt.Sprint(" " + st.String())
-	}
-	return str + "]"
+// Increment adds n to the statement counter and updates the timestamp
+func (s *StatementEx) Cached() bool {
+	return s.cached
 }

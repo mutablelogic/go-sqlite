@@ -30,7 +30,11 @@ func Test_Backup_001(t *testing.T) {
 	defer dest.Close()
 
 	// Add documents to src
+	t.Log("A")
 	if err := src.Exec("CREATE TABLE test (a INTEGER PRIMARY KEY)", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := src.Exec("BEGIN TRANSACTION", nil); err != nil {
 		t.Fatal(err)
 	}
 	for i := 0; i <= 9999; i++ {
@@ -38,6 +42,7 @@ func Test_Backup_001(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	src.Exec("COMMIT TRANSACTION", nil)
 
 	// Backup to dest
 	backup, err := src.OpenBackup(dest.Conn, "", "")

@@ -1,12 +1,11 @@
 # Paths to packages
 GO=$(shell which go)
-NPM=$(shell which npm)
 
 # Paths to locations, etc
-BUILD_DIR := "build"
+BUILD_DIR := build
 PLUGIN_DIR := $(wildcard plugin/*)
-NPM_DIR := $(wildcard npm/*)
 CMD_DIR := $(filter-out cmd/README.md, $(wildcard cmd/*))
+SQLITE_DIR := ./c
 
 # Build flags
 BUILD_MODULE = "github.com/mutablelogic/go-sqlite"
@@ -15,18 +14,18 @@ BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitTag=$(shell git describe --ta
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitBranch=$(shell git name-rev HEAD --name-only --always)
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitHash=$(shell git rev-parse HEAD)
 BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
-BUILD_FLAGS = -ldflags "-s -w $(BUILD_LD_FLAGS)" 
+BUILD_FLAGS = -ldflags "-s -w ${BUILD_LD_FLAGS}" 
 BUILD_VERSION = $(shell git describe --tags)
 BUILD_ARCH = $(shell $(GO) env GOARCH)
 BUILD_PLATFORM = $(shell $(GO) env GOOS)
 
-all: clean server plugins npm cmd
+all: clean server plugins cmd
 
-server: dependencies mkdir
+server: dependencies
 	@echo Build server
 	@${GO} build -o ${BUILD_DIR}/server ${BUILD_FLAGS} github.com/mutablelogic/go-server/cmd/server
 
-plugins: $(PLUGIN_DIR)
+plugins: dependencies $(PLUGIN_DIR)
 	@echo Build plugin httpserver 
 	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/httpserver.plugin ${BUILD_FLAGS} github.com/mutablelogic/go-server/plugin/httpserver
 	@echo Build plugin log 
@@ -34,13 +33,7 @@ plugins: $(PLUGIN_DIR)
 	@echo Build plugin static 
 	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/static.plugin ${BUILD_FLAGS} github.com/mutablelogic/go-server/plugin/static
 
-npm: $(NPM_DIR)
-
-cmd: dependencies mkdir $(CMD_DIR)
-
-$(NPM_DIR): FORCE
-	@echo Build npm $(notdir $@)
-	@cd $@ && ${NPM} run build
+cmd: dependencies $(CMD_DIR)
 
 $(CMD_DIR): FORCE
 	@echo Build cmd $(notdir $@)
@@ -70,19 +63,21 @@ test:
 	@echo Test pkg/sqobj
 	@${GO} test ./pkg/sqobj
 
-
-dependencies:
+dependencies: sqlite3 mkdir
 ifeq (,${GO})
         $(error "Missing go binary")
 endif
-ifeq (,${NPM})
-        $(error "Missing npm binary")
-endif
+
+sqlite3:
+	@$(MAKE) -C ${SQLITE_DIR}
 
 mkdir:
 	@install -d ${BUILD_DIR}
 
 clean:
+	@echo Clean
 	@rm -fr $(BUILD_DIR)
 	@${GO} mod tidy
 	@${GO} clean
+	@$(MAKE) -C ${SQLITE_DIR} clean
+

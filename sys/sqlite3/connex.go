@@ -1,7 +1,8 @@
 package sqlite3
 
 /*
-#cgo pkg-config: sqlite3
+#cgo CFLAGS: -I../../c
+#cgo LDFLAGS: -L../../c -lsqlite3
 #include <sqlite3.h>
 #include <stdlib.h>
 #include <stdint.h>

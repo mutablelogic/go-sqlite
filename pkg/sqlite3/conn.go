@@ -30,6 +30,7 @@ type Conn struct {
 }
 
 type Txn struct {
+	sync.Mutex
 	*Conn
 	f SQFlag
 }
@@ -104,8 +105,19 @@ func (conn *Conn) Close() error {
 	conn.Mutex.Lock()
 	defer conn.Mutex.Unlock()
 
+	// Close the cache
+	var result error
+	if err := conn.ConnCache.Close(); err != nil {
+		result = multierror.Append(result, err)
+	}
+
 	// Close underlying connection
-	return conn.ConnEx.Close()
+	if err := conn.ConnEx.Close(); err != nil {
+		result = multierror.Append(result, err)
+	}
+
+	// Return any errors
+	return result
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -146,7 +158,7 @@ func (conn *Conn) Do(ctx context.Context, flag SQFlag, fn func(SQTransaction) er
 		}
 	}
 
-	// Transaction flags
+	// Transaction flags (UGLY!)
 	v := sqlite3.SQLITE_TXN_DEFAULT
 	if flag.Is(SQLITE_TXN_EXCLUSIVE) {
 		v = sqlite3.SQLITE_TXN_EXCLUSIVE
@@ -166,7 +178,7 @@ func (conn *Conn) Do(ctx context.Context, flag SQFlag, fn func(SQTransaction) er
 		conn.SetProgressHandler(100, func() bool {
 			return ctx != nil && ctx.Err() != nil
 		})
-		if err := fn(&Txn{conn, flag}); err != nil {
+		if err := fn(&Txn{Conn: conn, f: flag}); err != nil {
 			result = multierror.Append(result, err)
 		}
 		conn.SetProgressHandler(0, nil)

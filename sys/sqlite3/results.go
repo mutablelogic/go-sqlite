@@ -87,7 +87,7 @@ func (r *Results) Next(t ...reflect.Type) ([]interface{}, error) {
 	}
 
 	// Adjust size of columns
-	n := r.st.DataCount()
+	n := r.st.ColumnCount()
 	r.cols = r.cols[:n]
 
 	// Cast values into columns. If type t is defined also cast

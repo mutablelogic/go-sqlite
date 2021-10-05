@@ -33,6 +33,15 @@ func NewResults(st *sqlite3.StatementEx) *Results {
 	return r
 }
 
+func (r *Results) Close() error {
+	// Only free prepared statements if they are not cached
+	if !r.st.Cached() {
+		return r.st.Close()
+	} else {
+		return nil
+	}
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 

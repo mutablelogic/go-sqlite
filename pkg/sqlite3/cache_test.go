@@ -29,16 +29,19 @@ func Test_Cache_001(t *testing.T) {
 		// SELECT n between 0-9 over 100 executions in parallel should
 		// return the same result, with a perfect cache hit rate of 9 in 10?
 		var wg sync.WaitGroup
-		for i := 0; i < 1000; i++ {
+		for i := 0; i < 10000; i++ {
 			wg.Add(1)
 			go func() {
+				txn.Lock()
+				defer txn.Unlock()
 				defer wg.Done()
-				n := rand.Uint32() % 10
+				n := rand.Uint32() % 200
 				r, err := txn.Query(Q("SELECT ", n))
 				if err != nil {
 					t.Error("Query Error: ", err)
 					return
 				}
+				defer r.Close()
 				for {
 					row, err := r.Next()
 					if errors.Is(err, io.EOF) {
@@ -46,11 +49,9 @@ func Test_Cache_001(t *testing.T) {
 					} else if err != nil {
 						t.Error("Next Error: ", err)
 					} else if len(row) != 1 {
-						t.Error("Unexpected row length: ", row)
+						t.Error("Unexpected row length: ", row, " expected [", n, "]", r.Columns())
 					} else if int64(n) != row[0] {
-						t.Error("Unexpected row value: ", row, " expected [", n, "]")
-					} else {
-						t.Log(n, "=>", row[0])
+						t.Error("Unexpected row value: ", row, " expected [", n, "]", r.Columns())
 					}
 				}
 			}()

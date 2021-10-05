@@ -86,16 +86,13 @@ func (s *Statement) ColumnText(index int) string {
 	}
 }
 
-// Return blob
-func (s *Statement) ColumnBlob(index int) []byte {
-	// TODO: This might make many copies of the data? Look into this
-
-	// Allocate a blob
+// Return blob, copy data if clone is true
+func (s *Statement) ColumnBlob(index int, clone bool) []byte {
+	// Got blob contents
 	p := C.sqlite3_column_blob((*C.sqlite3_stmt)(s), C.int(index))
 	if p == nil {
 		return nil
 	}
-
 	// Get length of blob
 	len := s.ColumnBytes(index)
 	if len == 0 {
@@ -109,7 +106,13 @@ func (s *Statement) ColumnBlob(index int) []byte {
 	data.Cap = len
 
 	// Return slice
-	return *(*[]byte)(unsafe.Pointer(&data))
+	if clone {
+		dst := make([]byte, len)
+		copy(dst, *(*[]byte)(unsafe.Pointer(&data)))
+		return dst
+	} else {
+		return *(*[]byte)(unsafe.Pointer(&data))
+	}
 }
 
 // Return column as interface
@@ -125,7 +128,7 @@ func (s *Statement) ColumnInterface(index int) interface{} {
 	case SQLITE_NULL:
 		return nil
 	case SQLITE_BLOB:
-		return s.ColumnBlob(index)
+		return s.ColumnBlob(index, true)
 	}
 	panic(fmt.Sprint("Bad type returned for column:", t))
 }

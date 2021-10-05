@@ -33,15 +33,15 @@ func Test_Pool_002(t *testing.T) {
 	} else {
 		t.Log(pool)
 	}
-	pool.SetMax(1000)
+	pool.SetMax(5000)
 
 	// Get/put connections
 	var wg sync.WaitGroup
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 5000; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			<-time.After(randomDuration(100 * time.Millisecond))
+			<-time.After(randomDuration(10 * time.Millisecond))
 			conn := pool.Get()
 			if conn != nil {
 				t.Log("conn [", i, "] => ", conn, " cur=", pool.Cur())
@@ -50,7 +50,7 @@ func Test_Pool_002(t *testing.T) {
 					return err
 				})
 				// Wait for a random amount of time before we open the next connection
-				<-time.After(randomDuration(100 * time.Millisecond))
+				<-time.After(randomDuration(10 * time.Millisecond))
 				// Return connection
 				pool.Put(conn)
 				t.Log("  returned conn [", i, "] => cur=", pool.Cur())

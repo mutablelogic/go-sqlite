@@ -29,7 +29,7 @@ func Test_Cache_001(t *testing.T) {
 		// SELECT n between 0-9 over 100 executions in parallel should
 		// return the same result, with a perfect cache hit rate of 9 in 10?
 		var wg sync.WaitGroup
-		for i := 0; i < 20; i++ {
+		for i := 0; i < 1000; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()

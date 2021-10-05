@@ -42,10 +42,10 @@ func (cache *ConnCache) Prepare(conn *sqlite3.ConnEx, q string) (*Results, error
 	}
 	st := cache.load(q)
 	if st == nil {
-		// Prepare a statement and store in cache
-		var err error
 		cache.Mutex.Lock()
 		defer cache.Mutex.Unlock()
+		// Prepare a statement and store in cache
+		var err error
 		if st, err = conn.Prepare(q); err != nil {
 			return nil, err
 		} else {
@@ -57,6 +57,9 @@ func (cache *ConnCache) Prepare(conn *sqlite3.ConnEx, q string) (*Results, error
 
 // Close all conn cache prepared statements
 func (cache *ConnCache) Close() error {
+	cache.Mutex.Lock()
+	defer cache.Mutex.Unlock()
+
 	var result error
 	cache.Map.Range(func(key, value interface{}) bool {
 		if err := value.(*sqlite3.StatementEx).Close(); err != nil {

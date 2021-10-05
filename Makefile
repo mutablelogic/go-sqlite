@@ -37,7 +37,7 @@ plugins: $(PLUGIN_DIR)
 npm: $(NPM_DIR)
 
 cmd: dependencies mkdir $(CMD_DIR)
-  
+
 $(NPM_DIR): FORCE
 	@echo Build npm $(notdir $@)
 	@cd $@ && ${NPM} run build

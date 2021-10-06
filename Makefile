@@ -63,13 +63,10 @@ test:
 	@echo Test pkg/sqobj
 	@${GO} test ./pkg/sqobj
 
-dependencies: sqlite3 mkdir
+dependencies: mkdir
 ifeq (,${GO})
         $(error "Missing go binary")
 endif
-
-sqlite3:
-	@$(MAKE) -C ${SQLITE_DIR}
 
 mkdir:
 	@install -d ${BUILD_DIR}
@@ -79,5 +76,4 @@ clean:
 	@rm -fr $(BUILD_DIR)
 	@${GO} mod tidy
 	@${GO} clean
-	@$(MAKE) -C ${SQLITE_DIR} clean
 

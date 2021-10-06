@@ -1,18 +1,20 @@
 package sqlite3
 
-/*
-#cgo CFLAGS: -I../../c
-#cgo LDFLAGS: -L../../c -lsqlite3
-#include <sqlite3.h>
-#include <stdlib.h>
-*/
-import "C"
-
 import (
 	"fmt"
 	"reflect"
 	"unsafe"
 )
+
+///////////////////////////////////////////////////////////////////////////////
+// CGO
+
+/*
+#cgo CFLAGS: -I../../c
+#include <sqlite3.h>
+#include <stdlib.h>
+*/
+import "C"
 
 ///////////////////////////////////////////////////////////////////////////////
 // METHODS

@@ -1,8 +1,17 @@
 package sqlite3
 
+import (
+	"fmt"
+	"unsafe"
+
+	multierror "github.com/hashicorp/go-multierror"
+)
+
+///////////////////////////////////////////////////////////////////////////////
+// CGO
+
 /*
 #cgo CFLAGS: -I../../c
-#cgo LDFLAGS: -L../../c -lsqlite3
 #include <stdlib.h>
 #include <sqlite3.h>
 #include <pthread.h>
@@ -95,13 +104,6 @@ static int _sqlite3_blocking_prepare_v2(
 }
 */
 import "C"
-
-import (
-	"fmt"
-	"unsafe"
-
-	multierror "github.com/hashicorp/go-multierror"
-)
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES

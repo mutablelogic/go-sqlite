@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"io"
 	"runtime"
+
+	// Packages
+	sqlite3 "github.com/mutablelogic/go-sqlite/sys/sqlite3/"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -27,5 +30,6 @@ func PrintVersion(w io.Writer) {
 	if GoBuildTime != "" {
 		fmt.Fprintf(w, "  Build Time: %v\n", GoBuildTime)
 	}
-	fmt.Fprintf(w, "  Go: %v (%v/%v)\n", runtime.Version(), runtime.GOOS, runtime.GOARCH)
+	fmt.Fprintf(w, "  go: %v (%v/%v)\n", runtime.Version(), runtime.GOOS, runtime.GOARCH)
+	fmt.Fprintf(w, "  sqlite3: %v\n", sqlite3.Version())
 }

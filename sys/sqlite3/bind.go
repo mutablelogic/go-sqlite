@@ -1,8 +1,16 @@
 package sqlite3
 
+import (
+	"math"
+	"time"
+	"unsafe"
+)
+
+///////////////////////////////////////////////////////////////////////////////
+// CGO
+
 /*
 #cgo CFLAGS: -I../../c
-#cgo LDFLAGS: -L../../c -lsqlite3
 #include <sqlite3.h>
 #include <stdlib.h>
 
@@ -20,11 +28,8 @@ static inline int _sqlite3_bind_pointer(sqlite3_stmt* stmt, int index, void* p,c
 */
 import "C"
 
-import (
-	"math"
-	"time"
-	"unsafe"
-)
+///////////////////////////////////////////////////////////////////////////////
+// GLOBALS
 
 const (
 	// sqliteNamedPrefix removes these prefixes from the named parameter

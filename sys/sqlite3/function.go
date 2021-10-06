@@ -1,8 +1,16 @@
 package sqlite3
 
+import (
+	"math/rand"
+	"sync"
+	"unsafe"
+)
+
+///////////////////////////////////////////////////////////////////////////////
+// CGO
+
 /*
 #cgo CFLAGS: -I../../c
-#cgo LDFLAGS: -L../../c -lsqlite3
 #include <sqlite3.h>
 #include <stdlib.h>
 
@@ -20,12 +28,6 @@ static inline int _sqlite3_create_function_v2_aggregate(sqlite3 *db,const char *
 }
 */
 import "C"
-
-import (
-	"math/rand"
-	"sync"
-	"unsafe"
-)
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES

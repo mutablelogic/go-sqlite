@@ -1,8 +1,22 @@
 package sqlite3
 
+import (
+	"fmt"
+	"strings"
+	"unsafe"
+
+	// Modules
+	multierror "github.com/hashicorp/go-multierror"
+
+	// Import into namespace
+	. "github.com/djthorpe/go-errors"
+)
+
+///////////////////////////////////////////////////////////////////////////////
+// CGO
+
 /*
 #cgo CFLAGS: -I../../c
-#cgo LDFLAGS: -L../../c -lsqlite3 -lm -ldl -lz -lpthread
 #include <sqlite3.h>
 #include <stdlib.h>
 */
@@ -16,18 +30,6 @@ import "C"
 // --		return sqlite3_config(SQLITE_CONFIG_LOG, NULL, NULL);
 // --	}
 // -- }
-
-import (
-	"fmt"
-	"strings"
-	"unsafe"
-
-	// Modules
-	multierror "github.com/hashicorp/go-multierror"
-
-	// Import into namespace
-	. "github.com/djthorpe/go-errors"
-)
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES

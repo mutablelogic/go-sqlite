@@ -1,8 +1,22 @@
 package sqlite3
 
+import (
+	"errors"
+	"io"
+	"reflect"
+	"sync"
+	"time"
+	"unsafe"
+
+	// Modules
+	"github.com/hashicorp/go-multierror"
+)
+
+///////////////////////////////////////////////////////////////////////////////
+// CGO
+
 /*
 #cgo CFLAGS: -I../../c
-#cgo LDFLAGS: -L../../c -lsqlite3
 #include <sqlite3.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -49,18 +63,6 @@ static inline int _sqlite3_trace_v2(sqlite3* db, unsigned mask, uintptr_t userIn
 
 */
 import "C"
-
-import (
-	"errors"
-	"io"
-	"reflect"
-	"sync"
-	"time"
-	"unsafe"
-
-	// Modules
-	"github.com/hashicorp/go-multierror"
-)
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES

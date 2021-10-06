@@ -6,7 +6,7 @@ import (
 	"runtime"
 
 	// Packages
-	sqlite3 "github.com/mutablelogic/go-sqlite/sys/sqlite3/"
+	sqlite3 "github.com/mutablelogic/go-sqlite/sys/sqlite3"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -11,7 +11,6 @@ import (
 // CGO
 
 /*
-#cgo CFLAGS: -I../../c
 #include <stdlib.h>
 #include <sqlite3.h>
 #include <pthread.h>

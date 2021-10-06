@@ -31,50 +31,11 @@ Presently the module is in development and the API is subject to change.
 
 ## Requirements
 
-  * A [sqlite3 installation](https://www.sqlite.org/capi3ref.html), with library and header files.
-    The minimal version of sqlite3 is 3.24.0 (2018-06-04) and it requires a build with
-    `-DSQLITE_ENABLE_UNLOCK_NOTIFY` for concurrent lock support.
   * [go1.17](https://golang.org/dl/) or later;
-  * [npm](https://www.npmjs.com/) in order to build the frontend;
   * Tested on Debian Linux (32- and 64- bit) on ARM and macOS on x64
     architectures.
 
 ## Building
-
-This module does not include a full
-copy of __sqlite__ as part of the build process, but expect a `pkgconfig`
-file called `sqlite3.pc` to be present (and an existing set of header
-files and libraries to be available to link against, of course).
-
-Especially for macOS, in order to locate the correct installation of 
-`sqlite3` use two environment variables:
-
-  * `PKG_CONFIG_PATH` is used for locating `sqlite3.pc`
-  * `DYLD_LIBRARY_PATH` is used for locating the dynamic library when testing and/or running
-
-On Macintosh with homebrew, for example:
-
-```bash
-[bash] brew install sqlite3 npm
-[bash] git clone git@github.com:djthorpe/go-sqlite.git
-[bash] cd go-sqlite
-[bash] SQLITE_LIB="/usr/local/opt/sqlite/lib"
-[bash] PKG_CONFIG_PATH="${SQLITE_LIB}/pkgconfig" DYLD_LIBRARY_PATH="${SQLITE_LIB}" make
-```
-
-(You will generally want to use the `DYLD_LIBRARY_PATH` environment variable whenever you
-invoke an executable which embeds the sqlite dynamic library, as presently it's not statically
-linked into the executable)
-
-On Debian Linux you shouldn't need to locate the correct path to the sqlite3 library, since
-only one copy is installed:
-
-```bash
-[bash] sudo apt install libsqlite3-dev npm
-[bash] git clone git@github.com:djthorpe/go-sqlite.git
-[bash] cd go-sqlite
-[bash] make
-```
 
 There are some examples in the `cmd` folder of the main repository on how to use
 the package. The various make targets are:

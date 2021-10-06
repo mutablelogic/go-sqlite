@@ -4,7 +4,6 @@ package sqlite3
 // CGO
 
 /*
-#cgo CFLAGS: -I../../c
 #include <sqlite3.h>
 #include <stdlib.h>
 */

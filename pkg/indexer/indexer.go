@@ -184,12 +184,12 @@ func (i *Indexer) event(ctx context.Context, evt notify.EventInfo) error {
 	case notify.Create, notify.Write:
 		info, err := os.Stat(evt.Path())
 		if err == nil && info.Mode().IsRegular() && i.ShouldVisit(relpath, info) {
-			i.queue.Add(i.name, relpath)
+			i.queue.Add(i.name, relpath, info)
 		}
 	case notify.Remove, notify.Rename:
 		info, err := os.Stat(evt.Path())
 		if err == nil && info.Mode().IsRegular() && i.ShouldVisit(relpath, info) {
-			i.queue.Add(i.name, relpath)
+			i.queue.Add(i.name, relpath, info)
 		} else {
 			// Always attempt removal from index
 			i.queue.Remove(i.name, relpath)
@@ -202,7 +202,7 @@ func (i *Indexer) event(ctx context.Context, evt notify.EventInfo) error {
 // visit is used to index a file from the indexer
 func (i *Indexer) visit(ctx context.Context, abspath, relpath string, info fs.FileInfo) error {
 	if info.Mode().IsRegular() {
-		i.queue.Add(i.name, relpath)
+		i.queue.Add(i.name, relpath, info)
 	}
 	return nil
 }

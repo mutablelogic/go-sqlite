@@ -129,22 +129,20 @@ func (s *Store) worker(ctx context.Context, id uint, errs chan<- error) error {
 	for {
 		select {
 		case <-ctx.Done():
-			errs <- fmt.Errorf("stopping worker %v", id)
 			if n, err := s.flush(context.Background(), conn, ops); err != nil {
 				errs <- err
-			} else {
+			} else if n > 0 {
 				errs <- fmt.Errorf("flush: rows affected %d", n)
 			}
 			return nil
 		case <-timer.C:
 			if n, err := s.flush(ctx, conn, ops); err != nil {
 				errs <- err
-			} else {
-				if n > 0 {
-					errs <- fmt.Errorf("flush: rows affected %d", n)
-				}
-				ops = ops[:0]
+			} else if n > 0 {
+				errs <- fmt.Errorf("flush: rows affected %d", n)
 			}
+			// Flush ops array
+			ops = ops[:0]
 		default:
 			if evt := s.queue.Next(); evt != nil {
 				ops = append(ops, s.process(evt))
@@ -163,6 +161,10 @@ func (s *Store) process(evt *QueueEvent) operation {
 		if replace, args := Delete(s.schema, evt); replace != nil {
 			return operation{replace, args}
 		}
+	case EventReindexStarted:
+		fmt.Println("Start: ", evt.Path)
+	case EventReindexCompleted:
+		fmt.Println("Stop: ", evt.Path)
 	}
 
 	// By default, return empty operation

@@ -39,6 +39,8 @@ const (
 	EventNone Event = iota
 	EventAdd
 	EventRemove
+	EventReindexStarted
+	EventReindexCompleted
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -79,6 +81,15 @@ func (this *Queue) String() string {
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
+
+// Indicate reindexing in progress or completed
+func (q *Queue) Mark(name, path string, flag bool) {
+	if flag {
+		q.add(EventReindexStarted, name, path, nil)
+	} else {
+		q.add(EventReindexCompleted, name, path, nil)
+	}
+}
 
 // Add an item to the queue. If the item is already in the queue,
 // then it is bumped to the end of the queue

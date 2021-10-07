@@ -105,6 +105,11 @@ FOR_LOOP:
 			walking.Lock()
 			go func() {
 				defer walking.Unlock()
+
+				// Indicate reindexing is in progress
+				i.queue.Mark(i.name, i.path, true)
+				defer i.queue.Mark(i.name, i.path, false)
+
 				// Start the walk and return any errors
 				fn(i.WalkFS.Walk(ctx, i.path))
 			}()

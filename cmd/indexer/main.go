@@ -105,33 +105,26 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		errs <- fmt.Errorf("starting indexer")
 		if err := idx.Run(ctx, errs); err != nil {
 			errs <- err
 		}
-		errs <- fmt.Errorf("ending indexer")
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		errs <- fmt.Errorf("starting store")
 		if err := store.Run(ctx, errs); err != nil {
 			errs <- err
 		}
-		errs <- fmt.Errorf("ending store")
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 		<-time.After(time.Second)
-		errs <- fmt.Errorf("starting reindexer")
 		err := idx.Walk(ctx, func(err error) {
 			if err != nil {
 				errs <- fmt.Errorf("reindexing completed with errors: %w", err)
-			} else {
-				errs <- fmt.Errorf("reindexing completed")
 			}
 		})
 		if err != nil {

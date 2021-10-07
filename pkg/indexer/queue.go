@@ -42,8 +42,13 @@ const (
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
+// Create a new queue with default capacity
+func NewQueue() *Queue {
+	return NewQueueWithCapacity(0)
+}
+
 // Create a new queue which acts as a buffer between the file indexing
-// and the rendering which can be slower than the file indexing
+// and the processng/rendering which can be slower than the file indexing
 func NewQueueWithCapacity(cap int) *Queue {
 	q := new(Queue)
 

@@ -31,5 +31,6 @@ func PrintVersion(w io.Writer) {
 		fmt.Fprintf(w, "  Build Time: %v\n", GoBuildTime)
 	}
 	fmt.Fprintf(w, "  go: %v (%v/%v)\n", runtime.Version(), runtime.GOOS, runtime.GOARCH)
-	fmt.Fprintf(w, "  sqlite3: %v\n", sqlite3.Version())
+	v, _, _ := sqlite3.Version()
+	fmt.Fprintf(w, "  sqlite3: %v\n", v)
 }

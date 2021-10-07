@@ -137,6 +137,11 @@ func (p *plugin) Run(ctx context.Context, provider Provider) error {
 		}
 	}()
 
+	// Add handlers
+	if err := p.AddHandlers(ctx, provider); err != nil {
+		return err
+	}
+
 	// Run indexer processes
 	for _, idx := range p.index {
 		wg.Add(1)

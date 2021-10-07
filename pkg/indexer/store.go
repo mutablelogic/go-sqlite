@@ -106,6 +106,13 @@ func (s *Store) Run(ctx context.Context, errs chan<- error) error {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS
+
+func (s *Store) Schema() string {
+	return s.schema
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
 func (s *Store) worker(ctx context.Context, id uint, errs chan<- error) error {

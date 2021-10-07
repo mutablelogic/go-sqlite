@@ -20,6 +20,13 @@ handlers:
     middleware:
       - log
 
+  indexer:
+    # The indexer plugin can be viewed at http://localhost/api/indexer
+    prefix: /api/indexer
+    # Requests are logged
+    middleware:
+      - log
+
 sqlite3:
   # Databases to load and/or create. Only the 'main' database is required.
   databases:
@@ -33,12 +40,17 @@ sqlite3:
 
   # Set trace to true to enable the ability to profile queries. Profiling information
   # can be displayed through the API.
-  trace: true
+  trace: false
 
   # Set max number of connections that can be simultaneously opened
-  max: 10
+  max: 100
 
 
 indexer:
   index:
+    sw: /home/djt/sw
+    tv: /home/djt/media/TV
+    films: /home/djt/media/Movies
+    music: /home/djt/media/Music
+    videos: /home/djt/media/Videos
     media: /home/djt/media

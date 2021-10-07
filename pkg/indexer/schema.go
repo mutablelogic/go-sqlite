@@ -3,6 +3,7 @@ package indexer
 import (
 	"context"
 	"errors"
+	"io"
 	"path/filepath"
 
 	// Namespace imports
@@ -14,7 +15,11 @@ import (
 // GLOBALS
 
 const (
-	filesTableName = "files"
+	filesTableName    = "file"
+	nameIndexName     = "file_name"
+	parentIndexName   = "file_parent"
+	filenameIndexName = "file_filename"
+	extIndexName      = "file_filename"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -27,7 +32,7 @@ func CreateSchema(ctx context.Context, pool SQPool, schema string) error {
 	}
 	defer pool.Put(conn)
 
-	// Create table
+	// Create tables
 	return conn.Do(ctx, 0, func(txn SQTransaction) error {
 		if _, err := txn.Query(N(filesTableName).WithSchema(schema).CreateTable(
 			C("name").WithPrimary(),
@@ -41,8 +46,56 @@ func CreateSchema(ctx context.Context, pool SQPool, schema string) error {
 		).IfNotExists()); err != nil {
 			return err
 		}
+		// Create the indexes
+		if _, err := txn.Query(N(nameIndexName).WithSchema(schema).CreateIndex(
+			filesTableName, "name",
+		).IfNotExists()); err != nil {
+			return err
+		}
+		if _, err := txn.Query(N(parentIndexName).WithSchema(schema).CreateIndex(
+			filesTableName, "parent",
+		).IfNotExists()); err != nil {
+			return err
+		}
+		if _, err := txn.Query(N(filenameIndexName).WithSchema(schema).CreateIndex(
+			filesTableName, "filename",
+		).IfNotExists()); err != nil {
+			return err
+		}
+		if _, err := txn.Query(N(extIndexName).WithSchema(schema).CreateIndex(
+			filesTableName, "ext",
+		).IfNotExists()); err != nil {
+			return err
+		}
 		return nil
 	})
+}
+
+// Get indexes and count of documents for each index
+func ListIndexWithCount(ctx context.Context, conn SQConnection, schema string) (map[string]int64, error) {
+	results := make(map[string]int64)
+	if err := conn.Do(ctx, 0, func(txn SQTransaction) error {
+		s := Q("SELECT name,COUNT(*) AS count FROM ", N(filesTableName).WithSchema(schema), " GROUP BY name")
+		r, err := txn.Query(s)
+		if err != nil && err != io.EOF {
+			return err
+		}
+		for {
+			row, err := r.Next()
+			if err != nil {
+				break
+			}
+			if len(row) == 2 {
+				results[row[0].(string)] = row[1].(int64)
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	// Return success
+	return results, nil
 }
 
 func Replace(schema string, evt *QueueEvent) (SQStatement, []interface{}) {

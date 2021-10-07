@@ -13,8 +13,6 @@ import (
 	// Import namepaces
 	. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-sqlite"
-	// Namespace imports
-	//. "github.com/mutablelogic/go-sqlite/pkg/lang"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -162,9 +160,9 @@ func (s *Store) process(evt *QueueEvent) operation {
 			return operation{replace, args}
 		}
 	case EventReindexStarted:
-		fmt.Println("Start: ", evt.Path)
+		fmt.Println("TODO: INDEX START: ", evt.Path)
 	case EventReindexCompleted:
-		fmt.Println("Stop: ", evt.Path)
+		fmt.Println("TODO: INDEX STOP: ", evt.Path)
 	}
 
 	// By default, return empty operation
@@ -173,6 +171,9 @@ func (s *Store) process(evt *QueueEvent) operation {
 
 func (s *Store) flush(ctx context.Context, conn SQConnection, ops []operation) (int, error) {
 	n := 0
+	if len(ops) == 0 {
+		return 0, nil
+	}
 	err := conn.Do(ctx, 0, func(txn SQTransaction) error {
 		for _, op := range ops {
 			if op.q != nil {

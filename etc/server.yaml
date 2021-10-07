@@ -2,7 +2,9 @@
 plugins:
   - build/httpserver.plugin
   - build/log.plugin
+  - build/env.plugin
   - build/sqlite3.plugin
+  - build/indexer.plugin
 
 # HTTP Server parameters
 httpserver:
@@ -34,4 +36,9 @@ sqlite3:
   trace: true
 
   # Set max number of connections that can be simultaneously opened
-  max: 5
+  max: 10
+
+
+indexer:
+  index:
+    media: /home/djt/media

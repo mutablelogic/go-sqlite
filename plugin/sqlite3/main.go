@@ -9,6 +9,7 @@ import (
 	sqlite3 "github.com/mutablelogic/go-sqlite/pkg/sqlite3"
 
 	// Namespace imports
+	. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-server"
 	. "github.com/mutablelogic/go-sqlite"
 
@@ -139,4 +140,25 @@ func (p *plugin) Get() SQConnection {
 
 func (p *plugin) Put(conn SQConnection) {
 	p.pool.Put(conn)
+}
+
+func (p *plugin) Close() error {
+	return ErrInternalAppError.With("sqlite3: cannot call close from plugin")
+}
+
+func (p *plugin) Cur() int {
+	return p.pool.Cur()
+}
+
+func (p *plugin) Max() int {
+	return p.pool.Max()
+}
+
+func (p *plugin) SetMax(int) {
+	select {
+	case p.errs <- ErrInternalAppError.With("sqlite3: cannot call SetMax from plugin"):
+		break
+	default:
+		fmt.Println("sqlite3: cannot call SetMax from plugin")
+	}
 }

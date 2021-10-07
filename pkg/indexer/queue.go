@@ -5,9 +5,6 @@ import (
 	"io/fs"
 	"path/filepath"
 	"sync"
-	// Package imports
-	// Import namepaces
-	//. "github.com/djthorpe/go-errors"
 )
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -83,11 +83,12 @@ func New(ctx context.Context, provider Provider) Plugin {
 	}
 
 	// Create a queue, indexers and stores
+	// TODO: Add a renderer interface for the store
 	q := indexer.NewQueueWithCapacity(defaultCapacity)
 	if q == nil {
 		provider.Print(ctx, "unable to create queue")
 		return nil
-	} else if store := indexer.NewStore(p.pool, schema, q, 0); store == nil {
+	} else if store := indexer.NewStore(p.pool, schema, q, nil, 0); store == nil {
 		provider.Print(ctx, "unable to create store")
 		return nil
 	} else {
@@ -102,8 +103,6 @@ func New(ctx context.Context, provider Provider) Plugin {
 		}
 	}
 
-	fmt.Println("got", p)
-
 	// Return success
 	return p
 }
@@ -113,8 +112,14 @@ func New(ctx context.Context, provider Provider) Plugin {
 
 func (p *plugin) String() string {
 	str := "<indexer"
+	if p.store != nil {
+		str += fmt.Sprint(" store=", p.store)
+	}
+	for name, index := range p.index {
+		str += fmt.Sprintf(" %q=%v", name, index)
+	}
 	if p.pool != nil {
-		str += fmt.Sprint(" ", p.pool)
+		str += fmt.Sprint(" pool=", p.pool)
 	}
 	return str + ">"
 }

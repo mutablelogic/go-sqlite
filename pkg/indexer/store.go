@@ -12,6 +12,7 @@ import (
 
 	// Import namepaces
 	. "github.com/djthorpe/go-errors"
+	. "github.com/mutablelogic/go-server"
 	. "github.com/mutablelogic/go-sqlite"
 )
 
@@ -19,10 +20,11 @@ import (
 // TYPES
 
 type Store struct {
-	pool    SQPool
-	queue   *Queue
-	workers uint
-	schema  string
+	pool     SQPool
+	queue    *Queue
+	renderer Renderer
+	workers  uint
+	schema   string
 }
 
 type operation struct {
@@ -42,12 +44,13 @@ var (
 // LIFECYCLE
 
 // Create a new store object
-func NewStore(pool SQPool, schema string, queue *Queue, workers uint) *Store {
+func NewStore(pool SQPool, schema string, queue *Queue, r Renderer, workers uint) *Store {
 	s := new(Store)
 	s.pool = pool
 	s.queue = queue
+	s.renderer = r
 
-	// Create workers - use cpus
+	// Create workers - use double number of cores by default
 	if workers == 0 {
 		s.workers = defaultWorkers
 	} else {
@@ -57,6 +60,11 @@ func NewStore(pool SQPool, schema string, queue *Queue, workers uint) *Store {
 	// Increase pool size if necessary for the number of workers
 	if s.workers > uint(pool.Max()) && pool.Max() != 0 {
 		pool.SetMax(int(s.workers))
+	}
+
+	// Reduce number of workers if the pool max does not match
+	if pool.Max() > 0 {
+		s.workers = uintMin(s.workers, uint(pool.Max()))
 	}
 
 	// Get a database connection
@@ -103,6 +111,18 @@ func (s *Store) Run(ctx context.Context, errs chan<- error) error {
 
 	// Return any errors
 	return result
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (s *Store) String() string {
+	str := "<store"
+	str += fmt.Sprint(" workers=", s.workers)
+	if s.schema != "" {
+		str += fmt.Sprintf(" schema=%q", s.schema)
+	}
+	return str + ">"
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -174,7 +194,7 @@ func (s *Store) worker(ctx context.Context, id uint, errs chan<- error) error {
 }
 
 func (s *Store) process(evt *QueueEvent) operation {
-	switch evt.Event {
+	switch evt.EventType {
 	case EventAdd:
 		if replace, args := Replace(s.schema, evt); replace != nil {
 			return operation{replace, args}

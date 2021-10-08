@@ -33,3 +33,10 @@ func boolToInt64(v bool) int64 {
 	}
 	return 0
 }
+
+func uintMin(a, b uint) uint {
+	if a < b {
+		return a
+	}
+	return b
+}

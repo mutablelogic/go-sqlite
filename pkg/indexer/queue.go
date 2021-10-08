@@ -17,13 +17,13 @@ type Queue struct {
 }
 
 type QueueEvent struct {
-	Event
+	EventType
 	Name string
 	Path string
 	Info fs.FileInfo
 }
 
-type Event uint
+type EventType uint
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -33,7 +33,7 @@ const (
 )
 
 const (
-	EventNone Event = iota
+	EventNone EventType = iota
 	EventAdd
 	EventRemove
 	EventReindexStarted
@@ -151,7 +151,7 @@ func (q *Queue) Count() int {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-func (q *Queue) add(e Event, name, path string, info fs.FileInfo) {
+func (q *Queue) add(e EventType, name, path string, info fs.FileInfo) {
 	q.RWMutex.Lock()
 	defer q.RWMutex.Unlock()
 	// This assumes the key does not exist

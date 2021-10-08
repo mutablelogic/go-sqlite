@@ -93,12 +93,12 @@ func CreateSchema(ctx context.Context, conn SQConnection, schema string, tokeniz
 			return err
 		}
 		if _, err := txn.Query(N(searchTriggerDeleteName).WithSchema(schema).CreateTrigger(filesTableName,
-			Q("INSERT INTO ", searchTableName, " (", searchTableName, ",rowid, name, parent, filename) VALUES ('delete', old.rowid, old.name, old.parent, old.filename)"),
+			Q("INSERT INTO ", searchTableName, " (", searchTableName, ", rowid, name, parent, filename) VALUES ('delete', old.rowid, old.name, old.parent, old.filename)"),
 		).After().Delete().IfNotExists()); err != nil {
 			return err
 		}
 		if _, err := txn.Query(N(searchTriggerUpdateName).WithSchema(schema).CreateTrigger(filesTableName,
-			Q("INSERT INTO ", searchTableName, " (", searchTableName, ",rowid, name, parent, filename) VALUES ('delete', old.rowid, old.name, old.parent, old.filename)"),
+			Q("INSERT INTO ", searchTableName, " (", searchTableName, ", rowid, name, parent, filename) VALUES ('delete', old.rowid, old.name, old.parent, old.filename)"),
 			Q("INSERT INTO ", searchTableName, " (rowid, name, parent, filename) VALUES (new.rowid, new.name, new.parent, new.filename)"),
 		).After().Update().IfNotExists()); err != nil {
 			return err

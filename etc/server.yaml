@@ -40,7 +40,7 @@ sqlite3:
 
   # Set trace to true to enable the ability to profile queries. Profiling information
   # can be displayed through the API.
-  trace: true
+  trace: false
 
   # Set max number of connections that can be simultaneously opened
   max: 100

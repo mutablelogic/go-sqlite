@@ -80,7 +80,7 @@ func (s *Store) Run(ctx context.Context, errs chan<- error) error {
 	var result error
 
 	// Create the schema
-	if err := CreateSchema(ctx, s.pool, s.schema); err != nil {
+	if err := s.createschema(ctx); err != nil {
 		return err
 	}
 
@@ -115,6 +115,23 @@ func (s *Store) Schema() string {
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
+func (s *Store) createschema(ctx context.Context) error {
+	// Get database connection
+	conn := s.pool.Get()
+	if conn == nil {
+		return ErrChannelBlocked.With("Could not obtain database connection")
+	}
+	defer s.pool.Put(conn)
+
+	// Create the schema
+	if err := CreateSchema(ctx, conn, s.schema, "porter"); err != nil {
+		return err
+	}
+
+	// Return success
+	return nil
+}
+
 func (s *Store) worker(ctx context.Context, id uint, errs chan<- error) error {
 	// Get database connection
 	conn := s.pool.Get()
@@ -136,15 +153,15 @@ func (s *Store) worker(ctx context.Context, id uint, errs chan<- error) error {
 		case <-ctx.Done():
 			if n, err := s.flush(context.Background(), conn, ops); err != nil {
 				errs <- err
-			} else if n > 0 {
-				errs <- fmt.Errorf("flush: rows affected %d", n)
+			} else if len(n) > 0 {
+				errs <- fmt.Errorf("flush: rows affected %v", n)
 			}
 			return nil
 		case <-timer.C:
 			if n, err := s.flush(ctx, conn, ops); err != nil {
 				errs <- err
-			} else if n > 0 {
-				errs <- fmt.Errorf("flush: rows affected %d", n)
+			} else if len(n) > 0 {
+				errs <- fmt.Errorf("flush: rows affected %v", n)
 			}
 			// Flush ops array
 			ops = ops[:0]
@@ -176,18 +193,19 @@ func (s *Store) process(evt *QueueEvent) operation {
 	return operation{}
 }
 
-func (s *Store) flush(ctx context.Context, conn SQConnection, ops []operation) (int, error) {
-	n := 0
+// Flush the operations array and return the rowid's for any rows which were affected
+func (s *Store) flush(ctx context.Context, conn SQConnection, ops []operation) ([]int64, error) {
 	if len(ops) == 0 {
-		return 0, nil
+		return nil, nil
 	}
+	result := make([]int64, 0, len(ops))
 	err := conn.Do(ctx, 0, func(txn SQTransaction) error {
 		for _, op := range ops {
 			if op.q != nil {
 				if r, err := txn.Query(op.q, op.args...); err != nil {
 					return err
-				} else {
-					n += r.RowsAffected()
+				} else if r.RowsAffected() > 0 {
+					result = append(result, r.LastInsertId())
 				}
 			}
 		}
@@ -196,8 +214,8 @@ func (s *Store) flush(ctx context.Context, conn SQConnection, ops []operation) (
 		return nil
 	})
 	if err != nil {
-		return 0, err
+		return nil, err
 	} else {
-		return n, nil
+		return result, nil
 	}
 }

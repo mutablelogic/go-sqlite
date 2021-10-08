@@ -1,4 +1,4 @@
-package config
+package version
 
 import (
 	"fmt"
@@ -19,6 +19,22 @@ var (
 	GitHash     string
 	GoBuildTime string
 )
+
+///////////////////////////////////////////////////////////////////////////////
+// METHODS
+
+func Version() map[string]string {
+	result := map[string]string{
+		"go": runtime.Version(),
+	}
+	if GitTag != "" && GitSource != "" {
+		result[GitSource] = GitTag
+	}
+	if v, _, _ := sqlite3.Version(); v != "" {
+		result["sqlite3"] = v
+	}
+	return result
+}
 
 func PrintVersion(w io.Writer) {
 	if GitSource != "" {

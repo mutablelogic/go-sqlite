@@ -13,9 +13,9 @@ import (
 	"unicode"
 
 	// Packages
-	"github.com/mutablelogic/go-sqlite/pkg/config"
 	"github.com/mutablelogic/go-sqlite/pkg/indexer"
 	"github.com/mutablelogic/go-sqlite/pkg/sqlite3"
+	"github.com/mutablelogic/go-sqlite/pkg/version"
 )
 
 var (
@@ -34,7 +34,7 @@ func main() {
 	// Parse flags
 	flag.Parse()
 	if *flagVersion {
-		config.PrintVersion(flag.CommandLine.Output())
+		version.PrintVersion(flag.CommandLine.Output())
 		os.Exit(0)
 	}
 	if flag.NArg() != 1 {

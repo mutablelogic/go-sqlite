@@ -23,10 +23,11 @@ import (
 
 type Indexer struct {
 	*walkfs.WalkFS
-	queue *Queue
-	name  string
-	path  string
-	walk  chan WalkFunc
+	queue    *Queue
+	name     string
+	path     string
+	walk     chan WalkFunc
+	indexing bool
 }
 
 // WalkFunc is called after a reindexing with any walk errors
@@ -107,8 +108,12 @@ FOR_LOOP:
 				defer walking.Unlock()
 
 				// Indicate reindexing is in progress
+				i.indexing = true
 				i.queue.Mark(i.name, i.path, true)
-				defer i.queue.Mark(i.name, i.path, false)
+				defer func() {
+					i.queue.Mark(i.name, i.path, false)
+					i.indexing = false
+				}()
 
 				// Start the walk and return any errors
 				fn(i.WalkFS.Walk(ctx, i.path))
@@ -155,6 +160,11 @@ func (i *Indexer) Path() string {
 // Return the queue
 func (i *Indexer) Queue() *Queue {
 	return i.queue
+}
+
+// Return true if indexing
+func (i *Indexer) IsIndexing() bool {
+	return i.indexing
 }
 
 ///////////////////////////////////////////////////////////////////////////////

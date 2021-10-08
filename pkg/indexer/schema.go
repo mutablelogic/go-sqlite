@@ -2,35 +2,42 @@ package indexer
 
 import (
 	"context"
-	"errors"
 	"io"
 	"path/filepath"
 
 	// Namespace imports
 	. "github.com/mutablelogic/go-sqlite"
 	. "github.com/mutablelogic/go-sqlite/pkg/lang"
+	"github.com/mutablelogic/go-sqlite/pkg/quote"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (
-	filesTableName    = "file"
-	nameIndexName     = "file_name"
-	parentIndexName   = "file_parent"
-	filenameIndexName = "file_filename"
-	extIndexName      = "file_filename"
+	filesTableName          = "file"
+	nameIndexName           = "file_name"
+	searchTableName         = "search"
+	parentIndexName         = "file_parent"
+	filenameIndexName       = "file_filename"
+	extIndexName            = "file_filename"
+	searchTriggerInsertName = "search_insert"
+	searchTriggerDeleteName = "search_delete"
+	searchTriggerUpdateName = "search_update"
+)
+
+const (
+	defaultTokenizer = "porter unicode61"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-func CreateSchema(ctx context.Context, pool SQPool, schema string) error {
-	conn := pool.Get()
-	if conn == nil {
-		return errors.New("unable to get a connection from pool")
+func CreateSchema(ctx context.Context, conn SQConnection, schema string, tokenizer string) error {
+	// Set default tokenizer as porter
+	if tokenizer == "" {
+		tokenizer = defaultTokenizer
 	}
-	defer pool.Put(conn)
 
 	// Create tables
 	return conn.Do(ctx, 0, func(txn SQTransaction) error {
@@ -46,7 +53,7 @@ func CreateSchema(ctx context.Context, pool SQPool, schema string) error {
 		).IfNotExists()); err != nil {
 			return err
 		}
-		// Create the indexes
+		// Create the file indexes
 		if _, err := txn.Query(N(nameIndexName).WithSchema(schema).CreateIndex(
 			filesTableName, "name",
 		).IfNotExists()); err != nil {
@@ -65,6 +72,35 @@ func CreateSchema(ctx context.Context, pool SQPool, schema string) error {
 		if _, err := txn.Query(N(extIndexName).WithSchema(schema).CreateIndex(
 			filesTableName, "ext",
 		).IfNotExists()); err != nil {
+			return err
+		}
+		// Create the search table
+		if _, err := txn.Query(N(searchTableName).WithSchema(schema).CreateVirtualTable(
+			"fts5",
+			"name",
+			"parent",
+			"filename",
+			"content="+filesTableName,
+			"tokenize="+quote.Quote(tokenizer),
+		).IfNotExists()); err != nil {
+			return err
+		}
+		// triggers to keep the FTS index up to date
+		// https://www.sqlite.org/fts5.html
+		if _, err := txn.Query(N(searchTriggerInsertName).WithSchema(schema).CreateTrigger(filesTableName,
+			Q("INSERT INTO ", searchTableName, " (rowid, name, parent, filename) VALUES (new.rowid, new.name, new.parent, new.filename)"),
+		).After().Insert().IfNotExists()); err != nil {
+			return err
+		}
+		if _, err := txn.Query(N(searchTriggerDeleteName).WithSchema(schema).CreateTrigger(filesTableName,
+			Q("INSERT INTO ", searchTableName, " (", searchTableName, ",rowid, name, parent, filename) VALUES ('delete', old.rowid, old.name, old.parent, old.filename)"),
+		).After().Delete().IfNotExists()); err != nil {
+			return err
+		}
+		if _, err := txn.Query(N(searchTriggerUpdateName).WithSchema(schema).CreateTrigger(filesTableName,
+			Q("INSERT INTO ", searchTableName, " (", searchTableName, ",rowid, name, parent, filename) VALUES ('delete', old.rowid, old.name, old.parent, old.filename)"),
+			Q("INSERT INTO ", searchTableName, " (rowid, name, parent, filename) VALUES (new.rowid, new.name, new.parent, new.filename)"),
+		).After().Update().IfNotExists()); err != nil {
 			return err
 		}
 		return nil
@@ -99,11 +135,13 @@ func ListIndexWithCount(ctx context.Context, conn SQConnection, schema string) (
 }
 
 func Replace(schema string, evt *QueueEvent) (SQStatement, []interface{}) {
-	return N(filesTableName).WithSchema(schema).Replace("name", "path", "parent", "filename", "isdir", "ext", "modtime", "size"),
+	return N(filesTableName).WithSchema(schema).Insert(
+			"name", "path", "parent", "filename", "isdir", "ext", "modtime", "size",
+		).WithConflictUpdate("name", "path"),
 		[]interface{}{
 			evt.Name,
 			evt.Path,
-			filepath.Dir(evt.Path),
+			pathToParent(evt.Path),
 			evt.Info.Name(),
 			boolToInt64(evt.Info.IsDir()),
 			filepath.Ext(evt.Info.Name()),

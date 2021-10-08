@@ -1,5 +1,14 @@
 package indexer
 
+import (
+	"os"
+	"path/filepath"
+)
+
+const (
+	pathSeparator = string(os.PathSeparator)
+)
+
 func stringSliceContains(slice []string, s string) bool {
 	for _, item := range slice {
 		if item == s {
@@ -7,6 +16,15 @@ func stringSliceContains(slice []string, s string) bool {
 		}
 	}
 	return false
+}
+
+func pathToParent(path string) string {
+	parent := filepath.Dir(path)
+	if parent == "." {
+		return pathSeparator
+	} else {
+		return parent
+	}
 }
 
 func boolToInt64(v bool) int64 {

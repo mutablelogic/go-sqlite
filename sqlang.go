@@ -39,6 +39,7 @@ type SQSource interface {
 	CreateTable(...SQColumn) SQTable
 	CreateVirtualTable(string, ...string) SQIndexView
 	CreateIndex(string, ...string) SQIndexView
+	CreateTrigger(string, ...SQStatement) SQTrigger
 	//CreateView(SQSelect, ...string) SQIndexView
 	ForeignKey(...string) SQForeignKey
 
@@ -93,6 +94,21 @@ type SQIndexView interface {
 	WithTemporary() SQIndexView
 	WithUnique() SQIndexView
 	WithAuto() SQIndexView
+}
+
+// SQTrigger defines a create trigger statement
+type SQTrigger interface {
+	SQStatement
+
+	// Modifiers
+	IfNotExists() SQTrigger
+	WithTemporary() SQTrigger
+	Before() SQTrigger
+	After() SQTrigger
+	InsteadOf() SQTrigger
+	Delete() SQTrigger
+	Insert() SQTrigger
+	Update(...string) SQTrigger
 }
 
 // SQDrop defines a drop for tables, views, indexes, and triggers

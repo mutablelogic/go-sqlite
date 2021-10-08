@@ -160,10 +160,9 @@ func (s *Statement) BindText(index int, v string) error {
 // Bind blob
 func (s *Statement) BindBlob(index int, v []byte) error {
 	var p unsafe.Pointer
-	if v != nil {
+	if len(v) > 0 {
 		p = unsafe.Pointer(&v[0])
 	}
-	// TODO: See how many copies of data are made
 	if err := SQError(C._sqlite3_bind_blob((*C.sqlite3_stmt)(s), C.int(index), p, C.int(len(v)))); err != SQLITE_OK {
 		return err
 	} else {

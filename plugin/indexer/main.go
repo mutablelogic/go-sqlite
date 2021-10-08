@@ -115,8 +115,12 @@ func (p *plugin) String() string {
 	if p.store != nil {
 		str += fmt.Sprint(" store=", p.store)
 	}
-	for name, index := range p.index {
-		str += fmt.Sprintf(" %q=%v", name, index)
+	if len(p.index) > 0 {
+		str += " indexes=["
+		for _, index := range p.index {
+			str += fmt.Sprintf(" %v", index)
+		}
+		str += " ]"
 	}
 	if p.pool != nil {
 		str += fmt.Sprint(" pool=", p.pool)

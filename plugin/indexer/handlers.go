@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"regexp"
+	"strings"
 
 	// Packages
 	router "github.com/mutablelogic/go-server/pkg/httprouter"
@@ -12,6 +14,7 @@ import (
 
 	// Namespace imports
 	. "github.com/mutablelogic/go-server"
+	. "github.com/mutablelogic/go-sqlite"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -30,18 +33,45 @@ type IndexResponse struct {
 	Status  string      `json:"status,omitempty"`
 }
 
+type QueryRequest struct {
+	Query  string `json:"q"`
+	Offset uint   `json:"offset"`
+	Limit  uint   `json:"limit"`
+}
+
+type QueryResponse struct {
+	Query   string           `json:"q"`
+	Offset  uint             `json:"offset,omitempty"`
+	Limit   uint             `json:"limit,omitempty"`
+	Results []ResultResponse `json:"results"`
+}
+
+type ResultResponse struct {
+	Id     int64        `json:"id"`
+	Offset int64        `json:"offset"`
+	Rank   float64      `json:"rank"`
+	Index  string       `json:"index"`
+	File   FileResponse `json:"file"`
+}
+
+type FileResponse struct {
+	Parent   string `json:"parent"`
+	Filename string `json:"filename"`
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // ROUTES
 
 var (
-	reRoutePing = regexp.MustCompile(`^/?$`)
+	reRoutePing  = regexp.MustCompile(`^/?$`)
+	reRouteQuery = regexp.MustCompile(`^/q/?$`)
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // CONSTANTS
 
 const (
-	maxResultLimit = 1000
+	maxResultLimit = 100
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -50,6 +80,11 @@ const (
 func (p *plugin) AddHandlers(ctx context.Context, provider Provider) error {
 	// Add handler for ping
 	if err := provider.AddHandlerFuncEx(ctx, reRoutePing, p.ServePing); err != nil {
+		return err
+	}
+
+	// Add handler for search
+	if err := provider.AddHandlerFuncEx(ctx, reRouteQuery, p.ServeQuery); err != nil {
 		return err
 	}
 
@@ -101,6 +136,74 @@ func (p *plugin) ServePing(w http.ResponseWriter, req *http.Request) {
 			Modtime: p.modtimeForIndex(name),
 			Status:  p.statusForIndex(name),
 		})
+	}
+
+	// Serve response
+	router.ServeJSON(w, response, http.StatusOK, 2)
+}
+
+func (p *plugin) ServeQuery(w http.ResponseWriter, req *http.Request) {
+	// Get a connection
+	conn := p.pool.Get()
+	if conn == nil {
+		router.ServeError(w, http.StatusBadGateway, "No connection")
+		return
+	}
+	defer p.pool.Put(conn)
+
+	// Decode the query
+	var query QueryRequest
+	if err := router.RequestQuery(req, &query); err != nil {
+		router.ServeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Check query, offset and limit
+	query.Limit = uintMin(query.Limit, maxResultLimit)
+	query.Query = strings.TrimSpace(query.Query)
+	if query.Query == "" {
+		router.ServeError(w, http.StatusBadRequest, "missing q parameter")
+		return
+	}
+
+	// Make a response
+	response := QueryResponse{
+		Query:   query.Query,
+		Offset:  query.Offset,
+		Limit:   query.Limit,
+		Results: make([]ResultResponse, 0, query.Limit),
+	}
+
+	// Perform the query and collate the results
+	if err := conn.Do(req.Context(), 0, func(txn SQTransaction) error {
+		r, err := txn.Query(indexer.Query(p.store.Schema()).WithLimitOffset(query.Limit, query.Offset), query.Query)
+		if err != nil {
+			return err
+		}
+		n := int64(0)
+		for {
+			rows, err := r.Next()
+			if err == io.EOF {
+				return nil
+			} else if err != nil {
+				return err
+			} else {
+				n = n + 1
+			}
+			response.Results = append(response.Results, ResultResponse{
+				Id:     rows[0].(int64),
+				Offset: n + int64(query.Offset) - 1,
+				Rank:   rows[1].(float64),
+				Index:  rows[2].(string),
+				File: FileResponse{
+					Parent:   rows[3].(string),
+					Filename: rows[4].(string),
+				},
+			})
+		}
+	}); err != nil {
+		router.ServeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	// Serve response

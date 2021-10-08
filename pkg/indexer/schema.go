@@ -154,3 +154,16 @@ func Delete(schema string, evt *QueueEvent) (SQStatement, []interface{}) {
 	return N(filesTableName).WithSchema(schema).Delete(Q("name=?"), Q("path=?")),
 		[]interface{}{evt.Name, evt.Path}
 }
+
+func Query(schema string) SQSelect {
+	return S(N(searchTableName).WithSchema(schema)).
+		To(
+			N("rowid"),
+			N("rank"),
+			N("name"),
+			N("parent"),
+			N("filename"),
+		).
+		Where(Q(searchTableName, " MATCH ", P)).
+		Order(N("rank"))
+}

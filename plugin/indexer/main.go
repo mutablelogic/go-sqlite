@@ -152,6 +152,7 @@ func (p *plugin) Run(ctx context.Context, provider Provider) error {
 	}
 
 	// Run indexer processes
+	// TODO: Report error when indexer can't be started
 	for _, idx := range p.index {
 		wg.Add(1)
 		go func(idx *indexer.Indexer) {

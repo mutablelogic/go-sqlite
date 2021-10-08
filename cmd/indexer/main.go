@@ -89,7 +89,7 @@ func main() {
 	defer pool.Close()
 
 	// Create store
-	store := indexer.NewStore(pool, "main", idx.Queue(), *flagWorkers)
+	store := indexer.NewStore(pool, "main", idx.Queue(), nil, *flagWorkers)
 	if store == nil {
 		fmt.Fprintln(os.Stderr, "failed to create store")
 		os.Exit(-1)

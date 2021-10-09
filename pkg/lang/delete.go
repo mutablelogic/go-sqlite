@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"strings"
 
-	sqlite "github.com/mutablelogic/go-sqlite"
+	// Namespace imports
+	. "github.com/mutablelogic/go-sqlite"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type delete struct {
-	source sqlite.SQSource
+	source SQSource
 	where  []interface{}
 }
 
@@ -19,7 +20,7 @@ type delete struct {
 // LIFECYCLE
 
 // Update values in a table with a name and defined column names
-func (this *source) Delete(expr ...interface{}) sqlite.SQStatement {
+func (this *source) Delete(expr ...interface{}) SQStatement {
 	if len(expr) == 0 {
 		return nil
 	} else {
@@ -35,7 +36,7 @@ func (this *delete) String() string {
 }
 
 func (this *delete) Query() string {
-	tokens := []string{"DELETE FROM", fmt.Sprint(this.source)}
+	tokens := []string{"DELETE FROM", this.source.String()}
 
 	// Where clause
 	if len(this.where) > 0 {
@@ -44,7 +45,7 @@ func (this *delete) Query() string {
 			if i > 0 {
 				tokens = append(tokens, "AND")
 			}
-			tokens = append(tokens, fmt.Sprint(expr))
+			tokens = append(tokens, fmt.Sprint(V(expr)))
 		}
 	}
 

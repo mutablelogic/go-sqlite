@@ -92,10 +92,6 @@ func (this *column) WithDefaultNow() SQColumn {
 ///////////////////////////////////////////////////////////////////////////////
 // STRINGIFY
 
-func (this *column) Query() string {
-	return this.String()
-}
-
 func (this *column) String() string {
 	tokens := []string{QuoteIdentifier(this.Name())}
 	if this.decltype != "" {

@@ -155,7 +155,7 @@ func Delete(schema string, evt *QueueEvent) (SQStatement, []interface{}) {
 		[]interface{}{evt.Name, evt.Path}
 }
 
-func Query(schema string) SQSelect {
+func Query(schema string, indexes []string) SQSelect {
 	return S(N(searchTableName).WithSchema(schema)).
 		To(
 			N("rowid"),

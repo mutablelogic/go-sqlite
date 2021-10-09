@@ -46,9 +46,11 @@ func V(v interface{}) SQExpr {
 		return &e{v, nil, ""}
 	case SQSource, SQStatement:
 		return &e{v, nil, ""}
+	case SQExpr:
+		return &e{v, nil, ""}
 	}
 	// Unsupported value
-	panic(fmt.Sprintf("V unsupported value %q", v))
+	panic(fmt.Sprintf("V unsupported type %T", v))
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -72,7 +74,7 @@ func (this *e) Or(v interface{}) SQExpr {
 		return &e{this.v, v, "OR"}
 	}
 	// Unsupported value
-	panic(fmt.Sprintf("V unsupported value %q", v))
+	panic(fmt.Sprintf("V unsupported type %T", v))
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -87,10 +89,6 @@ func (this *e) String() string {
 	} else {
 		return lhs(this.v) + " " + rhs(this.op, this.r)
 	}
-}
-
-func (this *e) Query() string {
-	return "SELECT " + fmt.Sprint(this)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -121,6 +119,8 @@ func lhs(v interface{}) string {
 		return fmt.Sprint(e.WithAlias(""))
 	case SQStatement:
 		return e.Query()
+	case SQExpr:
+		return e.String()
 	default:
 		return Quote(fmt.Sprint(v))
 	}

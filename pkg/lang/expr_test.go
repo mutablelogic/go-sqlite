@@ -4,62 +4,32 @@ import (
 	"fmt"
 	"testing"
 
+	// Namespace imports
+	. "github.com/mutablelogic/go-sqlite"
 	. "github.com/mutablelogic/go-sqlite/pkg/lang"
 )
 
 func Test_Expr_000(t *testing.T) {
 	tests := []struct {
-		In     Statement
+		In     SQExpr
 		String string
-		Query  string
 	}{
-		{P, `?`, `SELECT ?`},
-		{V(nil), `NULL`, `SELECT NULL`},
-		{V("test"), `'test'`, `SELECT 'test'`},
-		{V("te\"st"), `'te"st'`, `SELECT 'te"st'`},
-		{V("te'st"), `'te''st'`, `SELECT 'te''st'`},
-		{V(true), `TRUE`, `SELECT TRUE`},
-		{V(false), `FALSE`, `SELECT FALSE`},
-		{V(0), `0`, `SELECT 0`},
-		{V(-1), `-1`, `SELECT -1`},
-		{V(1.1), `1.1`, `SELECT 1.1`},
-		{V(-1.1), `-1.1`, `SELECT -1.1`},
+		{P, `?`},
+		{V(nil), `NULL`},
+		{V("test"), `'test'`},
+		{V("te\"st"), `'te"st'`},
+		{V("te'st"), `'te''st'`},
+		{V(true), `TRUE`},
+		{V(false), `FALSE`},
+		{V(0), `0`},
+		{V(-1), `-1`},
+		{V(1.1), `1.1`},
+		{V(-1.1), `-1.1`},
 	}
 
 	for _, test := range tests {
 		if v := fmt.Sprint(test.In); v != test.String {
 			t.Errorf("Unexpected return from String(): %q, wanted %q", v, test.String)
-		}
-		if test.Query != "" {
-			if v := test.In.Query(); v != test.Query {
-				t.Errorf("Unexpected return from Query(): %q, wanted %q", v, test.Query)
-			}
-		}
-	}
-}
-func Test_Expr_001(t *testing.T) {
-	// Check db.P and db.V (value)
-	tests := []struct {
-		In     Statement
-		String string
-		Query  string
-	}{
-		{V(nil).Or(nil), `NULL OR NULL`, ``},
-		{V(100).Or(200), `100 OR 200`, ``},
-		{V(`a`).Or(`b`), `'a' OR 'b'`, ``},
-		{V(100).Or(200).Or(300), `100 OR 200 OR 300`, ``},
-		{V(N(`a`)).Or(`b`), `a OR 'b'`, ``},
-		{V(Q("X")).Or(Q("Y")), `X OR Y`, ``},
-	}
-
-	for _, test := range tests {
-		if v := fmt.Sprint(test.In); v != test.String {
-			t.Errorf("Unexpected return from String(): %q, wanted %q", v, test.String)
-		}
-		if test.Query != "" {
-			if v := test.In.Query(); v != test.Query {
-				t.Errorf("Unexpected return from Query(): %q, wanted %q", v, test.Query)
-			}
 		}
 	}
 }

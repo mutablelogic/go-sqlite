@@ -106,7 +106,7 @@ func (this *sel) Query() string {
 			if i > 0 {
 				token += ","
 			}
-			token += source.Query()
+			token += source.String()
 		}
 		tokens = append(tokens, token)
 	}
@@ -118,7 +118,7 @@ func (this *sel) Query() string {
 			if i > 0 {
 				tokens = append(tokens, "AND")
 			}
-			tokens = append(tokens, fmt.Sprint(expr))
+			tokens = append(tokens, fmt.Sprint(V(expr)))
 		}
 	}
 

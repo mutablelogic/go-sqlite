@@ -5,12 +5,12 @@ package sqlite
 
 // SQStatement is any statement which can be prepared or executed
 type SQStatement interface {
+	SQExpr
 	Query() string
 }
 
 // SQSource defines a table or column name
 type SQSource interface {
-	SQStatement
 	SQExpr
 
 	// Return name, schema, type
@@ -49,6 +49,15 @@ type SQSource interface {
 	// Update and delete data
 	Update(...string) SQUpdate
 	Delete(...interface{}) SQStatement
+}
+
+// SQJoin defines one or more joins
+type SQJoin interface {
+	SQExpr
+
+	Join(...SQExpr) SQJoin
+	LeftJoin(...SQExpr) SQJoin
+	LeftInnerJoin(...SQExpr) SQJoin
 }
 
 // SQTable defines a table of columns and indexes
@@ -160,7 +169,7 @@ type SQForeignKey interface {
 
 // SQColumn represents a column definition
 type SQColumn interface {
-	SQStatement
+	SQExpr
 
 	// Properties
 	Name() string
@@ -180,13 +189,7 @@ type SQColumn interface {
 
 // SQExpr defines any expression
 type SQExpr interface {
-	SQStatement
-
-	// And, Or, Not
-	Or(interface{}) SQExpr
-
-	// Comparison expression with one or more right hand side expressions
-	//Is(SQExpr, ...SQExpr) SQComparison
+	String() string
 }
 
 // SQComparison defines a comparison between two expressions

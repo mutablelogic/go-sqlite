@@ -27,8 +27,6 @@ func Test_ForeignKey_000(t *testing.T) {
 	for i, test := range tests {
 		if v := test.In.(ForeignKey).Query("foo"); v != test.String {
 			t.Errorf("Test %d, Unexpected return from String(): %q, wanted %q", i, v, test.String)
-		} else {
-			t.Log(v)
 		}
 	}
 }

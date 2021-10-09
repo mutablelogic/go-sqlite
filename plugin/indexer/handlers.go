@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"io"
 	"net/http"
+	"reflect"
 	"regexp"
 	"strings"
+	"time"
 
 	// Packages
 	router "github.com/mutablelogic/go-server/pkg/httprouter"
@@ -55,8 +56,13 @@ type ResultResponse struct {
 }
 
 type FileResponse struct {
-	Parent   string `json:"parent"`
-	Filename string `json:"filename"`
+	Path     string    `json:"path"`
+	Parent   string    `json:"parent"`
+	Filename string    `json:"filename"`
+	IsDir    bool      `json:"isdir,omitempty"`
+	Ext      string    `json:"ext"`
+	ModTime  time.Time `json:"modtime"`
+	Size     int64     `json:"size"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -182,11 +188,9 @@ func (p *plugin) ServeQuery(w http.ResponseWriter, req *http.Request) {
 		}
 		n := int64(0)
 		for {
-			rows, err := r.Next()
-			if err == io.EOF {
+			rows := r.Next(nil, nil, nil, nil, nil, nil, nil, nil, reflect.TypeOf(time.Time{}))
+			if rows == nil {
 				return nil
-			} else if err != nil {
-				return err
 			} else {
 				n = n + 1
 			}
@@ -196,8 +200,13 @@ func (p *plugin) ServeQuery(w http.ResponseWriter, req *http.Request) {
 				Rank:   rows[1].(float64),
 				Index:  rows[2].(string),
 				File: FileResponse{
-					Parent:   rows[3].(string),
-					Filename: rows[4].(string),
+					Path:     rows[3].(string),
+					Parent:   rows[4].(string),
+					Filename: rows[5].(string),
+					IsDir:    int64ToBool(rows[6].(int64)),
+					Ext:      rows[7].(string),
+					ModTime:  rows[8].(time.Time),
+					Size:     rows[9].(int64),
 				},
 			})
 		}

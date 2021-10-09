@@ -232,16 +232,14 @@ func main() {
 ## Results
 
 Results are returned from the `Exec` method after a statement is executed. If there are no results,
-then a call to `func (*Results) Next() ([]interface{},error)` will return `nil` in place of an
+then a call to `func (*Results) Next() []interface{}` will return `nil` in place of an
 array of values. You should repeatedly call the `Next` method until this occurs. For example,
 
 ```go
 func ReadResults(r *Results) error {
     for {
-        row, err := r.Next()
-        if err != nil {
-            return err
-        } else if row == nil {
+        row := r.Next()
+        if row == nil {
             return nil
         }
         // Handle row
@@ -261,10 +259,8 @@ example,
 func ReadResults(r *Results) error {
     cast := []reflect.Type{ reflect.TypeOf(bool), reflect.TypeOf(uint) }
     for {
-        row, err := r.Next(cast...)
-        if err != nil {
-            return err
-        } else if row == nil {
+        row := r.Next(cast...)
+        if row == nil {
             return nil
         }
         // Handle row which has bool as first element and uint as second element

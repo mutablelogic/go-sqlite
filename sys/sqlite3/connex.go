@@ -2,7 +2,6 @@ package sqlite3
 
 import (
 	"errors"
-	"io"
 	"reflect"
 	"sync"
 	"time"
@@ -380,11 +379,9 @@ func (c *ConnEx) ExecEx(q string, fn ExecFunc, v ...interface{}) error {
 
 		// Result loop
 		for {
-			row, err := r.Next(t...)
-			if errors.Is(err, io.EOF) || row == nil {
+			row := r.Next(t...)
+			if row == nil {
 				break
-			} else if err != nil {
-				return err
 			} else if fn != nil {
 				if fn(stringSliceFromInterface(row, v), n) {
 					// Set abort transaction on next iteration

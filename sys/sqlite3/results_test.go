@@ -1,7 +1,6 @@
 package sqlite3_test
 
 import (
-	"io"
 	"math"
 	"reflect"
 	"testing"
@@ -53,8 +52,8 @@ func Test_Results_001(t *testing.T) {
 			t.Fatal(err)
 		}
 		for {
-			values, err := r.Next()
-			if err == io.EOF {
+			values := r.Next()
+			if values == nil {
 				break
 			}
 			if len(values) != 1 {
@@ -110,8 +109,8 @@ func Test_Results_002(t *testing.T) {
 			t.Fatal(err)
 		}
 		for {
-			values, err := r.Next(reflect.TypeOf(test.out))
-			if err == io.EOF {
+			values := r.Next(reflect.TypeOf(test.out))
+			if values == nil {
 				break
 			}
 			if len(values) != 1 {

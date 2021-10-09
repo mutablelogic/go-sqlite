@@ -59,3 +59,19 @@ func Test_Select_001(t *testing.T) {
 		}
 	}
 }
+
+func Test_Select_002(t *testing.T) {
+	tests := []struct {
+		In    SQStatement
+		Query string
+	}{
+		{S(J(N("a"), N("b"))), `SELECT * FROM a CROSS JOIN b`},
+		{S(J(N("a"), N("b")).Join(Q("a=b"))), `SELECT * FROM a JOIN b ON a=b`},
+	}
+
+	for i, test := range tests {
+		if v := test.In.Query(); v != test.Query {
+			t.Errorf("Test %d, Unexpected return from Query(): %q, wanted %q", i, v, test.Query)
+		}
+	}
+}

@@ -1,9 +1,7 @@
 package sqlite3_test
 
 import (
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -45,11 +43,8 @@ func Test_Func_001(t *testing.T) {
 	}
 	t.Log(r)
 	for {
-		row, err := r.Next()
-		if errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			t.Error(err)
+		row := r.Next()
+		if row == nil {
 			break
 		}
 		t.Log(row)

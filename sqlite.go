@@ -107,7 +107,7 @@ type SQResults interface {
 	// if types are provided, then returned row is cast to
 	// appopriate types. The returned row needs to be copied
 	// if not transient
-	Next(...reflect.Type) ([]interface{}, error)
+	Next(...reflect.Type) []interface{}
 
 	// Close results and discard when done
 	Close() error

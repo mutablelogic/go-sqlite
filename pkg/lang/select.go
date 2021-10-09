@@ -4,41 +4,42 @@ import (
 	"fmt"
 	"strings"
 
-	sqlite "github.com/mutablelogic/go-sqlite"
+	// Namespace imports
+	. "github.com/mutablelogic/go-sqlite"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
 // TYPES
 
 type sel struct {
-	source        []sqlite.SQSource
+	source        []SQExpr
 	distinct      bool
 	limit, offset uint
 	where         []interface{}
-	to            []sqlite.SQSource
-	order         []sqlite.SQSource
+	to            []SQSource
+	order         []SQSource
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // S defines a select statement
-func S(sources ...sqlite.SQSource) sqlite.SQSelect {
+func S(sources ...SQExpr) SQSelect {
 	return &sel{sources, false, 0, 0, nil, nil, nil}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // PROPERTIES
 
-func (this *sel) WithDistinct() sqlite.SQSelect {
+func (this *sel) WithDistinct() SQSelect {
 	return &sel{this.source, true, this.limit, this.offset, this.where, this.to, this.order}
 }
 
-func (this *sel) WithLimitOffset(limit, offset uint) sqlite.SQSelect {
+func (this *sel) WithLimitOffset(limit, offset uint) SQSelect {
 	return &sel{this.source, this.distinct, limit, offset, this.where, this.to, this.order}
 }
 
-func (this *sel) Where(v ...interface{}) sqlite.SQSelect {
+func (this *sel) Where(v ...interface{}) SQSelect {
 	if len(v) == 0 {
 		// Reset where clause
 		return &sel{this.source, this.distinct, this.limit, this.offset, nil, this.to, this.order}
@@ -47,7 +48,7 @@ func (this *sel) Where(v ...interface{}) sqlite.SQSelect {
 	return &sel{this.source, this.distinct, this.limit, this.offset, append(this.where, v...), this.to, this.order}
 }
 
-func (this *sel) To(v ...sqlite.SQSource) sqlite.SQSelect {
+func (this *sel) To(v ...SQSource) SQSelect {
 	if len(v) == 0 {
 		// Reset to clause
 		return &sel{this.source, this.distinct, this.limit, this.offset, this.where, nil, this.order}
@@ -56,7 +57,7 @@ func (this *sel) To(v ...sqlite.SQSource) sqlite.SQSelect {
 	return &sel{this.source, this.distinct, this.limit, this.offset, this.where, append(this.to, v...), this.order}
 }
 
-func (this *sel) Order(v ...sqlite.SQSource) sqlite.SQSelect {
+func (this *sel) Order(v ...SQSource) SQSelect {
 	if len(v) == 0 {
 		// Reset order clause
 		return &sel{this.source, this.distinct, this.limit, this.offset, this.where, this.to, nil}

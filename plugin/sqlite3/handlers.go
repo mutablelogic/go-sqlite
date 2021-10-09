@@ -392,11 +392,9 @@ func results(r SQResults) (SqlResultResponse, error) {
 
 	// Iterate through the rows, break when maximum number of results is reached
 	for {
-		row, err := r.Next()
-		if errors.Is(err, io.EOF) {
+		row := r.Next()
+		if row == nil {
 			break
-		} else if err != nil {
-			return result, err
 		} else {
 			result.Results = append(result.Results, interfaceSliceCopy(row))
 		}

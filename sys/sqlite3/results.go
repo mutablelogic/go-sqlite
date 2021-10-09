@@ -2,11 +2,8 @@ package sqlite3
 
 import (
 	"fmt"
-	"io"
 	"reflect"
 	"time"
-
-	"github.com/hashicorp/go-multierror"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -63,19 +60,16 @@ func results(st *Statement, err error) *Results {
 	return r
 }
 
-// Return next row of values, or (nil, io.EOF) if there are no more rows.
+// Return next row of values, or nil if there are no more rows.
 // If arguments t are provided, then the values will be
-// cast to the types in t if that is possible, or else an error
-// will occur
-func (r *Results) Next(t ...reflect.Type) ([]interface{}, error) {
-	var result error
-
+// cast to the types in t if that is possible
+func (r *Results) Next(t ...reflect.Type) []interface{} {
 	// If no more results, return nil,io.EOF
 	if r.err == SQLITE_DONE {
 		r.st.Reset()
 		r.st = nil
 		r.cols = nil
-		return nil, io.EOF
+		return nil
 	}
 
 	// Check for SQLITE_ROW result, abort result if error occurred
@@ -83,7 +77,7 @@ func (r *Results) Next(t ...reflect.Type) ([]interface{}, error) {
 		r.st.Reset()
 		r.st = nil
 		r.cols = nil
-		return nil, r.err
+		return nil
 	}
 
 	// Adjust size of columns
@@ -93,22 +87,20 @@ func (r *Results) Next(t ...reflect.Type) ([]interface{}, error) {
 	// Cast values into columns. If type t is defined also cast
 	// value to type t
 	for i := 0; i < n; i++ {
-		if len(t) > i {
-			if v, err := r.castvalue(i, t[i]); err != nil {
-				result = multierror.Append(result, err)
-			} else {
+		if i < len(t) && t[i] != nil {
+			if v, err := r.castvalue(i, t[i]); err == nil {
 				r.cols[i] = v
+				continue
 			}
-		} else {
-			r.cols[i] = r.value(i)
 		}
+		r.cols[i] = r.value(i)
 	}
 
 	// Call step to next row
 	r.err = r.st.Step()
 
 	// Return result
-	return r.cols, nil
+	return r.cols
 }
 
 func (r *Results) LastInsertId() int64 {

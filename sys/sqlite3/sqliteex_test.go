@@ -2,9 +2,7 @@ package sqlite3_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -46,10 +44,7 @@ func Test_SQLiteEx_001(t *testing.T) {
 		}
 		t.Log(r)
 		for {
-			if row, err := r.Next(); errors.Is(err, io.EOF) {
-				break
-			} else if err != nil {
-				t.Error(err)
+			if row := r.Next(); row == nil {
 				break
 			} else {
 				t.Log(row)
@@ -115,14 +110,8 @@ func Test_SQLiteEx_002(t *testing.T) {
 	}
 	if r != nil {
 		for {
-			row, err := r.Next()
-			if errors.Is(err, io.EOF) {
-				break
-			} else if err != nil {
-				t.Fatal(err)
-				break
-			} else if row == nil {
-				t.Error("Unexpected nil return")
+			row := r.Next()
+			if row == nil {
 				break
 			}
 			t.Log(row)

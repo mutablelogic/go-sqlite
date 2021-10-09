@@ -1,8 +1,6 @@
 package sqobj
 
 import (
-	"errors"
-	"io"
 	"reflect"
 
 	// Modules
@@ -49,13 +47,10 @@ func (i *Iterator) Next() interface{} {
 	if i.rs == nil {
 		return nil
 	}
-	v, err := i.rs.Next(i.t...)
-	if err != nil {
+	v := i.rs.Next(i.t...)
+	if v == nil {
 		i.rs = nil
 		i.rowid = 0
-		if !errors.Is(err, io.EOF) {
-			panic(err)
-		}
 		return nil
 	}
 

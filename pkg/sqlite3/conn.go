@@ -214,17 +214,7 @@ func (txn *Txn) Query(st SQStatement, v ...interface{}) (SQResults, error) {
 	}
 
 	// Get a results object
-	r, err := txn.Conn.ConnCache.Prepare(txn.Conn.ConnEx, st.Query())
-	if err != nil {
-		return nil, err
-	}
-
-	// Execute first query
-	if err := r.NextQuery(v...); err != nil {
-		return nil, err
-	} else {
-		return r, nil
-	}
+	return txn.Conn.ConnCache.Prepare(txn.Conn.ConnEx, st.Query())
 }
 
 // Flags returns the Open Flags

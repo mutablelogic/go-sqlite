@@ -173,9 +173,6 @@ func (i *Indexer) IsIndexing() bool {
 // Walk will initiate a walk of the index, and block until context is
 // cancelled or walk is started
 func (i *Indexer) Walk(ctx context.Context, fn WalkFunc) error {
-	if fn == nil {
-		return ErrBadParameter.With("WalkFunc")
-	}
 	select {
 	case <-ctx.Done():
 		return ctx.Err()

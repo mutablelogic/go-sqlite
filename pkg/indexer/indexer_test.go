@@ -14,7 +14,7 @@ const (
 )
 
 func Test_Indexer_000(t *testing.T) {
-	indexer, err := NewIndexer("test", TEST_PATH_1)
+	indexer, err := NewIndexer("test", TEST_PATH_1, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else {
@@ -28,7 +28,7 @@ func Test_Indexer_001(t *testing.T) {
 	defer cancel()
 
 	// Create indexer
-	indexer, err := NewIndexer("test", TEST_PATH_1)
+	indexer, err := NewIndexer("test", TEST_PATH_1, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func Test_Indexer_001(t *testing.T) {
 	indexer.Exclude("/bin")
 	indexer.Exclude("/Projects")
 	indexer.Exclude("/Documents")
-	if err := indexer.Walk(ctx); err != nil {
+	if err := indexer.Walk(ctx, nil); err != nil {
 		t.Error(err)
 	}
 

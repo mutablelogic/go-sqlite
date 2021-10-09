@@ -2,8 +2,6 @@ package sqlite3_test
 
 import (
 	"context"
-	"errors"
-	"io"
 	"math/rand"
 	"sync"
 	"testing"
@@ -43,11 +41,9 @@ func Test_Cache_001(t *testing.T) {
 				}
 				defer r.Close()
 				for {
-					row, err := r.Next()
-					if errors.Is(err, io.EOF) {
+					row := r.Next()
+					if row == nil {
 						break
-					} else if err != nil {
-						t.Error("Next Error: ", err)
 					} else if len(row) != 1 {
 						t.Error("Unexpected row length: ", row, " expected [", n, "]", r.Columns())
 					} else if int64(n) != row[0] {

@@ -8,7 +8,7 @@ import (
 	// Namespace imports
 	. "github.com/mutablelogic/go-sqlite"
 	. "github.com/mutablelogic/go-sqlite/pkg/lang"
-	"github.com/mutablelogic/go-sqlite/pkg/quote"
+	. "github.com/mutablelogic/go-sqlite/pkg/quote"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -81,7 +81,7 @@ func CreateSchema(ctx context.Context, conn SQConnection, schema string, tokeniz
 			"parent",
 			"filename",
 			"content="+filesTableName,
-			"tokenize="+quote.Quote(tokenizer),
+			"tokenize="+Quote(tokenizer),
 		).IfNotExists()); err != nil {
 			return err
 		}
@@ -117,8 +117,8 @@ func ListIndexWithCount(ctx context.Context, conn SQConnection, schema string) (
 			return err
 		}
 		for {
-			row, err := r.Next()
-			if err != nil {
+			row := r.Next()
+			if row == nil {
 				break
 			}
 			if len(row) == 2 {
@@ -155,15 +155,24 @@ func Delete(schema string, evt *QueueEvent) (SQStatement, []interface{}) {
 		[]interface{}{evt.Name, evt.Path}
 }
 
-func Query(schema string, indexes []string) SQSelect {
-	return S(N(searchTableName).WithSchema(schema)).
-		To(
-			N("rowid"),
-			N("rank"),
-			N("name"),
-			N("parent"),
-			N("filename"),
-		).
-		Where(Q(searchTableName, " MATCH ", P)).
-		Order(N("rank"))
+func Query(schema string) SQSelect {
+	// Set the query join
+	queryJoin := J(
+		N(searchTableName).WithSchema(schema),
+		N(filesTableName).WithSchema(schema),
+	).LeftJoin(Q(N(searchTableName), ".rowid=", N(filesTableName), ".rowid"))
+
+	// Return the select
+	return S(queryJoin).To(
+		N("rowid").WithSchema(searchTableName),
+		N("rank").WithSchema(searchTableName),
+		N("name").WithSchema(filesTableName),
+		N("path").WithSchema(filesTableName),
+		N("parent").WithSchema(filesTableName),
+		N("filename").WithSchema(filesTableName),
+		N("isdir").WithSchema(filesTableName),
+		N("ext").WithSchema(filesTableName),
+		N("modtime").WithSchema(filesTableName),
+		N("size").WithSchema(filesTableName),
+	).Where(Q(searchTableName, " MATCH ", P)).Order(N("rank"))
 }

@@ -6,3 +6,10 @@ func uintMin(a, b uint) uint {
 	}
 	return b
 }
+
+func int64ToBool(i int64) bool {
+	if i == 0 {
+		return false
+	}
+	return true
+}

@@ -42,7 +42,7 @@ var (
 // PRIVATE METHODS - STATEMENTS
 
 func sqSelect(class *Class, _ SQTransaction) SQStatement {
-	cols := make([]SQSource, len(class.col)+1)
+	cols := make([]SQExpr, len(class.col)+1)
 	// first row is the rowid
 	cols[0] = N("rowid")
 	for i, col := range class.col {

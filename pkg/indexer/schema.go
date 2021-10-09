@@ -155,17 +155,22 @@ func Delete(schema string, evt *QueueEvent) (SQStatement, []interface{}) {
 		[]interface{}{evt.Name, evt.Path}
 }
 
-func Query(schema string) SQSelect {
+func Query(schema string, snippet bool) SQSelect {
 	// Set the query join
 	queryJoin := J(
 		N(searchTableName).WithSchema(schema),
 		N(filesTableName).WithSchema(schema),
 	).LeftJoin(Q(N(searchTableName), ".rowid=", N(filesTableName), ".rowid"))
-
+	// Set the snippet expression
+	snippetExpr := V("")
+	if snippet {
+		snippetExpr = Q("SNIPPET(", searchTableName, ",-1, '<em>', '</em>', '...', 64) AS snippet")
+	}
 	// Return the select
 	return S(queryJoin).To(
 		N("rowid").WithSchema(searchTableName),
 		N("rank").WithSchema(searchTableName),
+		snippetExpr,
 		N("name").WithSchema(filesTableName),
 		N("path").WithSchema(filesTableName),
 		N("parent").WithSchema(filesTableName),

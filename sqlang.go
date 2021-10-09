@@ -144,8 +144,8 @@ type SQSelect interface {
 	WithDistinct() SQSelect
 	WithLimitOffset(limit, offset uint) SQSelect
 
-	// Destination columns for results
-	To(...SQSource) SQSelect
+	// Destination expressions for results
+	To(...SQExpr) SQSelect
 
 	// Where and order clauses
 	Where(...interface{}) SQSelect

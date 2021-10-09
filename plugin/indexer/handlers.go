@@ -35,9 +35,10 @@ type IndexResponse struct {
 }
 
 type QueryRequest struct {
-	Query  string `json:"q"`
-	Offset uint   `json:"offset"`
-	Limit  uint   `json:"limit"`
+	Query   string `json:"q"`       // The query string
+	Offset  uint   `json:"offset"`  // Offset within the result set
+	Limit   uint   `json:"limit"`   // Limit the results
+	Snippet bool   `json:"snippet"` // Whether to generate a snippet
 }
 
 type QueryResponse struct {
@@ -48,11 +49,12 @@ type QueryResponse struct {
 }
 
 type ResultResponse struct {
-	Id     int64        `json:"id"`
-	Offset int64        `json:"offset"`
-	Rank   float64      `json:"rank"`
-	Index  string       `json:"index"`
-	File   FileResponse `json:"file"`
+	Id      int64        `json:"id"`
+	Offset  int64        `json:"offset"`
+	Rank    float64      `json:"rank"`
+	Index   string       `json:"index"`
+	Snippet string       `json:"snippet,omitempty"`
+	File    FileResponse `json:"file"`
 }
 
 type FileResponse struct {
@@ -165,7 +167,11 @@ func (p *plugin) ServeQuery(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// Check query, offset and limit
-	query.Limit = uintMin(query.Limit, maxResultLimit)
+	if query.Limit == 0 {
+		query.Limit = maxResultLimit
+	} else {
+		query.Limit = uintMin(query.Limit, maxResultLimit)
+	}
 	query.Query = strings.TrimSpace(query.Query)
 	if query.Query == "" {
 		router.ServeError(w, http.StatusBadRequest, "missing q parameter")
@@ -182,31 +188,33 @@ func (p *plugin) ServeQuery(w http.ResponseWriter, req *http.Request) {
 
 	// Perform the query and collate the results
 	if err := conn.Do(req.Context(), 0, func(txn SQTransaction) error {
-		r, err := txn.Query(indexer.Query(p.store.Schema()).WithLimitOffset(query.Limit, query.Offset), query.Query)
+		q := indexer.Query(p.store.Schema(), query.Snippet).WithLimitOffset(query.Limit, query.Offset)
+		r, err := txn.Query(q, query.Query)
 		if err != nil {
 			return err
 		}
 		n := int64(0)
 		for {
-			rows := r.Next(nil, nil, nil, nil, nil, nil, nil, nil, reflect.TypeOf(time.Time{}))
+			rows := r.Next(nil, nil, nil, nil, nil, nil, nil, nil, nil, reflect.TypeOf(time.Time{}))
 			if rows == nil {
 				return nil
 			} else {
 				n = n + 1
 			}
 			response.Results = append(response.Results, ResultResponse{
-				Id:     rows[0].(int64),
-				Offset: n + int64(query.Offset) - 1,
-				Rank:   rows[1].(float64),
-				Index:  rows[2].(string),
+				Id:      rows[0].(int64),
+				Offset:  n + int64(query.Offset) - 1,
+				Rank:    rows[1].(float64),
+				Snippet: rows[2].(string),
+				Index:   rows[3].(string),
 				File: FileResponse{
-					Path:     rows[3].(string),
-					Parent:   rows[4].(string),
-					Filename: rows[5].(string),
-					IsDir:    int64ToBool(rows[6].(int64)),
-					Ext:      rows[7].(string),
-					ModTime:  rows[8].(time.Time),
-					Size:     rows[9].(int64),
+					Path:     rows[4].(string),
+					Parent:   rows[5].(string),
+					Filename: rows[6].(string),
+					IsDir:    int64ToBool(rows[7].(int64)),
+					Ext:      rows[8].(string),
+					ModTime:  rows[9].(time.Time),
+					Size:     rows[10].(int64),
 				},
 			})
 		}

@@ -15,28 +15,34 @@ import (
 #include <sqlite3.h>
 #include <pthread.h>
 #include <assert.h>
+#include <stdio.h>
 
 // sqlite library needs to be compiled with -DSQLITE_ENABLE_UNLOCK_NOTIFY
 // https://www.sqlite.org/unlock_notify.html
 
 // A pointer to an instance of this structure is passed as the user-context
 // pointer when registering for an unlock-notify callback.
+typedef struct {
+	int fired;                         // True after unlock event has occurred
+	pthread_cond_t cond;               // Condition variable to wait on
+	pthread_mutex_t mutex;             // Mutex to protect structure
+} UnlockNotification;
 
-typedef struct UnlockNotification UnlockNotification;
-struct UnlockNotification {
-  int fired;                         // True after unlock event has occurred
-  pthread_cond_t cond;               // Condition variable to wait on
-  pthread_mutex_t mutex;             // Mutex to protect structure
-};
+// This function allocates a new UnlockNotification structure and returns a pointer to it.
+static UnlockNotification* alloc_unlock_notification(void) {
+	return (UnlockNotification* )malloc(sizeof(UnlockNotification));
+}
 
 // This function is an unlock-notify callback registered with SQLite.
-static void unlock_notify_cb(void **apArg, int nArg){
-	for(int i = 0; i < nArg; i++){
-		UnlockNotification *p = (UnlockNotification *)apArg[i];
-		pthread_mutex_lock(&p->mutex);
-		p->fired = 1;
-		pthread_cond_signal(&p->cond);
-		pthread_mutex_unlock(&p->mutex);
+static void unlock_notify_cb(void** apArg, int nArg){
+	for(int i = 0; i < nArg; i++) {
+		UnlockNotification* un = (UnlockNotification* )apArg[i];
+		printf("   unlocking un=%p\n", un);
+		fflush(stdout);
+		pthread_mutex_lock(&un->mutex);
+		un->fired = 1;
+		pthread_cond_signal(&un->cond);
+		pthread_mutex_unlock(&un->mutex);
 	}
 }
 
@@ -52,19 +58,16 @@ static void unlock_notify_cb(void **apArg, int nArg){
 // the system, then this function returns SQLITE_LOCKED immediately. In
 // this case the caller should not retry the operation and should roll
 // back the current transaction (if any).
-static int wait_for_unlock_notify(sqlite3 *db) {
-	int rc;
+static int wait_for_unlock_notify(sqlite3* db){
 	UnlockNotification un;
-
-	// Initialize the UnlockNotification structure.
 	un.fired = 0;
 	pthread_mutex_init(&un.mutex, 0);
 	pthread_cond_init(&un.cond, 0);
 
-	// Register for an unlock-notify callback.
-	rc = sqlite3_unlock_notify(db, unlock_notify_cb, (void *)&un);
-	assert( rc==SQLITE_LOCKED || rc==SQLITE_OK );
+	printf("wait_for_unlock_notify %p un=%p\n",db,&un);
+	fflush(stdout);
 
+	// Register for an unlock-notify callback.
 	// The call to sqlite3_unlock_notify() always returns either SQLITE_LOCKED
 	// or SQLITE_OK.
 	//
@@ -72,13 +75,18 @@ static int wait_for_unlock_notify(sqlite3 *db) {
 	// case this function needs to return SQLITE_LOCKED to the caller so
 	// that the current transaction can be rolled back. Otherwise, block
 	// until the unlock-notify callback is invoked, then return SQLITE_OK.
-	if( rc==SQLITE_OK ){
+	int rc = sqlite3_unlock_notify(db, unlock_notify_cb, (void* )&un);
+	assert(rc==SQLITE_LOCKED || rc==SQLITE_OK);
+	if(rc == SQLITE_OK) {
 		pthread_mutex_lock(&un.mutex);
-		if( !un.fired ){
+		if (!un.fired) {
 			pthread_cond_wait(&un.cond, &un.mutex);
 		}
 		pthread_mutex_unlock(&un.mutex);
 	}
+
+	printf("unlocked %p un=%p rc=%d\n",db,&un,rc);
+	fflush(stdout);
 
 	// Destroy the mutex and condition variables.
 	pthread_cond_destroy(&un.cond);
@@ -87,23 +95,25 @@ static int wait_for_unlock_notify(sqlite3 *db) {
 	return rc;
 }
 
-
 // This code is a wrapper around sqlite3_step
-static int _sqlite3_blocking_step(sqlite3_stmt* stmt) {
+static int _sqlite3_blocking_step(sqlite3_stmt* stmt, UnlockNotification* un) {
 	int rc;
 	sqlite3* db = sqlite3_db_handle(stmt);
 	for (;;) {
+		printf("make step db=%p\n",db);
+		fflush(stdout);
 		rc = sqlite3_step(stmt);
-		if (rc != SQLITE_LOCKED) {
-			break;
-		}
 		if (sqlite3_extended_errcode(db) != SQLITE_LOCKED_SHAREDCACHE) {
      		break;
 	    }
+		printf("calling wait_for_unlock_notify db=%p\n",db);
+		fflush(stdout);
 		rc = wait_for_unlock_notify(db);
 		if (rc != SQLITE_OK) {
 			break;
 		}
+		printf("resetting db=%p\n",db);
+		fflush(stdout);
 		sqlite3_reset(stmt);
 	}
 	return rc;
@@ -111,18 +121,34 @@ static int _sqlite3_blocking_step(sqlite3_stmt* stmt) {
 
 // This code is a wrapper around sqlite3_prepare_v2
 static int _sqlite3_blocking_prepare_v2(
-  sqlite3* db,            // Database handle
-  const char* sql,        // UTF-8 encoded SQL statement
-  int nSql,               // Length of zSql in bytes
-  sqlite3_stmt** stmt,    // OUT: A pointer to the prepared statement
-  const char** pz         // OUT: End of parsed string
+  sqlite3* db,             // Database handle
+  UnlockNotification* un,  // IN: Unlock notification object
+  const char* sql,         // IN: UTF-8 encoded SQL statement
+  int nSql,                // IN: Length of zSql in bytes
+  sqlite3_stmt** stmt,     // OUT: A pointer to the prepared statement
+  const char** pz          // OUT: End of parsed string
 ){
 	int rc;
 	for (;;) {
 		rc = sqlite3_prepare_v2(db, sql, nSql, stmt, pz);
-		if (rc != SQLITE_LOCKED) {
+		if (sqlite3_extended_errcode(db) != SQLITE_LOCKED_SHAREDCACHE) {
+     		break;
+	    }
+		rc = wait_for_unlock_notify(db);
+		if (rc != SQLITE_OK) {
 			break;
 		}
+	}
+	return rc;
+}
+
+
+// This code is a wrapper around sqlite3_reset
+static int _sqlite3_blocking_reset(sqlite3_stmt* stmt, UnlockNotification* un) {
+	int rc;
+	sqlite3* db = sqlite3_db_handle(stmt);
+	for (;;) {
+		rc = sqlite3_reset(stmt);
 		if (sqlite3_extended_errcode(db) != SQLITE_LOCKED_SHAREDCACHE) {
      		break;
 	    }
@@ -206,7 +232,9 @@ func (c *Conn) Prepare(query string) (*Statement, string, error) {
 	}
 
 	// Prepare statement
-	if err := SQError(C._sqlite3_blocking_prepare_v2((*C.sqlite3)(c), cQuery, -1, &s, &cExtra)); err != SQLITE_OK {
+	un := C.alloc_unlock_notification()
+	defer C.free(unsafe.Pointer(un))
+	if err := SQError(C._sqlite3_blocking_prepare_v2((*C.sqlite3)(c), un, cQuery, -1, &s, &cExtra)); err != SQLITE_OK {
 		return nil, "", err.With(C.GoString(C.sqlite3_errmsg((*C.sqlite3)(c))))
 	}
 
@@ -246,9 +274,11 @@ func (s *Statement) Conn() *Conn {
 
 // Reset statement
 func (s *Statement) Reset() error {
-	err := SQError(C.sqlite3_reset((*C.sqlite3_stmt)(s)))
+	un := C.alloc_unlock_notification()
+	defer C.free(unsafe.Pointer(un))
+	err := SQError(C._sqlite3_blocking_reset((*C.sqlite3_stmt)(s), un))
 	if (err & 0xFF) == SQLITE_LOCKED {
-		fmt.Println("TODO: Locked")
+		fmt.Println("TODO: Locked Reset", int(err))
 	}
 	if err != SQLITE_OK {
 		return err.With(C.GoString(C.sqlite3_errmsg((*C.sqlite3)(s.Conn()))))
@@ -285,9 +315,11 @@ func (s *Statement) Finalize() error {
 
 // Step statement
 func (s *Statement) Step() error {
-	err := SQError(C._sqlite3_blocking_step((*C.sqlite3_stmt)(s)))
+	un := C.alloc_unlock_notification()
+	defer C.free(unsafe.Pointer(un))
+	err := SQError(C._sqlite3_blocking_step((*C.sqlite3_stmt)(s), un))
 	if (err & 0xFF) == SQLITE_LOCKED {
-		fmt.Println("TODO Locked (Step)")
+		fmt.Println("TODO Locked Step", int(err))
 	}
 	return err
 }

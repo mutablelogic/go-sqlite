@@ -80,6 +80,7 @@ func CreateSchema(ctx context.Context, conn SQConnection, schema string, tokeniz
 			"name",
 			"parent",
 			"filename",
+		).Options(
 			"content="+filesTableName,
 			"tokenize="+Quote(tokenizer),
 		).IfNotExists()); err != nil {

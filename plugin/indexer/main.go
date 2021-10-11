@@ -22,8 +22,9 @@ import (
 // TYPES
 
 type Config struct {
-	Paths  map[string]string `yaml:"index"`
-	Schema string            `yaml:"database"`
+	Workers uint              `json:"workers"`
+	Paths   map[string]string `yaml:"index"`
+	Schema  string            `yaml:"database"`
 }
 
 type plugin struct {
@@ -88,7 +89,7 @@ func New(ctx context.Context, provider Provider) Plugin {
 	if q == nil {
 		provider.Print(ctx, "unable to create queue")
 		return nil
-	} else if store := indexer.NewStore(p.pool, schema, q, nil, 0); store == nil {
+	} else if store := indexer.NewStore(p.pool, schema, q, nil, cfg.Workers); store == nil {
 		provider.Print(ctx, "unable to create store")
 		return nil
 	} else {

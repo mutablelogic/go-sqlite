@@ -25,6 +25,7 @@ type createvirtual struct {
 	module      string
 	ifnotexists bool
 	args        []string
+	opts        []string
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -37,7 +38,7 @@ func (this *source) CreateIndex(name string, columns ...string) SQIndexView {
 
 // Create a virtual table with module name name and arguments
 func (this *source) CreateVirtualTable(module string, args ...string) SQIndexView {
-	return &createvirtual{source{this.name, this.schema, "", false}, module, false, args}
+	return &createvirtual{source{this.name, this.schema, "", false}, module, false, args, nil}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,8 +100,12 @@ func (this *createindex) WithAuto() SQIndexView {
 	return &createindex{this.source, this.name, true, this.ifnotexists, this.columns, true}
 }
 
+func (this *createindex) Options(opts ...string) SQIndexView {
+	return nil
+}
+
 func (this *createvirtual) IfNotExists() SQIndexView {
-	return &createvirtual{this.source, this.module, true, this.args}
+	return &createvirtual{this.source, this.module, true, this.args, this.opts}
 }
 
 func (this *createvirtual) WithUnique() SQIndexView {
@@ -108,11 +113,15 @@ func (this *createvirtual) WithUnique() SQIndexView {
 }
 
 func (this *createvirtual) WithTemporary() SQIndexView {
-	return &createvirtual{source{this.name, "temp", "", false}, this.module, this.ifnotexists, this.args}
+	return &createvirtual{source{this.name, "temp", "", false}, this.module, this.ifnotexists, this.args, this.opts}
 }
 
 func (this *createvirtual) WithAuto() SQIndexView {
 	return nil
+}
+
+func (this *createvirtual) Options(opts ...string) SQIndexView {
+	return &createvirtual{source{this.name, this.schema, "", false}, this.module, this.ifnotexists, this.args, opts}
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,8 +162,15 @@ func (this *createvirtual) Query() string {
 		tokens = append(tokens, "IF NOT EXISTS")
 	}
 	tokens = append(tokens, this.source.String(), "USING", QuoteIdentifier(this.module))
+	argsopts := []string{}
 	if len(this.args) > 0 {
-		tokens = append(tokens, "("+QuoteIdentifiers(this.args...)+")")
+		argsopts = append(argsopts, QuoteIdentifiers(this.args...))
+	}
+	if len(this.opts) > 0 {
+		argsopts = append(argsopts, strings.Join(this.opts, ","))
+	}
+	if len(argsopts) > 0 {
+		tokens = append(tokens, "(", strings.Join(argsopts, ",")+")")
 	}
 
 	// Return the query

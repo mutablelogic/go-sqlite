@@ -66,6 +66,12 @@ func OpenPath(path string, flags SQFlag) (*Conn, error) {
 		}
 	}
 
+	// If we are opening a memory database, then we need to set the flags
+	if path == defaultMemory {
+		path = "file:" + DefaultSchema
+		flags |= SQFlag(sqlite3.SQLITE_OPEN_MEMORY | sqlite3.SQLITE_OPEN_URI)
+	}
+
 	// Open database with flags
 	if c, err := sqlite3.OpenPathEx(path, sqlite3.OpenFlags(flags), ""); err != nil {
 		return nil, err

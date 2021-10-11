@@ -39,7 +39,7 @@ $(CMD_DIR): FORCE
 
 $(PLUGIN_DIR): FORCE
 	@echo Build plugin $(notdir $@)
-	${GO} build -buildmode=plugin -o ${BUILD_DIR}/$(notdir $@).plugin ${BUILD_FLAGS} ./$@
+	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/$(notdir $@).plugin ${BUILD_FLAGS} ./$@
 
 FORCE:
 

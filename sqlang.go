@@ -103,6 +103,7 @@ type SQIndexView interface {
 	WithTemporary() SQIndexView
 	WithUnique() SQIndexView
 	WithAuto() SQIndexView
+	Options(...string) SQIndexView
 }
 
 // SQTrigger defines a create trigger statement

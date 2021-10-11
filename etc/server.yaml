@@ -45,7 +45,6 @@ sqlite3:
   # Set max number of connections that can be simultaneously opened
   max: 100
 
-
 indexer:
   index:
     sw: /home/djt/sw

@@ -5,19 +5,15 @@ GO=$(shell which go)
 BUILD_DIR := build
 PLUGIN_DIR := $(wildcard plugin/*)
 CMD_DIR := $(filter-out cmd/README.md, $(wildcard cmd/*))
-SQLITE_DIR := ./c
+SQLITE_MODULE = "github.com/mutablelogic/go-sqlite"
 
 # Build flags
-BUILD_MODULE = "github.com/mutablelogic/go-sqlite"
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitSource=${BUILD_MODULE}
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitTag=$(shell git describe --tags)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitBranch=$(shell git name-rev HEAD --name-only --always)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GitHash=$(shell git rev-parse HEAD)
-BUILD_LD_FLAGS += -X $(BUILD_MODULE)/pkg/config.GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
+BUILD_LD_FLAGS += -X $(SQLITE_MODULE)/pkg/config.GitSource=${SQLITE_MODULE}
+BUILD_LD_FLAGS += -X $(SQLITE_MODULE)/pkg/config.GitTag=$(shell git describe --tags)
+BUILD_LD_FLAGS += -X $(SQLITE_MODULE)/pkg/config.GitBranch=$(shell git name-rev HEAD --name-only --always)
+BUILD_LD_FLAGS += -X $(SQLITE_MODULE)/pkg/config.GitHash=$(shell git rev-parse HEAD)
+BUILD_LD_FLAGS += -X $(SQLITE_MODULE)/pkg/config.GoBuildTime=$(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 BUILD_FLAGS = -ldflags "-s -w ${BUILD_LD_FLAGS}" 
-BUILD_VERSION = $(shell git describe --tags)
-BUILD_ARCH = $(shell $(GO) env GOARCH)
-BUILD_PLATFORM = $(shell $(GO) env GOOS)
 
 all: clean server plugins cmd
 
@@ -43,7 +39,7 @@ $(CMD_DIR): FORCE
 
 $(PLUGIN_DIR): FORCE
 	@echo Build plugin $(notdir $@)
-	@${GO} build -buildmode=plugin -o ${BUILD_DIR}/$(notdir $@).plugin ${BUILD_FLAGS} ./$@
+	${GO} build -buildmode=plugin -o ${BUILD_DIR}/$(notdir $@).plugin ${BUILD_FLAGS} ./$@
 
 FORCE:
 

@@ -2,11 +2,13 @@ module github.com/mutablelogic/go-sqlite
 
 go 1.17
 
+replace github.com/zyedidia/highlight => github.com/djthorpe/highlight v0.0.0-20211010083339-d90b2f7f5bae
+
 require (
 	github.com/djthorpe/go-errors v1.0.2
 	github.com/djthorpe/go-marshaler v0.0.15
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/mutablelogic/go-server v1.0.35
+	github.com/mutablelogic/go-server v1.0.39
 	github.com/rjeczalik/notify v0.9.2
 	github.com/xuri/excelize/v2 v2.4.1
 	golang.org/x/text v0.3.7

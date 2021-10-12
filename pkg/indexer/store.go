@@ -292,6 +292,7 @@ func (s *Store) insert(ctx context.Context, txn SQTransaction, name, path string
 		Title:       doc.Title(),
 		Description: doc.Description(),
 		Shortform:   string(doc.Shortform()), // TODO: html2text
+		Tags:        doc.Tags(),
 	}); err != nil {
 		return err
 	} else {

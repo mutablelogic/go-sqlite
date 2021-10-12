@@ -96,6 +96,10 @@ func NewReflect(proto interface{}) (*SQReflect, error) {
 	// Set columns
 	var result error
 	for _, field := range fields {
+		if field == nil {
+			// Ignored fields
+			continue
+		}
 		// Check for duplicate column name
 		if _, exists := r.colmap[field.Name]; exists {
 			result = multierror.Append(result, ErrDuplicateEntry.With(field.Name))
@@ -112,6 +116,10 @@ func NewReflect(proto interface{}) (*SQReflect, error) {
 
 	// Set indexes
 	for _, field := range fields {
+		if field == nil {
+			// Ignored fields
+			continue
+		}
 		for _, tag := range field.Tags {
 			name, unique := parseTagIndexValue(tag)
 			if name != "" {
@@ -129,6 +137,10 @@ func NewReflect(proto interface{}) (*SQReflect, error) {
 	// Set joins. The join names are aliases so when joining two tables, the aliases
 	// are used to match up the columns
 	for _, field := range fields {
+		if field == nil {
+			// Ignored fields
+			continue
+		}
 		for _, tag := range field.Tags {
 			name := parseTagJoinValue(tag)
 			if name == "" {

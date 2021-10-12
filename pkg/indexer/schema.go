@@ -31,11 +31,18 @@ type File struct {
 }
 
 type Doc struct {
-	Name        string `sqlite:"name,primary,foreign,join:name"` // Index name, primary key
-	Path        string `sqlite:"path,primary,foreign,join:path"` // Relative path, primary key
-	Title       string `sqlite:"title,notnull"`                  // Title of the document, text
-	Description string `sqlite:"description"`                    // Description of the document, text
-	Shortform   string `sqlite:"shortform"`                      // Shortform of the document, html
+	Name        string   `sqlite:"name,primary,foreign,join:name"` // Index name, primary key
+	Path        string   `sqlite:"path,primary,foreign,join:path"` // Relative path, primary key
+	Title       string   `sqlite:"title,notnull"`                  // Title of the document, text
+	Description string   `sqlite:"description"`                    // Description of the document, text
+	Shortform   string   `sqlite:"shortform"`                      // Shortform of the document, html
+	Tags        []string `sqlite:"-"`                              // Tags added via DocTag table
+}
+
+type DocTag struct {
+	Name string `sqlite:"name,primary,foreign"` // Index name, primary key
+	Path string `sqlite:"path,primary,foreign"` // Relative path, primary key
+	Tag  string `sqlite:"tag,notnull"`          // Document tag
 }
 
 // View is used as the content source for the search virtual table
@@ -66,6 +73,7 @@ const (
 	fileTableName           = "file"
 	searchTableName         = "search"
 	docTableName            = "doc"
+	tagTableName            = "tag"
 	viewTableName           = "view"
 	searchTriggerInsertName = "search_insert"
 	searchTriggerDeleteName = "search_delete"
@@ -92,6 +100,7 @@ var (
 var (
 	fileTable   = sqobj.MustRegisterClass(N(fileTableName), File{})
 	docTable    = sqobj.MustRegisterClass(N(docTableName), Doc{}).ForeignKey(fileTable)
+	tagTable    = sqobj.MustRegisterClass(N(tagTableName), DocTag{}).ForeignKey(docTable)
 	viewTable   = sqobj.MustRegisterView(N(viewTableName), View{}, true, fileTable, docTable)
 	searchTable = sqobj.MustRegisterVirtual(N(searchTableName), "fts5", Search{}, "content="+Quote(viewTableName))
 )
@@ -111,6 +120,9 @@ func CreateSchema(ctx context.Context, conn SQConnection, schema string, tokeniz
 			return err
 		}
 		if err := docTable.Create(txn, schema); err != nil {
+			return err
+		}
+		if err := tagTable.Create(txn, schema); err != nil {
 			return err
 		}
 		if err := viewTable.Create(txn, schema); err != nil {
@@ -196,11 +208,22 @@ func GetFile(schema string, rowid int64) (SQStatement, []interface{}, []reflect.
 }
 
 func UpsertDoc(txn SQTransaction, doc *Doc) (int64, error) {
-	if n, err := docTable.UpsertKeys(txn, doc); err != nil {
+	n, err := docTable.UpsertKeys(txn, doc)
+	if err != nil {
 		return 0, err
-	} else {
-		return n[0], nil
 	}
+	// Add any tags
+	for _, tag := range doc.Tags {
+		if _, err := tagTable.UpsertKeys(txn, &DocTag{
+			Name: doc.Name,
+			Path: doc.Path,
+			Tag:  tag,
+		}); err != nil {
+			return 0, err
+		}
+	}
+	// Return rowid for the document
+	return n[0], nil
 }
 
 func Query(schema string, snippet bool) SQSelect {

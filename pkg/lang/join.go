@@ -48,15 +48,15 @@ func (j *join) String() string {
 // PUBLIC METHODS
 
 func (j *join) Join(expr ...SQExpr) SQJoin {
-	return &join{j.l, j.r, "JOIN", expr, nil}
+	return &join{j.l, j.r, "JOIN", expr, j.cols}
 }
 
 func (j *join) LeftJoin(expr ...SQExpr) SQJoin {
-	return &join{j.l, j.r, "LEFT JOIN", expr, nil}
+	return &join{j.l, j.r, "LEFT JOIN", expr, j.cols}
 }
 
 func (j *join) LeftInnerJoin(expr ...SQExpr) SQJoin {
-	return &join{j.l, j.r, "LEFT INNER JOIN", expr, nil}
+	return &join{j.l, j.r, "LEFT INNER JOIN", expr, j.cols}
 }
 
 func (j *join) Using(cols ...string) SQJoin {

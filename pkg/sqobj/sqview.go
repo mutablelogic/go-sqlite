@@ -155,7 +155,7 @@ func (this *View) join(l, r *Class, leftjoin bool) SQJoin {
 	// or if the column names are the same,
 	//   this [LEFT} JOIN other USING (alias,alias)
 	join := J(l.SQSource, r.SQSource)
-	expr := make([]SQExpr, len(aliases))
+	expr := make([]SQExpr, 0, len(aliases))
 	using := make([]string, 0, len(aliases))
 	for _, alias := range aliases {
 		lcol := l.joinmap[alias]
@@ -174,6 +174,8 @@ func (this *View) join(l, r *Class, leftjoin bool) SQJoin {
 	} else {
 		join = join.Join(expr...)
 	}
+
+	// Return success
 	return join
 }
 

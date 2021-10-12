@@ -31,6 +31,16 @@ const (
 )
 
 ////////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (cache *ConnCache) String() string {
+	str := "<cache"
+	str += fmt.Sprint(" cap=", cache.cap)
+	str += fmt.Sprint(" n=", cache.n)
+	return str + ">"
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 func (cache *ConnCache) SetCap(cap uint32) {

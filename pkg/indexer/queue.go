@@ -157,7 +157,7 @@ func (q *Queue) add(e EventType, name, path string, info fs.FileInfo) {
 	// This assumes the key does not exist
 	key := key(name, path)
 	if _, exists := q.k[key]; exists {
-		panic("Queue: key already exists")
+		panic("Queue: key already exists, " + key)
 	}
 	q.q = append(q.q, key)
 	q.k[key] = &QueueEvent{e, name, path, info}

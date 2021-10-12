@@ -58,9 +58,9 @@ func New(ctx context.Context, provider Provider) Plugin {
 		poolcfg = poolcfg.WithSchema(name, path)
 	}
 	if cfg.Trace {
-		poolcfg = poolcfg.WithTrace(func(q string, d time.Duration) {
+		poolcfg = poolcfg.WithTrace(func(c *sqlite3.Conn, q string, d time.Duration) {
 			if d >= 0 {
-				provider.Printf(ctx, "TRACE %q => %v", q, d)
+				provider.Printf(ctx, "TRACE [conn %d] %q => %v", c.Counter(), q, d)
 			}
 		})
 	}

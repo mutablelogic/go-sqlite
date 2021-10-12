@@ -3,9 +3,12 @@ package sqlite3
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
+	"sync/atomic"
 
 	// Modules
 	multierror "github.com/hashicorp/go-multierror"
@@ -14,6 +17,7 @@ import (
 	// Namespace Imports
 	. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-sqlite"
+	. "github.com/mutablelogic/go-sqlite/pkg/quote"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,9 +28,10 @@ type Conn struct {
 	*sqlite3.ConnEx
 	ConnCache
 
-	c   chan struct{}
-	f   SQFlag
-	ctx context.Context
+	counter int64
+	c       chan struct{}
+	f       SQFlag
+	ctx     context.Context
 }
 
 type Txn struct {
@@ -37,6 +42,13 @@ type Txn struct {
 
 type ExecFunc sqlite3.ExecFunc
 type TxnFunc func(SQTransaction) error
+
+////////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+var (
+	counter int64
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
@@ -56,6 +68,7 @@ func New(flags ...SQFlag) (*Conn, error) {
 
 func OpenPath(path string, flags SQFlag) (*Conn, error) {
 	conn := new(Conn)
+	conn.counter = atomic.AddInt64(&counter, 1)
 
 	// If no create flag then check to make sure database exists
 	if path != defaultMemory && flags&SQFlag(sqlite3.SQLITE_OPEN_MEMORY) == 0 && SQFlag(sqlite3.SQLITE_OPEN_CREATE) == 0 {
@@ -66,10 +79,13 @@ func OpenPath(path string, flags SQFlag) (*Conn, error) {
 		}
 	}
 
-	// If we are opening a memory database, then we need to set the flags
+	// If we are opening a memory database, then we need to set it
+	// to be shared across connections
 	if path == defaultMemory {
 		path = "file:" + DefaultSchema
 		flags |= SQFlag(sqlite3.SQLITE_OPEN_MEMORY | sqlite3.SQLITE_OPEN_URI)
+	} else if strings.HasPrefix(path, "file:") {
+		return nil, ErrBadParameter.Withf("%q: OpenPath does not support URI filenames", path)
 	}
 
 	// Open database with flags
@@ -126,8 +142,20 @@ func (conn *Conn) Close() error {
 	return result
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// STRINGIFY
+
+func (conn *Conn) String() string {
+	str := "<conn"
+	str += fmt.Sprint(" counter=", conn.counter)
+	str += fmt.Sprint(" cache=", conn.ConnCache)
+	str += fmt.Sprint(" conn=", conn.ConnEx)
+
+	return str + ">"
+}
+
 ///////////////////////////////////////////////////////////////////////////////
-// PUBLIC METHODS
+// PUBLIC METHODS - CONNECTIONS
 
 // Execute SQL statement without preparing, and invoke a callback for each row of results
 // which may return true to abort
@@ -213,6 +241,63 @@ func (conn *Conn) Do(ctx context.Context, flag SQFlag, fn func(SQTransaction) er
 	return result
 }
 
+// Attach database as schema. If path is empty then a new in-memory database
+// is attached. If the path does not exist then it is created if the
+// SQLITE_OPEN_CREATE flag is set.
+func (conn *Conn) Attach(schema, path string) error {
+	if schema == "" || schema == DefaultSchema {
+		return ErrBadParameter.Withf("%q", schema)
+	}
+	if path == "" {
+		return conn.Attach(schema, defaultMemory)
+	}
+	if strings.HasPrefix(path, "file:") {
+		return ErrBadParameter.Withf("%q: Attach does not support URI filenames", path)
+	}
+	if !conn.ConnEx.Autocommit() {
+		return ErrOutOfOrder.With("Attach cannot be performed in a transaction")
+	}
+
+	// Create a new database or return an error if it doesn't exist
+	if path != defaultMemory {
+		_, err := os.Stat(path)
+		if os.IsNotExist(err) {
+			err = conn.attachCreate(path)
+		}
+		if err != nil {
+			return err
+		}
+	} else {
+		// If memory then change path to a URI
+		path = "file:" + url.PathEscape(schema) + "?mode=memory"
+	}
+	return conn.ConnEx.Exec("ATTACH DATABASE "+Quote(path)+" AS "+QuoteIdentifier(schema), nil)
+}
+
+// Detach database
+func (conn *Conn) Detach(schema string) error {
+	if schema == "" || schema == DefaultSchema {
+		return ErrBadParameter.Withf("%q", schema)
+	}
+	if !conn.ConnEx.Autocommit() {
+		return ErrOutOfOrder.With("Detach cannot be performed in a transaction")
+	}
+	return conn.ConnEx.Exec("DETACH DATABASE "+QuoteIdentifier(schema), nil)
+}
+
+// Flags returns the Open Flags
+func (c *Conn) Flags() SQFlag {
+	return c.f
+}
+
+// Counter returns unique connection counter
+func (c *Conn) Counter() int64 {
+	return c.counter
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUBLIC METHODS - TRANSACTIONS
+
 // Execute SQL statement and invoke a callback for each row of results which may return true to abort
 func (txn *Txn) Query(st SQStatement, v ...interface{}) (SQResults, error) {
 	if st == nil {
@@ -233,12 +318,25 @@ func (txn *Txn) Query(st SQStatement, v ...interface{}) (SQResults, error) {
 	}
 }
 
-// Flags returns the Open Flags
-func (c *Conn) Flags() SQFlag {
-	return c.f
-}
-
 // Flags returns the Open Flags or'd with Transaction Flags
 func (t *Txn) Flags() SQFlag {
 	return t.f | t.Conn.f
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// Create a database before attaching
+func (conn *Conn) attachCreate(path string) error {
+	if !conn.Flags().Is(SQFlag(sqlite3.SQLITE_OPEN_CREATE)) {
+		return ErrBadParameter.Withf("Database does not exist: %q", path)
+	}
+	// Open then close database before attaching
+	if conn, err := sqlite3.OpenPath(path, sqlite3.OpenFlags(conn.Flags()), ""); err != nil {
+		return err
+	} else if err := conn.Close(); err != nil {
+		return err
+	} else {
+		return nil
+	}
 }

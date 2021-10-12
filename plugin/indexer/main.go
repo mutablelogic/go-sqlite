@@ -3,12 +3,16 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 	"time"
 
 	// Packages
 	"github.com/hashicorp/go-multierror"
+	"github.com/mutablelogic/go-server/pkg/template"
 	"github.com/mutablelogic/go-sqlite/pkg/indexer"
 	"github.com/mutablelogic/go-sqlite/pkg/sqlite3"
 
@@ -28,11 +32,13 @@ type Config struct {
 }
 
 type plugin struct {
-	pool    SQPool
-	errs    chan error
-	store   *indexer.Store
-	index   map[string]*indexer.Indexer
-	modtime map[string]time.Time
+	pool     SQPool
+	errs     chan error
+	store    *indexer.Store
+	renderer Renderer
+	detect   *template.ContentTypeDetect
+	index    map[string]*indexer.Indexer
+	modtime  map[string]time.Time
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -83,13 +89,21 @@ func New(ctx context.Context, provider Provider) Plugin {
 		return nil
 	}
 
+	// Get renderer plugin
+	renderer, ok := provider.GetPlugin(ctx, "renderer").(Renderer)
+	if !ok {
+		provider.Printf(ctx, "Warning: no renderer plugin found")
+	} else {
+		p.renderer = renderer
+		p.detect = template.NewContentTypeDetect()
+	}
+
 	// Create a queue, indexers and stores
-	// TODO: Add a renderer interface for the store
 	q := indexer.NewQueueWithCapacity(defaultCapacity)
 	if q == nil {
 		provider.Print(ctx, "unable to create queue")
 		return nil
-	} else if store := indexer.NewStore(p.pool, schema, q, nil, cfg.Workers); store == nil {
+	} else if store := indexer.NewStore(p.pool, schema, q, p.render, cfg.Workers); store == nil {
 		provider.Print(ctx, "unable to create store")
 		return nil
 	} else {
@@ -253,4 +267,65 @@ func (p *plugin) nextReindex(delta time.Duration) *indexer.Indexer {
 	})
 	// Return first index
 	return results[0]
+}
+
+func (p *plugin) render(ctx context.Context, name, path string) (Document, error) {
+	idx, exists := p.index[name]
+	if !exists {
+		return nil, ErrNotFound.Withf("index not found: %q", name)
+	}
+	abspath, err := filepath.Abs(filepath.Join(idx.Path(), path))
+	if err != nil {
+		return nil, err
+	}
+	info, err := os.Stat(abspath)
+	if err != nil {
+		return nil, err
+	} else if info.IsDir() {
+		return nil, ErrNotImplemented.Withf("path is a directory: %q", abspath)
+	}
+	if p.renderer == nil {
+		return nil, ErrInternalAppError.With("no renderer")
+	}
+
+	// Detect content type
+	meta, err := p.rendermeta(abspath, info)
+	if err != nil {
+		return nil, err
+	}
+
+	// Open file
+	r, err := os.Open(abspath)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	// Do the render and return a document
+	return p.renderer.Read(ctx, r, info, meta)
+}
+
+func (p *plugin) rendermeta(abspath string, info fs.FileInfo) (map[DocumentKey]interface{}, error) {
+	result := make(map[DocumentKey]interface{}, 2)
+	if p.detect == nil {
+		return nil, ErrInternalAppError.With("no content type detect")
+	}
+
+	// Open file
+	r, err := os.Open(abspath)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	// Return content type and charset
+	if contenttype, charset, err := p.detect.DetectContentType(r, info); err != nil {
+		return nil, err
+	} else {
+		result[DocumentKeyContentType] = contenttype
+		result[DocumentKeyCharset] = charset
+	}
+
+	// Return success
+	return result, nil
 }

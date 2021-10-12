@@ -33,8 +33,8 @@ func Test_Reflect_002(t *testing.T) {
 		t.Error(err)
 	} else if col := r.Column("A"); col == nil {
 		t.Error("Expected column named A")
-	} else if col.Query() != "A INTEGER" {
-		t.Error("Unexpected return:", col.Query())
+	} else if col.String() != "A INTEGER" {
+		t.Error("Unexpected return:", col.String())
 	}
 }
 
@@ -65,7 +65,7 @@ func Test_Reflect_004(t *testing.T) {
 	cola := r.Column("a")
 	if decltype := cola.Type(); decltype != "TEXT" {
 		t.Error("Unexpected type", decltype)
-	} else if cola.Query() != "a TEXT NOT NULL DEFAULT 1" {
+	} else if cola.String() != "a TEXT NOT NULL DEFAULT 1" {
 		t.Error("Unexpected return:", cola, r)
 	} else if cola.Nullable() {
 		t.Error("Unexpected nullable", cola)
@@ -138,4 +138,53 @@ func Test_Reflect_007(t *testing.T) {
 	}
 	t.Log(r)
 	t.Logf("%q", r.Table(N("test").WithSchema("main"), true))
+}
+
+func Test_Reflect_008(t *testing.T) {
+	r, err := NewReflect(TestStructE{})
+	if err != nil {
+		t.Error(err)
+	}
+	t.Logf("%q", r.Virtual(N("test").WithSchema("main"), "module", true, "opt1", "opt2"))
+}
+
+type TestStructView struct {
+	K1 int
+	K2 int
+}
+
+type TestStructJoinA struct {
+	K1 int `sqlite:",join:k1"`
+	K2 int `sqlite:",join:k2"`
+}
+
+type TestStructJoinB struct {
+	K1 int `sqlite:",join:k1"`
+	K2 int `sqlite:",join:k2"`
+}
+
+func Test_Reflect_009(t *testing.T) {
+	v, err := NewReflect(TestStructView{})
+	if err != nil {
+		t.Error(err)
+	}
+	// Create a new view by joining a and b together
+	if view := v.View(N("test"), S(N("a")).To(N("K1"), N("K2")), true); view == nil {
+		t.Error("Unexpected nil returned")
+	} else {
+		t.Log(view)
+	}
+}
+
+func Test_Reflect_010(t *testing.T) {
+	a, err := NewReflect(TestStructJoinA{})
+	if err != nil {
+		t.Error(err)
+	}
+	b, err := NewReflect(TestStructJoinB{})
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(a)
+	t.Log(b)
 }

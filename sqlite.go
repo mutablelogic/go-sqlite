@@ -57,13 +57,13 @@ type SQConnection interface {
 
 	// Execute a statement outside transacton
 	Exec(SQStatement, SQExecFunc) error
+
+	// Return a unique counter number for the connection
+	Counter() int64
 }
 
 // SQTransaction is an sqlite transaction
 type SQTransaction interface {
-	Lock()
-	Unlock()
-
 	// Query and return a set of results
 	Query(SQStatement, ...interface{}) (SQResults, error)
 

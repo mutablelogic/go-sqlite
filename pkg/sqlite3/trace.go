@@ -24,11 +24,11 @@ func (c *Conn) SetTraceHook(fn TraceFunc) {
 			switch t {
 			case sqlite3.SQLITE_TRACE_STMT:
 				s := (*sqlite3.Statement)(a)
-				fn(s.SQL(), -1)
+				fn(c, s.SQL(), -1)
 			case sqlite3.SQLITE_TRACE_PROFILE:
 				s := (*sqlite3.Statement)(a)
 				ns := time.Duration(time.Duration(*(*int64)(b)) * time.Nanosecond)
-				fn(s.ExpandedSQL(), ns)
+				fn(c, s.ExpandedSQL(), ns)
 			}
 			return 0
 		}, sqlite3.SQLITE_TRACE_PROFILE|sqlite3.SQLITE_TRACE_STMT)

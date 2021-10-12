@@ -44,3 +44,23 @@ func Test_CreateIndexView_001(t *testing.T) {
 		}
 	}
 }
+
+func Test_CreateIndexView_002(t *testing.T) {
+	tests := []struct {
+		In    SQStatement
+		Query string
+	}{
+		{N("foo").CreateView(nil, "bar"), `CREATE VIEW foo (bar)`},
+		{N("foo").CreateView(nil, "bar").IfNotExists(), `CREATE VIEW IF NOT EXISTS foo (bar)`},
+		{N("foo").CreateView(nil, "bar").WithTemporary(), `CREATE TEMPORARY VIEW foo (bar)`},
+		{N("foo").CreateView(nil, "col1", "col2").WithTemporary(), `CREATE TEMPORARY VIEW foo (col1,col2)`},
+		{N("foo").CreateView(S(N("x"))), `CREATE VIEW foo AS SELECT * FROM x`},
+		{N("foo").CreateView(S(N("x")), "rowid"), `CREATE VIEW foo (rowid) AS SELECT * FROM x`},
+	}
+
+	for _, test := range tests {
+		if v := test.In.Query(); v != test.Query {
+			t.Errorf("Unexpected return from Query(): %q, wanted %q", v, test.Query)
+		}
+	}
+}

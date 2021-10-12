@@ -21,11 +21,12 @@ import (
 // TYPES
 
 type SQReflect struct {
-	t      reflect.Type
-	col    []*sqcolumn
-	colmap map[string]*sqcolumn
-	idxmap map[string]*sqindex
-	fk     []*sqforeignkey
+	t       reflect.Type
+	col     []*sqcolumn
+	colmap  map[string]*sqcolumn
+	idxmap  map[string]*sqindex
+	joinmap map[string]*sqcolumn
+	fk      []*sqforeignkey
 }
 
 type sqcolumn struct {
@@ -36,6 +37,7 @@ type sqcolumn struct {
 	Unique  bool
 	Foreign bool
 	Auto    bool
+	Join    bool
 }
 
 type sqindex struct {
@@ -64,6 +66,7 @@ const (
 	tagUnique        = "UNIQUE,UNIQUE KEY"
 	tagForeign       = "FOREIGN,FOREIGN KEY"
 	tagIndex         = "INDEX,INDEX KEY"
+	tagJoin          = "JOIN"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -75,6 +78,7 @@ func NewReflect(proto interface{}) (*SQReflect, error) {
 	r := new(SQReflect)
 	r.colmap = make(map[string]*sqcolumn)
 	r.idxmap = make(map[string]*sqindex)
+	r.joinmap = make(map[string]*sqcolumn)
 
 	// Set type - must be a struct
 	if v := ValueOf(proto); !v.IsValid() {
@@ -105,6 +109,7 @@ func NewReflect(proto interface{}) (*SQReflect, error) {
 			r.colmap[field.Name] = col
 		}
 	}
+
 	// Set indexes
 	for _, field := range fields {
 		for _, tag := range field.Tags {
@@ -117,6 +122,25 @@ func NewReflect(proto interface{}) (*SQReflect, error) {
 				} else {
 					index.cols = append(index.cols, field.Name)
 				}
+			}
+		}
+	}
+
+	// Set joins. The join names are aliases so when joining two tables, the aliases
+	// are used to match up the columns
+	for _, field := range fields {
+		for _, tag := range field.Tags {
+			name := parseTagJoinValue(tag)
+			if name == "" {
+				continue
+			}
+			// Only one column can be in the alias
+			if _, exists := r.joinmap[name]; exists {
+				result = multierror.Append(result, ErrDuplicateEntry.Withf("join %q", name))
+			} else if col, exists := r.colmap[field.Name]; !exists {
+				result = multierror.Append(result, ErrNotFound.Withf("join %q", name))
+			} else {
+				r.joinmap[name] = col
 			}
 		}
 	}
@@ -134,6 +158,9 @@ func (this *SQReflect) String() string {
 	str += fmt.Sprintf(" columns=%v", this.col)
 	if len(this.idxmap) > 0 {
 		str += fmt.Sprintf(" indexes=%v", this.idxmap)
+	}
+	if len(this.joinmap) > 0 {
+		str += fmt.Sprintf(" joins=%v", this.joinmap)
 	}
 	if len(this.fk) > 0 {
 		str += fmt.Sprintf(" foreignkeys=%v", this.fk)
@@ -158,6 +185,9 @@ func (this *sqcolumn) String() string {
 	}
 	if this.Foreign {
 		str += " foreign"
+	}
+	if this.Join {
+		str += " join"
 	}
 	return str + ">"
 }
@@ -277,6 +307,53 @@ func (this *SQReflect) Table(source SQSource, ifnotexists bool) []SQStatement {
 	return result
 }
 
+// Return virtual table definition for a given source adding IF NOT EXISTS to the table, and
+// additional options appended to the table creation statement
+func (this *SQReflect) Virtual(source SQSource, module string, ifnotexists bool, options ...string) []SQStatement {
+	if source == nil || source.Name() == "" {
+		return nil
+	}
+
+	// Create table statement
+	names := make([]string, len(this.col))
+	for i, col := range this.col {
+		names[i] = col.Field.Name
+	}
+	table := source.CreateVirtualTable(module, names...).Options(options...)
+	if table == nil {
+		return nil
+	}
+	if ifnotexists {
+		table = table.IfNotExists()
+	}
+
+	// Append table to result
+	return []SQStatement{table}
+}
+
+// Return view definition for a given source adding IF NOT EXISTS to the view
+func (this *SQReflect) View(source SQSource, st SQSelect, ifnotexists bool) SQStatement {
+	if source == nil || source.Name() == "" {
+		return nil
+	}
+
+	// Create table statement
+	names := make([]string, len(this.col))
+	for i, col := range this.col {
+		names[i] = col.Field.Name
+	}
+	table := source.CreateView(st, names...).IfNotExists()
+	if table == nil {
+		return nil
+	}
+	if ifnotexists {
+		table = table.IfNotExists()
+	}
+
+	// Return the table
+	return table
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // STATIC METHODS
 
@@ -302,6 +379,10 @@ func (this *SQReflect) columnNamesForTag(tag string) []string {
 			}
 		case tagIndex:
 			if col.Index {
+				result = append(result, col.Field.Name)
+			}
+		case tagJoin:
+			if col.Join {
 				result = append(result, col.Field.Name)
 			}
 		default:
@@ -396,6 +477,8 @@ func newColumnFor(f *marshaler.Field) *sqcolumn {
 			this.Index = true
 		case isTag(tag, tagForeign):
 			this.Foreign = true
+		case isTag(tag, tagJoin):
+			this.Join = true
 		}
 	}
 	return this
@@ -414,6 +497,19 @@ func parseTagIndexValue(tag string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// parseTagJoinValue returns name of join. Returns empty string
+// if not recognized
+func parseTagJoinValue(tag string) string {
+	tag_name := strings.SplitN(tag, ":", 2)
+	if len(tag_name) == 2 {
+		tag = strings.TrimSpace(strings.ToUpper(tag_name[0]))
+		if isTag(tag, tagJoin) {
+			return tag_name[1]
+		}
+	}
+	return ""
 }
 
 func isTag(v string, keywords string) bool {

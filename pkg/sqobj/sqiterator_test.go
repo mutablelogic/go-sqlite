@@ -32,7 +32,7 @@ func Test_Iterator_001(t *testing.T) {
 	defer conn.Close()
 
 	// Set up tracing function
-	conn.SetTraceHook(func(sql string, d time.Duration) {
+	conn.SetTraceHook(func(conn *sqlite3.Conn, sql string, d time.Duration) {
 		if d >= 0 {
 			t.Log("EXEC:", sql, "=>", d)
 		}

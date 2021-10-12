@@ -4,6 +4,11 @@ import (
 	"context"
 	"io"
 	"path/filepath"
+	"reflect"
+	"time"
+
+	// Package imports
+	sqobj "github.com/mutablelogic/go-sqlite/pkg/sqobj"
 
 	// Namespace imports
 	. "github.com/mutablelogic/go-sqlite"
@@ -12,15 +17,44 @@ import (
 )
 
 ///////////////////////////////////////////////////////////////////////////////
+// Types
+
+type File struct {
+	Name     string    `sqlite:"name,primary,index:name"`         // Index name, primary key
+	Path     string    `sqlite:"path,primary,index:path"`         // Relative path, primary key
+	Parent   string    `sqlite:"parent,index:parent"`             // Parent folder
+	Filename string    `sqlite:"filename,notnull,index:filename"` // Filename
+	IsDir    bool      `sqlite:"isdir,notnull"`                   // Is a directory
+	Ext      string    `sqlite:"ext,index:ext"`
+	ModTime  time.Time `sqlite:"modtime"`
+	Size     int64     `sqlite:"size"`
+}
+
+type Doc struct {
+	Name        string `sqlite:"name,primary,foreign"` // Index name, primary key
+	Path        string `sqlite:"path,primary,foreign"` // Relative path, primary key
+	Title       string `sqlite:"title,notnull"`        // Title of the document, text
+	Description string `sqlite:"description"`          // Description of the document, text
+	Shortform   string `sqlite:"shortform"`            // Shortform of the document, html
+}
+
+type Search struct {
+	Name     string `sqlite:"name"`
+	Parent   string `sqlite:"parent"`
+	Filename string `sqlite:"filename"`
+	//Title       string `sqlite:"title"`
+	//Description string `sqlite:"description"`
+	//Shortform   string `sqlite:"shortform"`
+	//Text        string `sqlite:"text"`
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
 const (
-	filesTableName          = "file"
-	nameIndexName           = "file_name"
+	fileTableName           = "file"
 	searchTableName         = "search"
-	parentIndexName         = "file_parent"
-	filenameIndexName       = "file_filename"
-	extIndexName            = "file_filename"
+	docTableName            = "doc"
 	searchTriggerInsertName = "search_insert"
 	searchTriggerDeleteName = "search_delete"
 	searchTriggerUpdateName = "search_update"
@@ -28,6 +62,25 @@ const (
 
 const (
 	defaultTokenizer = "porter unicode61"
+)
+
+var (
+	filesTypeCast = []reflect.Type{
+		reflect.TypeOf(""),
+		reflect.TypeOf(""),
+		reflect.TypeOf(""),
+		reflect.TypeOf(""),
+		reflect.TypeOf(false),
+		reflect.TypeOf(""),
+		reflect.TypeOf(time.Time{}),
+		reflect.TypeOf(int64(0)),
+	}
+)
+
+var (
+	fileTable   = sqobj.MustRegisterClass(N(fileTableName), File{})
+	docTable    = sqobj.MustRegisterClass(N(docTableName), Doc{}).ForeignKey(fileTable)
+	searchTable = sqobj.MustRegisterVirtual(N(searchTableName), "fts5", Search{}, "content="+Quote(fileTableName))
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -41,64 +94,28 @@ func CreateSchema(ctx context.Context, conn SQConnection, schema string, tokeniz
 
 	// Create tables
 	return conn.Do(ctx, 0, func(txn SQTransaction) error {
-		if _, err := txn.Query(N(filesTableName).WithSchema(schema).CreateTable(
-			C("name").WithPrimary(),
-			C("path").WithPrimary(),
-			C("parent"),
-			C("filename").NotNull(),
-			C("isdir").WithType("INTEGER").NotNull(),
-			C("ext"),
-			C("modtime"),
-			C("size").WithType("INTEGER"),
-		).IfNotExists()); err != nil {
-			return err
+		if err := fileTable.Create(txn, schema); err != nil {
+			return nil
 		}
-		// Create the file indexes
-		if _, err := txn.Query(N(nameIndexName).WithSchema(schema).CreateIndex(
-			filesTableName, "name",
-		).IfNotExists()); err != nil {
-			return err
+		if err := docTable.Create(txn, schema); err != nil {
+			return nil
 		}
-		if _, err := txn.Query(N(parentIndexName).WithSchema(schema).CreateIndex(
-			filesTableName, "parent",
-		).IfNotExists()); err != nil {
-			return err
-		}
-		if _, err := txn.Query(N(filenameIndexName).WithSchema(schema).CreateIndex(
-			filesTableName, "filename",
-		).IfNotExists()); err != nil {
-			return err
-		}
-		if _, err := txn.Query(N(extIndexName).WithSchema(schema).CreateIndex(
-			filesTableName, "ext",
-		).IfNotExists()); err != nil {
-			return err
-		}
-		// Create the search table
-		if _, err := txn.Query(N(searchTableName).WithSchema(schema).CreateVirtualTable(
-			"fts5",
-			"name",
-			"parent",
-			"filename",
-		).Options(
-			"content="+filesTableName,
-			"tokenize="+Quote(tokenizer),
-		).IfNotExists()); err != nil {
-			return err
+		if err := searchTable.Create(txn, schema, "tokenize="+Quote(tokenizer)); err != nil {
+			return nil
 		}
 		// triggers to keep the FTS index up to date
 		// https://www.sqlite.org/fts5.html
-		if _, err := txn.Query(N(searchTriggerInsertName).WithSchema(schema).CreateTrigger(filesTableName,
+		if _, err := txn.Query(N(searchTriggerInsertName).WithSchema(schema).CreateTrigger(fileTableName,
 			Q("INSERT INTO ", searchTableName, " (rowid, name, parent, filename) VALUES (new.rowid, new.name, new.parent, new.filename)"),
 		).After().Insert().IfNotExists()); err != nil {
 			return err
 		}
-		if _, err := txn.Query(N(searchTriggerDeleteName).WithSchema(schema).CreateTrigger(filesTableName,
+		if _, err := txn.Query(N(searchTriggerDeleteName).WithSchema(schema).CreateTrigger(fileTableName,
 			Q("INSERT INTO ", searchTableName, " (", searchTableName, ", rowid, name, parent, filename) VALUES ('delete', old.rowid, old.name, old.parent, old.filename)"),
 		).After().Delete().IfNotExists()); err != nil {
 			return err
 		}
-		if _, err := txn.Query(N(searchTriggerUpdateName).WithSchema(schema).CreateTrigger(filesTableName,
+		if _, err := txn.Query(N(searchTriggerUpdateName).WithSchema(schema).CreateTrigger(fileTableName,
 			Q("INSERT INTO ", searchTableName, " (", searchTableName, ", rowid, name, parent, filename) VALUES ('delete', old.rowid, old.name, old.parent, old.filename)"),
 			Q("INSERT INTO ", searchTableName, " (rowid, name, parent, filename) VALUES (new.rowid, new.name, new.parent, new.filename)"),
 		).After().Update().IfNotExists()); err != nil {
@@ -112,7 +129,7 @@ func CreateSchema(ctx context.Context, conn SQConnection, schema string, tokeniz
 func ListIndexWithCount(ctx context.Context, conn SQConnection, schema string) (map[string]int64, error) {
 	results := make(map[string]int64)
 	if err := conn.Do(ctx, 0, func(txn SQTransaction) error {
-		s := Q("SELECT name,COUNT(*) AS count FROM ", N(filesTableName).WithSchema(schema), " GROUP BY name")
+		s := Q("SELECT name,COUNT(*) AS count FROM ", N(fileTableName).WithSchema(schema), " GROUP BY name")
 		r, err := txn.Query(s)
 		if err != nil && err != io.EOF {
 			return err
@@ -136,7 +153,7 @@ func ListIndexWithCount(ctx context.Context, conn SQConnection, schema string) (
 }
 
 func Replace(schema string, evt *QueueEvent) (SQStatement, []interface{}) {
-	return N(filesTableName).WithSchema(schema).Insert(
+	return N(fileTableName).WithSchema(schema).Insert(
 			"name", "path", "parent", "filename", "isdir", "ext", "modtime", "size",
 		).WithConflictUpdate("name", "path"),
 		[]interface{}{
@@ -152,16 +169,30 @@ func Replace(schema string, evt *QueueEvent) (SQStatement, []interface{}) {
 }
 
 func Delete(schema string, evt *QueueEvent) (SQStatement, []interface{}) {
-	return N(filesTableName).WithSchema(schema).Delete(Q("name=?"), Q("path=?")),
+	return N(fileTableName).WithSchema(schema).Delete(Q("name=?"), Q("path=?")),
 		[]interface{}{evt.Name, evt.Path}
+}
+
+func GetFile(schema string, rowid int64) (SQStatement, []interface{}, []reflect.Type) {
+	return S(N(fileTableName).WithSchema(schema)).
+		To(N("name"), N("path"), N("parent"), N("filename"), N("isdir"), N("ext"), N("modtime"), N("size")).
+		Where(Q("rowid", "=", P)), []interface{}{rowid}, filesTypeCast
+}
+
+func UpsertDoc(txn SQTransaction, doc *Doc) (int64, error) {
+	if n, err := docTable.UpsertKeys(txn, doc); err != nil {
+		return 0, err
+	} else {
+		return n[0], nil
+	}
 }
 
 func Query(schema string, snippet bool) SQSelect {
 	// Set the query join
 	queryJoin := J(
 		N(searchTableName).WithSchema(schema),
-		N(filesTableName).WithSchema(schema),
-	).LeftJoin(Q(N(searchTableName), ".rowid=", N(filesTableName), ".rowid"))
+		N(fileTableName).WithSchema(schema),
+	).LeftJoin(Q(N(searchTableName), ".rowid=", N(fileTableName), ".rowid"))
 	// Set the snippet expression
 	snippetExpr := V("")
 	if snippet {
@@ -172,13 +203,13 @@ func Query(schema string, snippet bool) SQSelect {
 		N("rowid").WithSchema(searchTableName),
 		N("rank").WithSchema(searchTableName),
 		snippetExpr,
-		N("name").WithSchema(filesTableName),
-		N("path").WithSchema(filesTableName),
-		N("parent").WithSchema(filesTableName),
-		N("filename").WithSchema(filesTableName),
-		N("isdir").WithSchema(filesTableName),
-		N("ext").WithSchema(filesTableName),
-		N("modtime").WithSchema(filesTableName),
-		N("size").WithSchema(filesTableName),
+		N("name").WithSchema(fileTableName),
+		N("path").WithSchema(fileTableName),
+		N("parent").WithSchema(fileTableName),
+		N("filename").WithSchema(fileTableName),
+		N("isdir").WithSchema(fileTableName),
+		N("ext").WithSchema(fileTableName),
+		N("modtime").WithSchema(fileTableName),
+		N("size").WithSchema(fileTableName),
 	).Where(Q(searchTableName, " MATCH ", P)).Order(N("rank"))
 }

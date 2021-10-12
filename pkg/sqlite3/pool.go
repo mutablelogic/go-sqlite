@@ -2,7 +2,6 @@ package sqlite3
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -17,8 +16,6 @@ import (
 	// Namespace Imports
 	. "github.com/djthorpe/go-errors"
 	. "github.com/mutablelogic/go-sqlite"
-	. "github.com/mutablelogic/go-sqlite/pkg/lang"
-	. "github.com/mutablelogic/go-sqlite/pkg/quote"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,7 +41,7 @@ type Pool struct {
 }
 
 // TraceFunc is a function that is called when a statement is executed or prepared
-type TraceFunc func(q string, delta time.Duration)
+type TraceFunc func(c *Conn, q string, delta time.Duration)
 
 ////////////////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -188,7 +185,7 @@ func (p *Pool) Close() error {
 func (p *Pool) String() string {
 	str := "<pool"
 	str += fmt.Sprintf(" ver=%q", Version())
-	str += fmt.Sprint(" flags=", p.cfg.Flags)
+	str += fmt.Sprint(" flags=", sqlite3.OpenFlags(p.cfg.Flags))
 	str += fmt.Sprint(" cur=", p.Cur())
 	str += fmt.Sprint(" max=", p.Max())
 	for schema := range p.cfg.Schemas {
@@ -287,7 +284,7 @@ func (p *Pool) new() (SQConnection, error) {
 		}
 		if path == "" {
 			result = multierror.Append(result, ErrBadParameter.Withf("Schema %q", schema))
-		} else if err := p.attach(conn, schema, path); err != nil {
+		} else if err := conn.Attach(schema, path); err != nil {
 			result = multierror.Append(result, err)
 		}
 	}
@@ -325,43 +322,6 @@ func (p *Pool) err(err error) {
 	}
 }
 
-// Attach database as schema. If path is empty then a new in-memory database
-// is attached.
-func (p *Pool) attach(conn *Conn, schema, path string) error {
-	if schema == "" {
-		return ErrBadParameter.Withf("%q", schema)
-	}
-	if path == "" {
-		return p.attach(conn, schema, defaultMemory)
-	}
-	// Create a new database or return an error if it doesn't exist
-	if path != defaultMemory {
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			if err := p.attachCreate(path); err != nil {
-				return err
-			}
-		} else if err != nil {
-			return err
-		}
-	}
-	return conn.Exec(Q("ATTACH DATABASE ", Quote(path), " AS ", QuoteIdentifier(schema)), nil)
-}
-
-// Create a database before attaching
-func (p *Pool) attachCreate(path string) error {
-	if p.cfg.Flags&SQFlag(sqlite3.SQLITE_OPEN_CREATE) == 0 {
-		return ErrBadParameter.Withf("Database does not exist: %q", path)
-	}
-	// Open then close database before attaching
-	if conn, err := sqlite3.OpenPath(path, sqlite3.OpenFlags(p.cfg.Flags), ""); err != nil {
-		return err
-	} else if err := conn.Close(); err != nil {
-		return err
-	} else {
-		return nil
-	}
-}
-
 // pathForSchema returns the path for the specified schema
 // or an empty string if the schema name is not valid
 func (p *Pool) pathForSchema(schema string) string {
@@ -379,6 +339,6 @@ func (p *Pool) pathForSchema(schema string) string {
 // Trace
 func (p *Pool) trace(c *Conn, s *sqlite3.Statement, ns int64) {
 	if p.cfg.Trace != nil {
-		p.cfg.Trace(s.SQL(), time.Duration(ns)*time.Nanosecond)
+		p.cfg.Trace(c, s.SQL(), time.Duration(ns)*time.Nanosecond)
 	}
 }

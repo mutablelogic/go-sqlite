@@ -4,7 +4,10 @@ plugins:
   - build/log.plugin
   - build/env.plugin
   - build/sqlite3.plugin
+  - build/renderer.plugin
   - build/indexer.plugin
+  - build/text-renderer.plugin
+  - build/markdown-renderer.plugin
 
 # HTTP Server parameters
 httpserver:
@@ -39,12 +42,18 @@ sqlite3:
 
   # Set trace to true to enable the ability to profile queries. Profiling information
   # can be displayed through the API.
-  trace: false
+  trace: true
 
   # Set max number of connections that can be simultaneously opened
   max: 100
 
 indexer:
-  workers: 2
   index:
-    home: /Volumes/Scratch/Downloads
+    docs: /opt/go-server/docs
+    templates: /opt/go-server/templates
+    tv: /home/djt/media/TV
+
+renderer:
+  plugins:
+    - text-renderer
+    - markdown-renderer

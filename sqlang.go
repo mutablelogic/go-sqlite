@@ -40,7 +40,7 @@ type SQSource interface {
 	CreateVirtualTable(string, ...string) SQIndexView
 	CreateIndex(string, ...string) SQIndexView
 	CreateTrigger(string, ...SQStatement) SQTrigger
-	//CreateView(SQSelect, ...string) SQIndexView
+	CreateView(SQSelect, ...string) SQIndexView
 	ForeignKey(...string) SQForeignKey
 
 	// Alter objects
@@ -192,18 +192,3 @@ type SQColumn interface {
 type SQExpr interface {
 	String() string
 }
-
-// SQComparison defines a comparison between two expressions
-type SQComparison interface {
-	SQStatement
-
-	// Negate the comparison
-	Not() SQComparison
-}
-
-/*
-	Gt() SQComparison
-	GtEq() SQComparison
-	Lt() SQComparison
-	LtEq() SQComparison
-*/

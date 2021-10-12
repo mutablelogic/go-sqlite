@@ -75,7 +75,7 @@ func Test_Class_002(t *testing.T) {
 	defer db.Close()
 
 	// Set up tracing function
-	db.SetTraceHook(func(sql string, d time.Duration) {
+	db.SetTraceHook(func(conn *sqlite3.Conn, sql string, d time.Duration) {
 		if d >= 0 {
 			t.Log("EXEC:", sql, "=>", d)
 		}
@@ -115,7 +115,7 @@ func Test_Class_003(t *testing.T) {
 	defer db.Close()
 
 	// Set up tracing function
-	db.SetTraceHook(func(sql string, d time.Duration) {
+	db.SetTraceHook(func(conn *sqlite3.Conn, sql string, d time.Duration) {
 		if d >= 0 {
 			t.Log("EXEC:", sql, "=>", d)
 		}
@@ -167,7 +167,7 @@ func Test_Class_004(t *testing.T) {
 	defer db.Close()
 
 	// Set up tracing function
-	db.SetTraceHook(func(sql string, d time.Duration) {
+	db.SetTraceHook(func(conn *sqlite3.Conn, sql string, d time.Duration) {
 		if d >= 0 {
 			t.Log("EXEC:", sql, "=>", d)
 		}
@@ -212,7 +212,7 @@ func Test_Class_005(t *testing.T) {
 	defer db.Close()
 
 	// Set up tracing function
-	db.SetTraceHook(func(sql string, d time.Duration) {
+	db.SetTraceHook(func(conn *sqlite3.Conn, sql string, d time.Duration) {
 		if d >= 0 {
 			t.Log("EXEC:", sql, "=>", d)
 		}
@@ -268,7 +268,7 @@ func Test_Class_006(t *testing.T) {
 	defer db.Close()
 
 	// Set up tracing function
-	db.SetTraceHook(func(sql string, d time.Duration) {
+	db.SetTraceHook(func(conn *sqlite3.Conn, sql string, d time.Duration) {
 		if d >= 0 {
 			t.Log("EXEC:", t.Name(), sql, "=>", d)
 		}
@@ -329,7 +329,7 @@ func Test_Class_007(t *testing.T) {
 	defer db.Close()
 
 	// Set up tracing function
-	db.SetTraceHook(func(sql string, d time.Duration) {
+	db.SetTraceHook(func(conn *sqlite3.Conn, sql string, d time.Duration) {
 		if d >= 0 {
 			t.Log("EXEC:", t.Name(), sql, "=>", d)
 		}

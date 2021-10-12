@@ -26,7 +26,7 @@ type View struct {
 
 // MustRegisterView registers a SQObject view class, panics if an error
 // occurs.
-func MustRegisterView(name SQSource, proto interface{}, leftjoin bool, sources ...*Class) *View {
+func MustRegisterView(name SQSource, proto interface{}, leftjoin bool, sources ...SQClass) *View {
 	if cls, err := RegisterView(name, proto, leftjoin, sources...); err != nil {
 		panic(err)
 	} else {
@@ -35,7 +35,7 @@ func MustRegisterView(name SQSource, proto interface{}, leftjoin bool, sources .
 }
 
 // RegisterView registers a SQObject view class, returns the class and any errors
-func RegisterView(name SQSource, proto interface{}, leftjoin bool, sources ...*Class) (*View, error) {
+func RegisterView(name SQSource, proto interface{}, leftjoin bool, sources ...SQClass) (*View, error) {
 	this := new(View)
 
 	// Check name
@@ -58,11 +58,16 @@ func RegisterView(name SQSource, proto interface{}, leftjoin bool, sources ...*C
 	}
 
 	// Generate the view select statement
-	j := this.Join(sources[0], sources[1], leftjoin)
+	j := this.join(sources[0].(*Class), sources[1].(*Class), leftjoin)
 	if j == nil {
 		return nil, ErrBadParameter.With("sources could not be joined")
 	}
-	this.st = S(j)
+	// resolve columns from the classes
+	to := this.to(sources[0].(*Class), sources[1].(*Class))
+	if to == nil {
+		return nil, ErrBadParameter.With("columns could not be resolved")
+	}
+	this.st = S(j).To(to...)
 
 	// Return success
 	return this, nil
@@ -101,7 +106,7 @@ func (this *View) Select() SQSelect {
 // Create creates a view. If
 // the flag SQLITE_OPEN_OVERWRITE is set when creating the connection, then view
 // is dropped and then re-created.
-func (this *View) Create(txn SQTransaction, schema string, options ...string) error {
+func (this *View) Create(txn SQTransaction, schema string) error {
 	// If schema then set it
 	if schema != "" {
 		this.SQSource = this.SQSource.WithSchema(schema)
@@ -127,7 +132,7 @@ func (this *View) Create(txn SQTransaction, schema string, options ...string) er
 // PRIVATE METHODS
 
 // Return a join between two classes. JOIN or LEFT JOIN
-func (this *View) Join(l, r *Class, leftjoin bool) SQJoin {
+func (this *View) join(l, r *Class, leftjoin bool) SQJoin {
 	if l == nil || r == nil {
 		return nil
 	}
@@ -166,4 +171,26 @@ func (this *View) Join(l, r *Class, leftjoin bool) SQJoin {
 		join = join.Join(expr...)
 	}
 	return join
+}
+
+// Return a "to" select phrase for columns from classes
+func (this *View) to(source ...*Class) []SQExpr {
+	result := make([]SQExpr, 0, len(this.col))
+	// Add the columns from the view
+	for _, col := range this.col {
+		var dest SQExpr
+		for _, source := range source {
+			if col := source.Column(col.Name); col != nil {
+				dest = C(col.Name()).WithAlias(col.Name()).WithSchema(source.Name())
+				break
+			}
+		}
+		if dest == nil {
+			// Column could not be resolved
+			return nil
+		}
+		result = append(result, dest)
+	}
+
+	return result
 }

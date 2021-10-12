@@ -20,32 +20,43 @@ import (
 // Types
 
 type File struct {
-	Name     string    `sqlite:"name,primary,index:name"`         // Index name, primary key
-	Path     string    `sqlite:"path,primary,index:path"`         // Relative path, primary key
-	Parent   string    `sqlite:"parent,index:parent"`             // Parent folder
-	Filename string    `sqlite:"filename,notnull,index:filename"` // Filename
-	IsDir    bool      `sqlite:"isdir,notnull"`                   // Is a directory
+	Name     string    `sqlite:"name,primary,index:name,join:name"` // Index name, primary key
+	Path     string    `sqlite:"path,primary,index:path,join:path"` // Relative path, primary key
+	Parent   string    `sqlite:"parent,index:parent"`               // Parent folder
+	Filename string    `sqlite:"filename,notnull,index:filename"`   // Filename
+	IsDir    bool      `sqlite:"isdir,notnull"`                     // Is a directory
 	Ext      string    `sqlite:"ext,index:ext"`
 	ModTime  time.Time `sqlite:"modtime"`
 	Size     int64     `sqlite:"size"`
 }
 
 type Doc struct {
-	Name        string `sqlite:"name,primary,foreign"` // Index name, primary key
-	Path        string `sqlite:"path,primary,foreign"` // Relative path, primary key
-	Title       string `sqlite:"title,notnull"`        // Title of the document, text
-	Description string `sqlite:"description"`          // Description of the document, text
-	Shortform   string `sqlite:"shortform"`            // Shortform of the document, html
+	Name        string `sqlite:"name,primary,foreign,join:name"` // Index name, primary key
+	Path        string `sqlite:"path,primary,foreign,join:path"` // Relative path, primary key
+	Title       string `sqlite:"title,notnull"`                  // Title of the document, text
+	Description string `sqlite:"description"`                    // Description of the document, text
+	Shortform   string `sqlite:"shortform"`                      // Shortform of the document, html
 }
 
+// View is used as the content source for the search virtual table
+// and is a join between File and Doc
+type View struct {
+	Name        string `sqlite:"name"`
+	Parent      string `sqlite:"parent"`
+	Filename    string `sqlite:"filename"`
+	Title       string `sqlite:"title"`
+	Description string `sqlite:"description"`
+	Shortform   string `sqlite:"shortform"`
+}
+
+// Search virtual table uses View to get content
 type Search struct {
-	Name     string `sqlite:"name"`
-	Parent   string `sqlite:"parent"`
-	Filename string `sqlite:"filename"`
-	//Title       string `sqlite:"title"`
-	//Description string `sqlite:"description"`
-	//Shortform   string `sqlite:"shortform"`
-	//Text        string `sqlite:"text"`
+	Name        string `sqlite:"name"`
+	Parent      string `sqlite:"parent"`
+	Filename    string `sqlite:"filename"`
+	Title       string `sqlite:"title"`
+	Description string `sqlite:"description"`
+	Shortform   string `sqlite:"shortform"`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -55,6 +66,7 @@ const (
 	fileTableName           = "file"
 	searchTableName         = "search"
 	docTableName            = "doc"
+	viewTableName           = "view"
 	searchTriggerInsertName = "search_insert"
 	searchTriggerDeleteName = "search_delete"
 	searchTriggerUpdateName = "search_update"
@@ -80,7 +92,8 @@ var (
 var (
 	fileTable   = sqobj.MustRegisterClass(N(fileTableName), File{})
 	docTable    = sqobj.MustRegisterClass(N(docTableName), Doc{}).ForeignKey(fileTable)
-	searchTable = sqobj.MustRegisterVirtual(N(searchTableName), "fts5", Search{}, "content="+Quote(fileTableName))
+	viewTable   = sqobj.MustRegisterView(N(viewTableName), View{}, true, fileTable, docTable)
+	searchTable = sqobj.MustRegisterVirtual(N(searchTableName), "fts5", Search{}, "content="+Quote(viewTableName))
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -95,13 +108,16 @@ func CreateSchema(ctx context.Context, conn SQConnection, schema string, tokeniz
 	// Create tables
 	return conn.Do(ctx, 0, func(txn SQTransaction) error {
 		if err := fileTable.Create(txn, schema); err != nil {
-			return nil
+			return err
 		}
 		if err := docTable.Create(txn, schema); err != nil {
-			return nil
+			return err
+		}
+		if err := viewTable.Create(txn, schema); err != nil {
+			return err
 		}
 		if err := searchTable.Create(txn, schema, "tokenize="+Quote(tokenizer)); err != nil {
-			return nil
+			return err
 		}
 		// triggers to keep the FTS index up to date
 		// https://www.sqlite.org/fts5.html

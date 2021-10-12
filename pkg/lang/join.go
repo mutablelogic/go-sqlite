@@ -1,11 +1,11 @@
 package lang
 
 import (
-	// Namespace Imports
-
 	"strings"
 
+	// Namespace Imports
 	. "github.com/mutablelogic/go-sqlite"
+	. "github.com/mutablelogic/go-sqlite/pkg/quote"
 )
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -15,6 +15,7 @@ type join struct {
 	l, r  SQSource
 	class string
 	expr  []SQExpr
+	cols  []string
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -22,7 +23,7 @@ type join struct {
 
 // J defines a join between two sources
 func J(l, r SQSource) SQJoin {
-	return &join{l, r, "CROSS JOIN", nil}
+	return &join{l, r, "CROSS JOIN", nil, nil}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -35,6 +36,9 @@ func (j *join) String() string {
 	if len(j.expr) > 0 {
 		tokens = append(tokens, "ON", sliceJoin(j.expr, " AND ", nil))
 	}
+	if len(j.cols) > 0 {
+		tokens = append(tokens, "USING", "("+QuoteIdentifiers(j.cols...)+")")
+	}
 
 	// Return the join
 	return strings.Join(tokens, " ")
@@ -44,13 +48,17 @@ func (j *join) String() string {
 // PUBLIC METHODS
 
 func (j *join) Join(expr ...SQExpr) SQJoin {
-	return &join{j.l, j.r, "JOIN", expr}
+	return &join{j.l, j.r, "JOIN", expr, nil}
 }
 
 func (j *join) LeftJoin(expr ...SQExpr) SQJoin {
-	return &join{j.l, j.r, "LEFT JOIN", expr}
+	return &join{j.l, j.r, "LEFT JOIN", expr, nil}
 }
 
 func (j *join) LeftInnerJoin(expr ...SQExpr) SQJoin {
-	return &join{j.l, j.r, "LEFT INNER JOIN", expr}
+	return &join{j.l, j.r, "LEFT INNER JOIN", expr, nil}
+}
+
+func (j *join) Using(cols ...string) SQJoin {
+	return &join{j.l, j.r, j.class, nil, cols}
 }

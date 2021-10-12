@@ -32,7 +32,7 @@ type SQObjects interface {
 
 // SQClass is a class definition, which can be a table or view
 type SQClass interface {
-	// Create class in the named database
+	// Create class in the named database schema
 	Create(SQTransaction, string) error
 
 	// Read all objects from the class and return the iterator

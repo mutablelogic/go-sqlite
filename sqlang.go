@@ -58,6 +58,7 @@ type SQJoin interface {
 	Join(...SQExpr) SQJoin
 	LeftJoin(...SQExpr) SQJoin
 	LeftInnerJoin(...SQExpr) SQJoin
+	Using(...string) SQJoin
 }
 
 // SQTable defines a table of columns and indexes

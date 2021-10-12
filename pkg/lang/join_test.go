@@ -30,3 +30,20 @@ func Test_Join_000(t *testing.T) {
 		}
 	}
 }
+
+func Test_Join_001(t *testing.T) {
+	tests := []struct {
+		In     SQExpr
+		String string
+	}{
+		{J(N("foo"), N("bar")).Join().Using("a", "b"), `foo JOIN bar USING (a,b)`},
+	}
+
+	for _, test := range tests {
+		if v := test.In.String(); v != test.String {
+			t.Errorf("got %q, wanted %q", v, test.String)
+		} else {
+			t.Logf(v)
+		}
+	}
+}

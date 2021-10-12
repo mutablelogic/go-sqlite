@@ -21,7 +21,7 @@ func Test_Select_000(t *testing.T) {
 		{S(N("a")).WithDistinct(), `SELECT DISTINCT * FROM a`},
 		{S(N("a").WithAlias("aa"), N("b").WithAlias("bb")), "SELECT * FROM a AS aa,b AS bb"},
 		{S(N("a")).WithLimitOffset(1, 0), "SELECT * FROM a LIMIT 1"},
-		{S(N("a")).WithLimitOffset(0, 1), "SELECT * FROM a OFFSET 1"},
+		{S(N("a")).WithLimitOffset(0, 1), "SELECT * FROM a LIMIT -1 OFFSET 1"},
 		{S(N("a")).WithLimitOffset(1, 1), "SELECT * FROM a LIMIT 1,1"},
 		{S(N("a")).Where(nil), "SELECT * FROM a WHERE NULL"},
 		{S(N("a")).Where(nil, nil), "SELECT * FROM a WHERE NULL AND NULL"},

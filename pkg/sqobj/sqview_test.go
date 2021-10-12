@@ -9,8 +9,9 @@ import (
 )
 
 type TestView struct {
-	A int
-	B int
+	A int `sqlite:"a"`
+	B int `sqlite:"b"`
+	C int `sqlite:"c"`
 }
 
 type TestSourceA struct {
@@ -21,6 +22,7 @@ type TestSourceA struct {
 type TestSourceB struct {
 	A int `sqlite:"a,join:a"`
 	B int `sqlite:"b,join:b"`
+	C int `sqlite:"c"`
 }
 
 func Test_View_000(t *testing.T) {

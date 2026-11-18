@@ -233,8 +233,8 @@ func Test_Objects(t *testing.T) {
 	for name, req := range map[string]schema.ObjectListRequest{
 		"order by rank, of a list": {Order: schema.OrderRank},
 		"a cutoff, of a list":      {Cutoff: types.Ptr(1.0)},
-		"an order which isn't":     {Order: "size"},
-		"an order of a search":     {Query: types.Ptr("rain"), Order: "size"},
+		"an order which isn't":     {Order: "colour"},
+		"an order of a search":     {Query: types.Ptr("rain"), Order: "colour"},
 		"a cutoff over 1":          {Query: types.Ptr("rain"), Cutoff: types.Ptr(1.5)},
 		"a cutoff under 0":         {Query: types.Ptr("rain"), Cutoff: types.Ptr(-0.1)},
 	} {
@@ -391,4 +391,45 @@ func Test_MigrateVersion1(t *testing.T) {
 	require.NoError(t, conn.Insert(ctx, &object, schema.ObjectMeta{Volume: 1, Path: "Spain/a.txt", Size: 1, Run: 1}))
 	require.NoError(t, conn.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr("spain")}))
 	assert.Equal(t, uint64(1), list.Count)
+}
+
+func Test_Orders(t *testing.T) {
+	ctx := t.Context()
+	db := open(t)
+	media := volume(t, db, "/media")
+	day := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+
+	// Objects of different dates, sizes and titles, and one without a title
+	for _, o := range []schema.ObjectMeta{
+		{Path: "b.txt", Size: 30, ModTime: day, Title: "beta", Text: "common"},
+		{Path: "a.txt", Size: 10, ModTime: day.Add(2 * time.Hour), Title: "Alpha", Text: "common"},
+		{Path: "c.txt", Size: 20, ModTime: day.Add(time.Hour).Add(500 * time.Millisecond), Text: "common common common"},
+	} {
+		o.Volume, o.Run = media.ID, media.Run
+		require.NoError(t, db.Insert(ctx, &schema.Object{}, o))
+	}
+
+	// A list is the newest first, by default, and of each order
+	for order, want := range map[schema.Order][]string{
+		"":                {"a.txt", "c.txt", "b.txt"},
+		schema.OrderDate:  {"a.txt", "c.txt", "b.txt"},
+		schema.OrderPath:  {"a.txt", "b.txt", "c.txt"},
+		schema.OrderSize:  {"b.txt", "c.txt", "a.txt"},
+		schema.OrderTitle: {"a.txt", "b.txt", "c.txt"},
+	} {
+		var list schema.ObjectList
+		require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Order: order}), order)
+		assert.Equal(t, want, paths(list), "order %q", order)
+	}
+
+	// A search is the best first, by default, and of each order
+	for order, want := range map[schema.Order][]string{
+		"":               {"c.txt", "a.txt", "b.txt"},
+		schema.OrderDate: {"a.txt", "c.txt", "b.txt"},
+		schema.OrderSize: {"b.txt", "c.txt", "a.txt"},
+	} {
+		var list schema.ObjectList
+		require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("common"), Cutoff: types.Ptr(0.0), Order: order}), order)
+		assert.Equal(t, want, paths(list), "search, order %q", order)
+	}
 }

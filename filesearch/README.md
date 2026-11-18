@@ -19,8 +19,9 @@ make filesearch MEDIA=1          # and audio, video and photos' EXIF, HEIF and R
 filesearch index ~/Documents     # Index a folder, of its folders too, with --no-recursive not
 filesearch search tax return     # Search, of all of the words, the best first, of a rank of 0.15 or more
 filesearch search --cutoff 0.5 tax  # Of a rank of 0.5, or more, or 0, for any
-filesearch search --order path tax  # By path, rather than rank
-filesearch search                # List the files
+filesearch search --order date tax  # The newest first, rather than the best
+filesearch search                # List the files, the newest first
+filesearch search --order size   # The largest first, or by path, or title
 filesearch volumes               # The folders, with the status of their indexing
 ```
 

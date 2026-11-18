@@ -78,25 +78,39 @@ type ObjectSweep struct {
 }
 
 // ObjectListRequest lists objects, of the volumes, or all of them, when
-// there are none, by their paths, or, when there's a query, searches them,
-// of its words, which are all in their text, as prefixes, the best first. A
-// query without any words matches nothing.
+// there are none, the newest first, or, when there's a query, searches them,
+// of its words, which are all in their text, as prefixes, the best first,
+// unless it has another order. A query without any words matches nothing.
 type ObjectListRequest struct {
 	sqlite.OffsetLimit
 	Volumes []int64  `json:"volume,omitempty" help:"Objects of the volumes, or of all of them"`
 	Query   *string  `json:"q,omitempty" help:"Words, which are all in the objects' text"`
-	Order   Order    `json:"order,omitempty" help:"rank, the best first, of a search, or path"`
+	Order   Order    `json:"order,omitempty" help:"rank, the best first, which is a search's default, date, the newest first, which is a list's, path, size, the largest first, or title"`
 	Cutoff  *float64 `json:"cutoff,omitempty" help:"The lowest rank, of a search, between 0 and 1, which is DefaultCutoff, unless it's set, or 0, for none"`
 }
 
 // Order is the order of a list of objects
 type Order string
 
-// The orders of a list of objects
+// The orders of a list of objects, which, when they're the same, are of
+// their volumes and paths
 const (
-	OrderRank Order = "rank" // The best match first, of a search, which is its default
-	OrderPath Order = "path" // By volume, and path, which is a list's default
+	OrderRank  Order = "rank"  // The best match first, of a search, which is its default
+	OrderDate  Order = "date"  // The newest first, of when they were modified, which is a list's default
+	OrderPath  Order = "path"  // By volume, and path
+	OrderSize  Order = "size"  // The largest first
+	OrderTitle Order = "title" // By title, of any case, and those without one last
 )
+
+// orders are the SQL of the orders, which are of the columns of a list, or
+// a search
+var orders = map[Order]string{
+	OrderRank:  "rank DESC, volume, path",
+	OrderDate:  "julianday(modtime) DESC, volume, path",
+	OrderPath:  "volume, path",
+	OrderSize:  "size DESC, volume, path",
+	OrderTitle: "title IS NULL, title COLLATE NOCASE, volume, path",
+}
 
 // Artwork is an object's image, which is read on its own
 type Artwork []byte
@@ -254,14 +268,15 @@ func (r *ObjectListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, err
 			} else {
 				bind.Set("where", "")
 			}
-			switch r.Order {
-			case "", OrderRank:
-				bind.Set("order", "rank DESC, volume, path")
-			case OrderPath:
-				bind.Set("order", "volume, path")
-			default:
+			order := r.Order
+			if order == "" {
+				order = OrderRank
+			}
+			sql, ok := orders[order]
+			if !ok {
 				return "", sqlite.ErrBadParameter.Withf("order: %q", r.Order)
 			}
+			bind.Set("order", sql)
 			cutoff := DefaultCutoff
 			if r.Cutoff != nil {
 				cutoff = *r.Cutoff
@@ -276,11 +291,17 @@ func (r *ObjectListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, err
 		where = "FALSE"
 	}
 
-	// Or listed, by path, without a query, which hasn't a rank
+	// Or listed, the newest first, or of its order, without a query, which
+	// hasn't a rank
+	order := r.Order
+	if order == "" {
+		order = OrderDate
+	}
+	sql, ok := orders[order]
 	switch {
-	case r.Order == OrderRank:
+	case order == OrderRank:
 		return "", sqlite.ErrBadParameter.With("order by rank is of a search, with a query")
-	case r.Order != "" && r.Order != OrderPath:
+	case !ok:
 		return "", sqlite.ErrBadParameter.Withf("order: %q", r.Order)
 	case r.Cutoff != nil && r.Query == nil:
 		return "", sqlite.ErrBadParameter.With("a cutoff is of a search, with a query")
@@ -289,7 +310,7 @@ func (r *ObjectListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, err
 		where = "WHERE " + where
 	}
 	bind.Set("where", where)
-	bind.Set("order", "volume, path")
+	bind.Set("order", sql)
 	return bind.Query("filesearch.object_list"), nil
 }
 

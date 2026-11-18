@@ -34,7 +34,7 @@ func write(t *testing.T, root string, files map[string]string) {
 // objects returns the paths of the objects of a volume, in order
 func objects(t *testing.T, manager *filesearch.Manager, volume int64) []string {
 	t.Helper()
-	list, err := manager.ListObjects(t.Context(), schema.ObjectListRequest{Volumes: []int64{volume}})
+	list, err := manager.ListObjects(t.Context(), schema.ObjectListRequest{Volumes: []int64{volume}, Order: schema.OrderPath})
 	require.NoError(t, err)
 	var paths []string
 	for _, o := range list.Body {

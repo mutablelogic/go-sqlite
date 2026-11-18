@@ -1,23 +1,12 @@
 # go-sqlite
 
-SQLite support for Go, of the same shape as [go-pg](https://github.com/mutablelogic/go-pg). Pure Go, without cgo. This module provides:
-
-* Easy semantics for Insert, Delete, Update, Get and List operations, on Go types;
-* Binding SQL statements to named arguments, and queries stored in files;
-* Transactions, and bulk operations, which reuse their statements;
-* One writer and many readers, so reads don't wait for writes;
-* Conversion of Go values to SQLite's, and back, including JSON, times and UUIDs;
-* Extensions, such as full-text search, and functions written in Go;
-* Tracing, with OpenTelemetry;
-* Changes of rows, published to a broadcaster once they're committed.
+SQLite for Go, whose operations map directly onto API calls. You write the SQL; the library binds it and scans the results into your types. Pure Go, without cgo, with the same semantics as [go-pg](https://github.com/mutablelogic/go-pg) for PostgreSQL.
 
 Documentation: <https://pkg.go.dev/github.com/mutablelogic/go-sqlite>
 
-For a working example, see [filesearch](filesearch): a command-line tool which indexes and searches files, with transactions, saved queries and full-text search.
+## Operations map onto API calls
 
-## Motivation
-
-The package reduces the boilerplate of reading and writing Go types to SQLite. Its operations align with API calls: _POST_, _PUT_, _GET_, _DELETE_ and _PATCH_.
+Each operation is an API call. A request type selects the rows, and a response type reads them:
 
 | Operation | API call | Interfaces | Connection |
 | --- | --- | --- | --- |
@@ -26,6 +15,69 @@ The package reduces the boilerplate of reading and writing Go types to SQLite. I
 | **Delete** rows, and optionally return them | _DELETE_ | `Selector`, and a `Reader` | writer |
 | **Get** a row | _GET_ | `Selector` and `Reader` | a reader |
 | **List** rows, and count them | _GET_ | `Selector`, and a `Reader` or `ListReader` | a reader |
+
+So a handler is one call, and `sqlite.HTTPError` turns its errors into HTTP errors, such as not found or conflict:
+
+```go
+// GET /objects/{id}
+func (h *Handler) Get(w http.ResponseWriter, r *http.Request, id int64) error {
+  var obj MyObject
+  if err := h.db.Get(r.Context(), &obj, MyObject{Id: id}); err != nil {
+    return httpresponse.Error(w, sqlite.HTTPError(err))
+  }
+  return httpresponse.JSON(w, http.StatusOK, 2, obj)
+}
+
+// POST /objects
+func (h *Handler) Create(w http.ResponseWriter, r *http.Request) error {
+  var req MyObject
+  if err := httprequest.Read(r, &req); err != nil {
+    return httpresponse.Error(w, err)
+  }
+  var obj MyObject
+  if err := h.db.Insert(r.Context(), &obj, req); err != nil {
+    return httpresponse.Error(w, sqlite.HTTPError(err))
+  }
+  return httpresponse.JSON(w, http.StatusCreated, 2, obj)
+}
+```
+
+A handler for go-pg, against PostgreSQL, has the same shape, with `pg.HTTPError`.
+
+## SQL first, not an ORM
+
+There's no query builder, no generated SQL, and no mapping of struct tags to tables. Your types return the SQL for each operation, and bind its arguments:
+
+```go
+func (obj MyObject) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
+  bind.Set("id", obj.Id)
+  switch op {
+  case sqlite.Get:
+    return `SELECT id, name FROM mytable WHERE id = @id`, nil
+  case sqlite.Delete:
+    return `DELETE FROM mytable WHERE id = @id RETURNING id, name`, nil
+  }
+  return "", sqlite.ErrNotImplemented
+}
+```
+
+* **What runs is what you read.** Queries can be reviewed, and tested in the `sqlite3` shell, as they are.
+* **All of SQLite:** full-text search, JSON, window functions, common table expressions, `RETURNING` and `UPSERT`, with nothing to wait for or work around.
+* **Queries in files:** keep them in `.sql` files, by name, as [saved queries](#saved-queries), with `${key}` substitutions for names, such as a schema.
+* **Thin types:** a `Selector` binds and returns SQL, a `Reader` scans a row, and a `Writer` binds values. Nothing else needs to know about the database.
+
+## Features
+
+* **One writer and many readers,** with WAL, so reads don't wait for writes, and writes don't fail with "database is locked".
+* **Transactions,** nested as savepoints, and bulk operations, which reuse their statements.
+* **Values:** Go values to SQLite's, and back, including JSON, times, durations and UUIDs.
+* **Extensions,** such as full-text search, and functions written in Go, which SQL calls.
+* **Tracing,** with OpenTelemetry.
+* **Changes:** rows which are written, published to a broadcaster once they're committed.
+
+For a working example, see [filesearch](filesearch): a command-line tool which indexes and searches files, with transactions, saved queries and full-text search.
+
+## Interfaces
 
 Each operation:
 

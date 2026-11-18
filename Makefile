@@ -59,6 +59,7 @@ vet: go-dep
 unit-test: go-dep
 	@echo Unit Tests
 	@CGO_ENABLED=1 ${GO} test -race ./...
+	@cd filesearch && CGO_ENABLED=1 ${GO} test -race ./...
 
 # Coverage is of the packages, other than the tests which implementations pass,
 # which test the root package, as well as the implementation
@@ -92,6 +93,7 @@ mkdir:
 tidy: go-dep
 	@echo 'go tidy'
 	@$(GO) mod tidy
+	@cd filesearch && $(GO) mod tidy
 
 .PHONY: clean
 clean: tidy

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	// Packages
+	values "github.com/mutablelogic/go-sqlite/values"
 	trace "go.opentelemetry.io/otel/trace"
 )
 
@@ -40,15 +41,16 @@ type Pragma struct {
 	Value string
 }
 
-// Function is a function, which SQL calls, with its arguments, which are
-// int64, float64, string, []byte or nil, and returns its result, which is a
-// bool, an integer, a float, a string, a []byte, a time.Time, a
-// driver.Valuer or nil, or an error.
+// Function is a function, which SQL calls by its name, which an
+// implementation creates on each connection
 type Function struct {
 	Name          string
 	Args          int  // The number of arguments, or -1 for any
 	Deterministic bool // The same arguments always return the same result
-	Fn            func(args ...any) (any, error)
+
+	// Fn is called with the arguments, which it scans, and returns its
+	// result, which is set as values.Set sets it, or an error
+	Fn func(args []values.Value) (any, error)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,21 +122,23 @@ func WithPragma(name, value string) Opt {
 }
 
 // WithFunction creates a function on each connection, which SQL calls by
-// its name, with the number of arguments, or -1 for any. A deterministic
-// function always returns the same result for the same arguments, so it can
-// be used in indexes.
-func WithFunction(name string, args int, deterministic bool, fn func(args ...any) (any, error)) Opt {
+// its name, of Func0, Func1, Func2, Func3 or FuncN, such as:
+//
+//	sqlite.WithFunction("double", true, sqlite.Func1(func(n int64) (int64, error) {
+//		return n * 2, nil
+//	}))
+//
+// A deterministic function always returns the same result for the same
+// arguments, so it can be used in indexes.
+func WithFunction(name string, deterministic bool, fn Fn) Opt {
 	return func(o *Options) error {
 		if !isIdentifier(name) {
 			return ErrBadParameter.Withf("function: %q", name)
 		}
-		if args < -1 || args > 127 {
-			return ErrBadParameter.Withf("function %s: %d arguments", name, args)
-		}
-		if fn == nil {
+		if fn.fn == nil {
 			return ErrBadParameter.Withf("function %s: nil", name)
 		}
-		o.Functions = append(o.Functions, Function{Name: name, Args: args, Deterministic: deterministic, Fn: fn})
+		o.Functions = append(o.Functions, Function{Name: name, Args: fn.args, Deterministic: deterministic, Fn: fn.fn})
 		return nil
 	}
 }

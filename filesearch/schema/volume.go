@@ -59,8 +59,10 @@ type VolumeStart struct {
 }
 
 // VolumeFinish finishes its run, which indexed it, or failed, of its
-// error, with Update, which is ErrNotFound when it isn't indexing
+// error, with Update, which is ErrNotFound when it isn't indexing, or the
+// run isn't its latest, as another started after it
 type VolumeFinish struct {
+	Run      int64
 	Finished time.Time
 	Error    error
 }
@@ -113,6 +115,7 @@ func (VolumeFinish) Insert(*sqlite.Bind) (string, error) {
 // Update binds when its run finished, and whether it failed
 func (f VolumeFinish) Update(bind *sqlite.Bind) error {
 	bind.Set("op", "finish")
+	bind.Set("run", f.Run)
 	bind.Set("finished", f.Finished.UTC())
 	if f.Error != nil {
 		bind.Set("status", StatusFailed)

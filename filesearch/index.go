@@ -131,12 +131,15 @@ func (m *Manager) IndexVolume(ctx context.Context, req schema.IndexVolumeRequest
 	if err == nil {
 		err = m.walk(ctx, &volume, req.Recursive, p)
 	}
-	finished := time.Now()
+	finished, run := time.Now(), volume.Run
+	superseded := sqlite.ErrConflict.Withf("%s is indexed by another run, which started after this one", root)
 	var swept schema.ObjectList
 	if err == nil {
 		err = m.conn.Tx(ctx, func(conn sqlite.Conn) error {
 			swept = schema.ObjectList{}
-			if err := conn.Update(ctx, &volume, schema.VolumeID(volume.ID), schema.VolumeFinish{Finished: finished}); err != nil {
+			if err := conn.Update(ctx, &volume, schema.VolumeID(volume.ID), schema.VolumeFinish{Run: run, Finished: finished}); errors.Is(err, sqlite.ErrNotFound) {
+				return superseded
+			} else if err != nil {
 				return err
 			}
 			if err := conn.Delete(ctx, &swept, schema.ObjectSweep{Volume: volume.ID, Run: volume.Run}); err != nil && !errors.Is(err, sqlite.ErrNotFound) {
@@ -147,9 +150,14 @@ func (m *Manager) IndexVolume(ctx context.Context, req schema.IndexVolumeRequest
 	}
 
 	// Or, when it wasn't, finish its run, without being cancelled, as failed,
-	// with its error
+	// with its error, unless another run started after it, which finishes it
 	if err != nil {
-		if finishErr := m.conn.Update(context.WithoutCancel(ctx), &volume, schema.VolumeID(volume.ID), schema.VolumeFinish{Finished: finished, Error: err}); finishErr != nil {
+		if finishErr := m.conn.Update(context.WithoutCancel(ctx), &volume, schema.VolumeID(volume.ID), schema.VolumeFinish{Run: run, Finished: finished, Error: err}); finishErr != nil {
+			if errors.Is(finishErr, sqlite.ErrNotFound) && !errors.Is(err, superseded) {
+				finishErr = superseded
+			} else if errors.Is(finishErr, sqlite.ErrNotFound) {
+				finishErr = nil
+			}
 			err = errors.Join(err, finishErr)
 			m.endProgress(root, &finished, err)
 			return nil, err

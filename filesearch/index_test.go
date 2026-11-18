@@ -128,6 +128,12 @@ func Test_IndexVolume(t *testing.T) {
 	assert.Equal(t, uint64(2), progress.Indexed)
 	assert.Equal(t, uint64(1), progress.Marked)
 	assert.Equal(t, uint64(1), progress.Swept)
+	assert.Equal(t, uint64(3), again.Objects, "of what's indexed, once it's swept")
+	volumes, err := manager.ListVolumes(ctx, schema.VolumeListRequest{})
+	require.NoError(t, err)
+	if assert.Len(t, volumes.Body, 1) {
+		assert.Equal(t, uint64(3), volumes.Body[0].Objects)
+	}
 
 	// Indexed again, not recursively, its folders' files are swept
 	_, err = manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root}, nil)

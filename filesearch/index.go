@@ -142,7 +142,9 @@ func (m *Manager) IndexVolume(ctx context.Context, req schema.IndexVolumeRequest
 			if err := conn.Delete(ctx, &swept, schema.ObjectSweep{Volume: volume.ID, Run: volume.Run}); err != nil && !errors.Is(err, sqlite.ErrNotFound) {
 				return err
 			}
-			return nil
+
+			// The volume, of its objects, once they're swept
+			return conn.Get(ctx, &volume, schema.VolumeID(volume.ID))
 		})
 	}
 

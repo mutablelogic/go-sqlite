@@ -35,6 +35,7 @@ type Volume struct {
 	Started  *time.Time `json:"started,omitempty"`  // When the run started
 	Finished *time.Time `json:"finished,omitempty"` // When it finished, or nil while it's indexing
 	Error    string     `json:"error,omitempty"`    // Why it failed
+	Objects  uint64     `json:"objects"`            // The objects which are indexed
 }
 
 // VolumeList is a list of volumes, of its request, with the limit which was
@@ -130,7 +131,7 @@ func (f VolumeFinish) Update(bind *sqlite.Bind) error {
 // Scan reads a volume
 func (v *Volume) Scan(row sqlite.Row) error {
 	var err *string
-	if e := row.Scan(&v.ID, &v.Path, &v.Status, &v.Run, &v.Started, &v.Finished, &err); e != nil {
+	if e := row.Scan(&v.ID, &v.Path, &v.Status, &v.Run, &v.Started, &v.Finished, &err, &v.Objects); e != nil {
 		return e
 	}
 	v.Error = value(err)

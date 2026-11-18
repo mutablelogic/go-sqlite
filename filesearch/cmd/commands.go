@@ -61,7 +61,7 @@ type CatCmd struct {
 // IndexCmd indexes a folder, as a volume
 type IndexCmd struct {
 	Flags     `embed:""`
-	Path      string `arg:"" name:"folder" help:"The folder, which is a volume" type:"existingdir"`
+	Path      string `arg:"" name:"folder" help:"The folder, which is a volume, or, without one, all of the volumes" type:"existingdir" optional:""`
 	Recursive bool   `name:"recursive" help:"Index the folder's folders, as well as its files" default:"true" negatable:""`
 	Reindex   bool   `name:"reindex" help:"Index all of the files again, rather than those which are new, or changed, such as when they're read differently"`
 }
@@ -88,30 +88,75 @@ type VolumesCmd struct {
 ///////////////////////////////////////////////////////////////////////////////
 // COMMANDS
 
-// Run indexes the folder, with its progress, on a terminal, and says the
-// files which couldn't be read, and then what was indexed, marked and
-// swept, once it's finished
+// Run indexes the folder, or, without one, each of the volumes, in turn,
+// with its progress, on a terminal, and says the files which couldn't be
+// read, and then what was indexed, marked and swept, once it's finished. A
+// volume which can't be indexed, such as when its folder is gone, is said,
+// and the others are indexed.
 func (cmd *IndexCmd) Run(ctx server.Cmd) error {
 	return cmd.WithManager(ctx, nil, func(manager *filesearch.Manager) error {
-		start := time.Now()
-		progress := newIndexing(ctx.IsTerm())
-		volume, err := manager.IndexVolume(ctx.Context(), schema.IndexVolumeRequest{Path: cmd.Path, Recursive: cmd.Recursive, Reindex: cmd.Reindex}, progress.Progress)
-		progress.Close()
-		if volume != nil {
+		if cmd.Path != "" {
+			return cmd.index(ctx, manager, cmd.Path)
+		}
+		paths, err := volumePaths(ctx.Context(), manager)
+		if err != nil {
+			return err
+		} else if len(paths) == 0 {
+			return fmt.Errorf("there are no volumes, so index a folder")
+		}
+		var failed int
+		for _, path := range paths {
+			if err := cmd.index(ctx, manager, path); errors.Is(err, context.Canceled) {
+				return err
+			} else if err != nil {
+				fmt.Fprintf(os.Stderr, "%s: %v\n", path, err)
+				failed++
+			}
+		}
+		if failed > 0 {
+			return fmt.Errorf("%d of %d volumes couldn't be indexed", failed, len(paths))
+		}
+		return nil
+	})
+}
+
+// index indexes a folder, which is a volume, and says how it did
+func (cmd *IndexCmd) index(ctx server.Cmd, manager *filesearch.Manager, path string) error {
+	start := time.Now()
+	progress := newIndexing(ctx.IsTerm())
+	volume, err := manager.IndexVolume(ctx.Context(), schema.IndexVolumeRequest{Path: path, Recursive: cmd.Recursive, Reindex: cmd.Reindex}, progress.Progress)
+	progress.Close()
+	if volume != nil {
+		if p, perr := manager.Progress(volume.ID); perr == nil {
 			status := string(volume.Status)
 			if errors.Is(err, context.Canceled) {
 				status = "interrupted"
 			}
-			if p, err := manager.Progress(volume.ID); err == nil && p.Reindex {
+			if p.Reindex {
 				status += ", all of its files again"
 			}
-			if p, err := manager.Progress(volume.ID); err == nil {
-				fmt.Printf("%s: %s, of %d files: %d indexed, %d marked, %d swept, %d which couldn't be read, in %v\n",
-					volume.Path, status, p.Total, p.Indexed, p.Marked, p.Swept, progress.Errors(), time.Since(start).Round(time.Millisecond))
-			}
+			fmt.Printf("%s: %s, of %d files: %d indexed, %d marked, %d swept, %d which couldn't be read, in %v\n",
+				volume.Path, status, p.Total, p.Indexed, p.Marked, p.Swept, progress.Errors(), time.Since(start).Round(time.Millisecond))
 		}
-		return err
-	})
+	}
+	return err
+}
+
+// volumePaths returns the paths of all of the volumes, a page at a time
+func volumePaths(ctx context.Context, manager *filesearch.Manager) ([]string, error) {
+	var paths []string
+	for {
+		list, err := manager.ListVolumes(ctx, schema.VolumeListRequest{OffsetLimit: sqlite.OffsetLimit{Offset: uint64(len(paths))}})
+		if err != nil {
+			return nil, err
+		}
+		for _, volume := range list.Body {
+			paths = append(paths, volume.Path)
+		}
+		if len(list.Body) == 0 || uint64(len(paths)) >= list.Count {
+			return paths, nil
+		}
+	}
 }
 
 // Run searches the files, of the words, or lists them, without any

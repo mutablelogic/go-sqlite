@@ -21,7 +21,7 @@ import (
 
 // Flags are the flags of a file search manager
 type Flags struct {
-	Path    string `name:"path" help:"The database, which is created when it doesn't exist, or :memory: (default: filesearch.db, in the user's cache folder)"`
+	DB      string `name:"db" help:"The database, which is created when it doesn't exist, or :memory: (default: filesearch.db, in the user's cache folder)"`
 	Readers int    `name:"readers" help:"The most connections which read the database at once, such as to search it" default:"4"`
 }
 
@@ -30,7 +30,7 @@ type Flags struct {
 
 const (
 	// DefaultName is the name of the database, in the user's cache folder,
-	// when its path isn't set
+	// when it isn't set
 	DefaultName = "filesearch.db"
 )
 
@@ -63,10 +63,10 @@ func (flags Flags) WithManager(ctx server.Cmd, srv *servercmd.RunServer, fn func
 // PRIVATE METHODS
 
 // path returns the path of the database, which is in the user's cache
-// folder, which is created, when it isn't set
+// folder, which is created, when --db isn't set
 func (flags Flags) path() (string, error) {
-	if flags.Path != "" {
-		return flags.Path, nil
+	if flags.DB != "" {
+		return flags.DB, nil
 	}
 	cache, err := os.UserCacheDir()
 	if err != nil {

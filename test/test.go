@@ -134,12 +134,20 @@ func testOpen(t *testing.T, fn OpenFunc) {
 	_, err = fn(ctx, sqlite.Memory, sqlite.WithDriverOption("another's"))
 	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
 
+	// A context which is done doesn't open, or create, the database
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	path := filepath.Join(t.TempDir(), "cancelled.db")
+	_, err = fn(cancelled, path)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.NoFileExists(t, path)
+
 	// A folder which doesn't exist can't be opened
 	_, err = fn(ctx, filepath.Join(t.TempDir(), "missing", "test.db"))
 	assert.Error(t, err)
 
 	// A path with characters which are a URI's, such as ? and #, is its name
-	path := filepath.Join(t.TempDir(), "a b?c#d%20.db")
+	path = filepath.Join(t.TempDir(), "a b?c#d%20.db")
 	db, err := fn(ctx, path, sqlite.WithPragma("cache_size", "-4000"))
 	require.NoError(t, err)
 	assert.NoError(t, db.Ping(ctx))
@@ -378,6 +386,15 @@ func testCRUD(t *testing.T, db sqlite.Conn) {
 	require.NoError(t, db.With("v", "x").Get(ctx, &column{&at}, query{"SELECT 'a@example.com' AS \"@b\" /* @c */ -- @d\n"}))
 	assert.Equal(t, "a@example.com", at)
 
+	// A $key, :key or @key is an argument, which is bound, rather than
+	// substituted, so a value which is SQL is kept as it is
+	sql := "x'); DROP TABLE users; --"
+	for _, param := range []string{"$name", ":name", "@name"} {
+		var u user
+		require.NoError(t, db.With("name", sql).Update(ctx, &u, query{"INSERT INTO users (name) VALUES (" + param + ") RETURNING id, name, email"}, nil), param)
+		assert.Equal(t, sql, u.Name, param)
+	}
+
 	// A value with a $ in it, and a quote, is kept as it is
 	var b user
 	require.NoError(t, db.Insert(ctx, &b, userMeta{Name: "it's a$b"}))
@@ -393,6 +410,11 @@ func testList(t *testing.T, db sqlite.Conn) {
 	require.NoError(t, db.List(ctx, &list, userSelector{}))
 	assert.Zero(t, list.Count)
 	assert.Empty(t, list.Users)
+
+	// A query which ends with a ;, or a comment, is listed
+	for _, sql := range []string{"SELECT id, name, email FROM users;", "SELECT id, name, email FROM users; -- all of them\n"} {
+		require.NoError(t, db.List(ctx, &list, query{sql}), sql)
+	}
 
 	// The count is of all of them, and the rows of the offset and limit
 	for _, name := range []string{"a", "b", "c", "d", "e"} {
@@ -654,7 +676,8 @@ func testConcurrent(t *testing.T, db sqlite.Conn) {
 
 func testReaders(t *testing.T, fn OpenFunc) {
 	ctx := t.Context()
-	db := open(t, fn, "File")
+	path := filepath.Join(t.TempDir(), "test.db")
+	db := openPath(t, fn, path)
 
 	// A read, while a transaction writes, doesn't wait for it, and sees what
 	// was committed before it
@@ -667,8 +690,22 @@ func testReaders(t *testing.T, fn OpenFunc) {
 	}))
 	assert.Equal(t, uint64(2), count(t, db))
 
+	// A transaction which waits for another database's, of the same file,
+	// to write, stops when its context is done, and says so
+	other, err := fn(ctx, path)
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, other.Close()) })
+	require.NoError(t, db.Tx(ctx, func(conn sqlite.Conn) error {
+		waiting, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		err := other.Tx(waiting, func(sqlite.Conn) error { return nil })
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.ErrorIs(t, err, sqlite.ErrNotAvailable)
+		return nil
+	}))
+
 	// Readers only read
-	err := db.Get(ctx, &user{}, writeSelector{})
+	err = db.Get(ctx, &user{}, writeSelector{})
 	assert.ErrorIs(t, err, sqlite.ErrDatabase)
 	assert.Equal(t, uint64(2), count(t, db))
 }
@@ -684,6 +721,12 @@ func open(t *testing.T, fn OpenFunc, kind string) sqlite.Conn {
 	if kind == "File" {
 		path = filepath.Join(t.TempDir(), "test.db")
 	}
+	return openPath(t, fn, path)
+}
+
+// openPath returns the database of the path, as open does
+func openPath(t *testing.T, fn OpenFunc, path string) sqlite.Conn {
+	t.Helper()
 	q, err := sqlite.NewQueries(strings.NewReader(queries))
 	require.NoError(t, err)
 	db, err := fn(t.Context(), path, sqlite.WithBind("table", "users"))
@@ -710,11 +753,17 @@ func txConn(t *testing.T, db sqlite.Conn) sqlite.Conn {
 			return errors.New("rolled back")
 		})
 	}()
-	t.Cleanup(func() {
-		close(end)
-		<-done
-	})
-	return <-conn
+	select {
+	case tx := <-conn:
+		t.Cleanup(func() {
+			close(end)
+			<-done
+		})
+		return tx
+	case err := <-done:
+		t.Fatalf("transaction: %v", err)
+		return nil
+	}
 }
 
 // count returns the number of users

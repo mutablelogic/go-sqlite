@@ -2,19 +2,19 @@
 -- A volume, of its path, or the one which is of it already
 INSERT INTO volume (path) VALUES (@path)
 ON CONFLICT (path) DO UPDATE SET path = excluded.path
-RETURNING id, path, status, run, started, finished, error;
+RETURNING id, path, status, run, started, finished, error, (SELECT COUNT(*) FROM object WHERE object.volume = volume.id) AS objects;
 
 -- filesearch.volume_get
-SELECT id, path, status, run, started, finished, error FROM volume WHERE id = @id;
+SELECT id, path, status, run, started, finished, error, (SELECT COUNT(*) FROM object WHERE object.volume = volume.id) AS objects FROM volume WHERE id = @id;
 
 -- filesearch.volume_list
-SELECT id, path, status, run, started, finished, error FROM volume ORDER BY path
+SELECT id, path, status, run, started, finished, error, (SELECT COUNT(*) FROM object WHERE object.volume = volume.id) AS objects FROM volume ORDER BY path
 
 -- filesearch.volume_start
 -- Its next run starts, which is indexing it
 UPDATE volume SET status = 'indexing', run = run + 1, started = @started, finished = NULL, error = NULL
 WHERE id = @id
-RETURNING id, path, status, run, started, finished, error;
+RETURNING id, path, status, run, started, finished, error, (SELECT COUNT(*) FROM object WHERE object.volume = volume.id) AS objects;
 
 -- filesearch.volume_finish
 -- Its run finishes, which indexed it, or failed, with its error, when it's
@@ -22,12 +22,12 @@ RETURNING id, path, status, run, started, finished, error;
 -- process, which finishes it
 UPDATE volume SET status = @status, finished = @finished, error = @error
 WHERE id = @id AND run = @run AND status = 'indexing'
-RETURNING id, path, status, run, started, finished, error;
+RETURNING id, path, status, run, started, finished, error, (SELECT COUNT(*) FROM object WHERE object.volume = volume.id) AS objects;
 
 -- filesearch.volume_delete
 -- A volume, with its objects, and their text
 DELETE FROM volume WHERE id = @id
-RETURNING id, path, status, run, started, finished, error;
+RETURNING id, path, status, run, started, finished, error, (SELECT COUNT(*) FROM object WHERE object.volume = volume.id) AS objects;
 
 -- filesearch.object_mark
 -- An object which is as it was, of its size and when it was modified, is
@@ -46,8 +46,8 @@ ON CONFLICT (volume, path) DO UPDATE SET
     artwork = excluded.artwork, indexed = excluded.indexed, run = excluded.run
 RETURNING id, volume, path, size, modtime, type, kind, title, meta, indexed, run;
 DELETE FROM object_text WHERE rowid = (SELECT id FROM object WHERE volume = @volume AND path = @path);
-INSERT INTO object_text (rowid, title, meta, text)
-VALUES ((SELECT id FROM object WHERE volume = @volume AND path = @path), @title, @meta_text, @text);
+INSERT INTO object_text (rowid, title, path, meta, text)
+VALUES ((SELECT id FROM object WHERE volume = @volume AND path = @path), @title, @path_text, @meta_text, @text);
 
 -- filesearch.object_get
 SELECT id, volume, path, size, modtime, type, kind, title, meta, indexed, run
@@ -64,19 +64,40 @@ RETURNING id, volume, path, size, modtime, type, kind, title, meta, indexed, run
 DELETE FROM object
 WHERE volume = @volume AND run < @run
 AND EXISTS (SELECT 1 FROM volume WHERE id = @volume AND run = @run AND status = 'indexed')
-RETURNING id, volume, path, size, modtime, type, kind, title, meta, indexed, run;
+RETURNING id, volume, path, size, modtime, type, kind, title, meta, indexed, run, NULL AS rank;
 
 -- filesearch.object_list
-SELECT id, volume, path, size, modtime, type, kind, title, meta, indexed, run
-FROM object ${where} ORDER BY volume, path
+SELECT id, volume, path, size, modtime, type, kind, title, meta, indexed, run, NULL AS rank
+FROM object ${where} ORDER BY ${order}
 
 -- filesearch.object_search
--- Objects whose text matches, the best first, of their titles, then their
--- metadata, then their content
-SELECT object.id, volume, path, size, modtime, type, kind, object.title, object.meta, indexed, run
-FROM object_text JOIN object ON object.id = object_text.rowid
-WHERE object_text MATCH @match ${and}
-ORDER BY bm25(object_text, 10.0, 2.0, 1.0)
+-- Objects whose text matches, of their rank, between 0 and 1, which is higher
+-- the better they match, of their titles, then their paths, then their
+-- metadata, then their content, of a minimum, or not. The rank is bm25's
+-- score, which is higher the better, and isn't bounded, as score / (1 + score)
+SELECT * FROM (
+    SELECT object.id, volume, object.path, size, modtime, type, kind, object.title, object.meta, indexed, run,
+           score / (1.0 + score) AS rank
+    FROM (
+        SELECT rowid, max(-bm25(object_text, 10.0, 5.0, 2.0, 1.0), 0.0) AS score
+        FROM object_text WHERE object_text MATCH @match
+    ) AS matched JOIN object ON object.id = matched.rowid
+    ${where}
+) ${rank} ORDER BY ${order}
 
 -- filesearch.artwork_get
 SELECT artwork FROM object WHERE id = @id AND artwork IS NOT NULL;
+
+-- filesearch.object_path
+-- Objects of a path: of their volume's path, and their own, or their own,
+-- or the end of it, after a /
+SELECT object.id, object.volume, object.path, size, modtime, type, kind, title, meta, indexed, object.run, NULL AS rank
+FROM object JOIN volume ON volume.id = object.volume
+WHERE object.path = @path
+   OR substr(object.path, -length(@path) - 1) = '/' || @path
+   OR volume.path || '/' || object.path = @path
+ORDER BY object.volume, object.path
+
+-- filesearch.volume_path
+SELECT id, path, status, run, started, finished, error, (SELECT COUNT(*) FROM object WHERE object.volume = volume.id) AS objects
+FROM volume WHERE path = @path;

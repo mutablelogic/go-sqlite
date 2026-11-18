@@ -2,6 +2,7 @@ package schema
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	// Packages
@@ -29,7 +30,7 @@ func (v VolumeList) String() string {
 
 // Header returns the columns of an object, as a table's row
 func (o Object) Header() []string {
-	return []string{"Volume", "Path", "Title", "Kind", "Type", "Size", "Modified"}
+	return []string{"Volume", "Path", "Title", "Kind", "Type", "Size", "Modified", "Rank"}
 }
 
 // Width returns the width of a column, which is its own
@@ -54,13 +55,18 @@ func (o Object) Cell(col int) tui.CellText {
 		return FormatSize(o.Size)
 	case 6:
 		return o.ModTime.Local().Format(time.DateTime)
+	case 7:
+		if o.Rank == nil {
+			return ""
+		}
+		return strconv.FormatFloat(*o.Rank, 'g', 3, 64)
 	}
 	return ""
 }
 
 // Header returns the columns of a volume, as a table's row
 func (v Volume) Header() []string {
-	return []string{"ID", "Path", "Status", "Run", "Started", "Finished", "Error"}
+	return []string{"ID", "Path", "Objects", "Status", "Run", "Started", "Finished", "Error"}
 }
 
 // Width returns the width of a column, which is its own
@@ -76,14 +82,16 @@ func (v Volume) Cell(col int) tui.CellText {
 	case 1:
 		return v.Path
 	case 2:
-		return string(v.Status)
+		return v.Objects
 	case 3:
-		return v.Run
+		return string(v.Status)
 	case 4:
-		return formatTime(v.Started)
+		return v.Run
 	case 5:
-		return formatTime(v.Finished)
+		return formatTime(v.Started)
 	case 6:
+		return formatTime(v.Finished)
+	case 7:
 		return v.Error
 	}
 	return ""

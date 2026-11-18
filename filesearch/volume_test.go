@@ -48,3 +48,36 @@ func Test_ListVolumes(t *testing.T) {
 	assert.Equal(t, uint64(5), limit)
 
 }
+
+func Test_Volumes(t *testing.T) {
+	ctx := t.Context()
+	manager := test.New(t)
+	root := t.TempDir()
+	write(t, root, map[string]string{"a.txt": "a", "notes/b.md": "# B\n\nbody"})
+	volume, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root, Recursive: true}, nil)
+	require.NoError(t, err)
+
+	// A volume, by its id, and its path
+	got, err := manager.GetVolume(ctx, volume.ID)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(2), got.Objects)
+	got, err = manager.VolumeByPath(ctx, root)
+	require.NoError(t, err)
+	assert.Equal(t, volume.ID, got.ID)
+	_, err = manager.GetVolume(ctx, volume.ID+1)
+	assert.ErrorIs(t, err, sqlite.ErrNotFound)
+	_, err = manager.VolumeByPath(ctx, t.TempDir())
+	assert.ErrorIs(t, err, sqlite.ErrNotFound)
+
+	// It's deleted, with its objects, and then isn't
+	deleted, err := manager.DeleteVolume(ctx, volume.ID)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(2), deleted.Objects)
+	list, err := manager.ListObjects(ctx, schema.ObjectListRequest{})
+	require.NoError(t, err)
+	assert.Zero(t, list.Count)
+	_, err = manager.Progress(volume.ID)
+	assert.ErrorIs(t, err, sqlite.ErrNotFound, "its progress isn't kept")
+	_, err = manager.DeleteVolume(ctx, volume.ID)
+	assert.ErrorIs(t, err, sqlite.ErrNotFound)
+}

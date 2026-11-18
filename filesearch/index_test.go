@@ -34,7 +34,7 @@ func write(t *testing.T, root string, files map[string]string) {
 // objects returns the paths of the objects of a volume, in order
 func objects(t *testing.T, manager *filesearch.Manager, volume int64) []string {
 	t.Helper()
-	list, err := manager.ListObjects(t.Context(), schema.ObjectListRequest{Volumes: []int64{volume}})
+	list, err := manager.ListObjects(t.Context(), schema.ObjectListRequest{Volumes: []int64{volume}, Order: schema.OrderPath})
 	require.NoError(t, err)
 	var paths []string
 	for _, o := range list.Body {
@@ -128,6 +128,12 @@ func Test_IndexVolume(t *testing.T) {
 	assert.Equal(t, uint64(2), progress.Indexed)
 	assert.Equal(t, uint64(1), progress.Marked)
 	assert.Equal(t, uint64(1), progress.Swept)
+	assert.Equal(t, uint64(3), again.Objects, "of what's indexed, once it's swept")
+	volumes, err := manager.ListVolumes(ctx, schema.VolumeListRequest{})
+	require.NoError(t, err)
+	if assert.Len(t, volumes.Body, 1) {
+		assert.Equal(t, uint64(3), volumes.Body[0].Objects)
+	}
 
 	// Indexed again, not recursively, its folders' files are swept
 	_, err = manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root}, nil)

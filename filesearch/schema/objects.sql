@@ -37,9 +37,10 @@ CREATE INDEX IF NOT EXISTS object_run ON object (volume, run);
 
 -- filesearch.object_text
 -- The text of each object, by its id, which is searched, and not kept: its
--- title, the values of its metadata, and its content, as Markdown
+-- title, the parts of its path, within its volume, its metadata's values,
+-- and its content, as Markdown
 CREATE VIRTUAL TABLE IF NOT EXISTS object_text USING fts5(
-    title, meta, text,
+    title, path, meta, text,
     content = '', contentless_delete = 1
 );
 

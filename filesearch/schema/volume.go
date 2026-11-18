@@ -35,6 +35,7 @@ type Volume struct {
 	Started  *time.Time `json:"started,omitempty"`  // When the run started
 	Finished *time.Time `json:"finished,omitempty"` // When it finished, or nil while it's indexing
 	Error    string     `json:"error,omitempty"`    // Why it failed
+	Objects  uint64     `json:"objects"`            // The objects which are indexed
 }
 
 // VolumeList is a list of volumes, of its request, with the limit which was
@@ -52,6 +53,9 @@ type VolumeListRequest struct {
 
 // VolumeID selects a volume, by its id, to get, start, finish or delete it
 type VolumeID int64
+
+// VolumePath selects a volume, by its absolute path, to get it
+type VolumePath string
 
 // VolumeStart starts its next run, which is indexing it, with Update
 type VolumeStart struct {
@@ -133,7 +137,7 @@ func (f VolumeFinish) Update(bind *sqlite.Bind) error {
 // Scan reads a volume
 func (v *Volume) Scan(row sqlite.Row) error {
 	var err *string
-	if e := row.Scan(&v.ID, &v.Path, &v.Status, &v.Run, &v.Started, &v.Finished, &err); e != nil {
+	if e := row.Scan(&v.ID, &v.Path, &v.Status, &v.Run, &v.Started, &v.Finished, &err, &v.Objects); e != nil {
 		return e
 	}
 	v.Error = value(err)
@@ -186,4 +190,17 @@ func (r *VolumeListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, err
 	}
 	r.OffsetLimit.Bind(bind, ListLimit)
 	return bind.Query("filesearch.volume_list"), nil
+}
+
+// Select a volume, by its path
+func (p VolumePath) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
+	if op != sqlite.Get {
+		return "", sqlite.ErrNotImplemented.Withf("volume path: %v", op)
+	}
+	path, err := absPath(string(p))
+	if err != nil {
+		return "", err
+	}
+	bind.Set("path", path)
+	return bind.Query("filesearch.volume_path"), nil
 }

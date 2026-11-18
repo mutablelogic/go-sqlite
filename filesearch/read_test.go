@@ -16,6 +16,7 @@ import (
 	// Packages
 	metadata "github.com/mutablelogic/go-metadata"
 	types "github.com/mutablelogic/go-server/pkg/types"
+	sqlite "github.com/mutablelogic/go-sqlite"
 	schema "github.com/mutablelogic/go-sqlite/filesearch/schema"
 	test "github.com/mutablelogic/go-sqlite/filesearch/test"
 	assert "github.com/stretchr/testify/assert"
@@ -139,4 +140,45 @@ func Test_ReadFileErrors(t *testing.T) {
 	if assert.Len(t, list.Body, 1) {
 		assert.Contains(t, list.Body[0].Meta["filesearch:error"], "its markdown failed")
 	}
+}
+
+func Test_GetObject(t *testing.T) {
+	ctx := t.Context()
+	manager := test.New(t)
+	a, b := t.TempDir(), t.TempDir()
+	write(t, a, map[string]string{"notes/rain.md": "# Rain\n\nIt rained.\n", "notes/sun.md": "# Sun\n"})
+	write(t, b, map[string]string{"rain.md": "# Other Rain\n"})
+	va, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: a, Recursive: true}, nil)
+	require.NoError(t, err)
+	_, err = manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: b}, nil)
+	require.NoError(t, err)
+
+	// A file, of its full path, its path within its volume, or its name,
+	// when it's of one file
+	for _, path := range []string{filepath.Join(va.Path, "notes", "sun.md"), "notes/sun.md", "sun.md", "notes/sun.md/"} {
+		object, err := manager.GetObject(ctx, path)
+		require.NoError(t, err, path)
+		assert.Equal(t, "notes/sun.md", object.Path, path)
+		full, err := manager.ObjectPath(ctx, object)
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(va.Path, "notes", "sun.md"), full)
+	}
+
+	// Of more than one, it's a conflict, of their paths, and of none, not
+	// found
+	_, err = manager.GetObject(ctx, "rain.md")
+	assert.ErrorIs(t, err, sqlite.ErrConflict)
+	assert.ErrorContains(t, err, "2 files")
+	assert.ErrorContains(t, err, filepath.Join(va.Path, "notes", "rain.md"))
+	object, err := manager.GetObject(ctx, "notes/rain.md")
+	require.NoError(t, err, "of one, within its volume")
+	_, err = manager.GetObject(ctx, "missing.md")
+	assert.ErrorIs(t, err, sqlite.ErrNotFound)
+	_, err = manager.GetObject(ctx, "")
+	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
+
+	// Its content, as Markdown, which is read again, all of it
+	markdown, err := manager.Markdown(ctx, object.ID)
+	require.NoError(t, err)
+	assert.Contains(t, markdown, "It rained.")
 }

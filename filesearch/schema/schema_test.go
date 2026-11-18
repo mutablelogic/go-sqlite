@@ -1,6 +1,7 @@
 package schema_test
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -47,34 +48,89 @@ func Test_Create(t *testing.T) {
 	assert.ErrorIs(t, schema.Create(ctx, db), sqlite.ErrNotImplemented)
 }
 
+// volume returns a volume, of a path, which is indexing
+func volume(t *testing.T, db sqlite.Conn, path string) schema.Volume {
+	t.Helper()
+	var v schema.Volume
+	require.NoError(t, db.Insert(t.Context(), &v, schema.VolumeMeta{Path: path}))
+	require.NoError(t, db.Update(t.Context(), &v, schema.VolumeID(v.ID), schema.VolumeStart{Started: time.Now()}))
+	return v
+}
+
+func Test_Volumes(t *testing.T) {
+	ctx := t.Context()
+	db := open(t)
+
+	// A volume, which is new, and the same one of its path
+	var media, again schema.Volume
+	require.NoError(t, db.Insert(ctx, &media, schema.VolumeMeta{Path: "/media/"}))
+	assert.Equal(t, "/media", media.Path)
+	assert.Equal(t, schema.StatusNew, media.Status)
+	assert.Zero(t, media.Run)
+	assert.Nil(t, media.Started)
+	require.NoError(t, db.Insert(ctx, &again, schema.VolumeMeta{Path: "/media"}))
+	assert.Equal(t, media.ID, again.ID)
+	assert.ErrorIs(t, db.Insert(ctx, &again, schema.VolumeMeta{Path: "relative"}), sqlite.ErrBadParameter)
+
+	// Its runs start, which index it, and finish, which indexed it, or failed
+	started := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeStart{Started: started}))
+	assert.Equal(t, schema.StatusIndexing, media.Status)
+	assert.Equal(t, int64(1), media.Run)
+	assert.Equal(t, started, *media.Started)
+	assert.Nil(t, media.Finished)
+	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Finished: started.Add(time.Minute)}))
+	assert.Equal(t, schema.StatusIndexed, media.Status)
+	assert.Equal(t, started.Add(time.Minute), *media.Finished)
+	assert.ErrorIs(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Finished: started}), sqlite.ErrNotFound, "it isn't indexing")
+	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeStart{Started: started}))
+	assert.Equal(t, int64(2), media.Run)
+	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Finished: started, Error: errors.New("disk")}))
+	assert.Equal(t, schema.StatusFailed, media.Status)
+	assert.Equal(t, "disk", media.Error)
+	assert.ErrorIs(t, db.Update(ctx, &media, schema.VolumeID(media.ID), nil), sqlite.ErrBadParameter)
+
+	// Get and list them
+	var got schema.Volume
+	require.NoError(t, db.Get(ctx, &got, schema.VolumeID(media.ID)))
+	assert.Equal(t, media, got)
+	require.NoError(t, db.Insert(ctx, &again, schema.VolumeMeta{Path: "/books"}))
+	var list schema.VolumeList
+	require.NoError(t, db.List(ctx, &list, schema.VolumeListRequest{}))
+	assert.Equal(t, uint64(2), list.Count)
+	if assert.Len(t, list.Body, 2) {
+		assert.Equal(t, "/books", list.Body[0].Path)
+		assert.Equal(t, "/media", list.Body[1].Path)
+	}
+	assert.ErrorIs(t, db.Get(ctx, &got, schema.VolumeID(999)), sqlite.ErrNotFound)
+}
+
 func Test_Objects(t *testing.T) {
 	ctx := t.Context()
 	db := open(t)
 	modtime := time.Date(2026, 11, 18, 12, 0, 0, 0, time.FixedZone("CET", 3600))
+	media := volume(t, db, "/media")
+	books := volume(t, db, "/books")
 
-	// Runs, which are started, and finished
-	var run schema.Run
-	require.NoError(t, db.Insert(ctx, &run, schema.RunMeta{Root: "/media", Started: time.Now()}))
-	assert.NotZero(t, run.ID)
-	assert.Equal(t, "/media", run.Root)
-	assert.Nil(t, run.Finished)
-
-	// Objects, with their metadata, text and artwork
+	// Objects, of volumes, by their paths within them, with their metadata,
+	// text and artwork
 	var film, song, book schema.Object
 	require.NoError(t, db.Insert(ctx, &film, schema.ObjectMeta{
-		Path: "/media/films/blade-runner.mp4", Size: 100, ModTime: modtime,
+		Volume: media.ID, Path: "films/blade-runner.mp4", Size: 100, ModTime: modtime,
 		Type: "video/mp4", Kind: "movie", Title: "Blade Runner",
 		Meta:    map[string]any{"dc:creator": "Ridley Scott", "dc:subject": []string{"replicants", "noir"}, "video:duration": 7020},
-		Artwork: []byte{0xff, 0xd8}, Run: run.ID,
+		Artwork: []byte{0xff, 0xd8}, Run: media.Run,
 	}))
 	require.NoError(t, db.Insert(ctx, &song, schema.ObjectMeta{
-		Path: "/media/music/rain.mp3", Size: 50, ModTime: modtime, Kind: "song", Title: "Rain", Run: run.ID,
+		Volume: media.ID, Path: "music/rain.mp3", Size: 50, ModTime: modtime, Kind: "song", Title: "Rain", Run: media.Run,
 	}))
 	require.NoError(t, db.Insert(ctx, &book, schema.ObjectMeta{
-		Path: "/media/books/weather.md", Size: 10, ModTime: modtime, Type: "text/markdown", Title: "Weather",
-		Text: "# Weather\n\nIt rained, as replicants watched.", Run: run.ID,
+		Volume: books.ID, Path: "./weather.md", Size: 10, ModTime: modtime, Type: "text/markdown", Title: "Weather",
+		Text: "# Weather\n\nIt rained, as replicants watched.", Run: books.Run,
 	}))
 	assert.NotZero(t, film.ID)
+	assert.Equal(t, media.ID, film.Volume)
+	assert.Equal(t, "weather.md", book.Path)
 	assert.Equal(t, "Blade Runner", film.Title)
 	assert.Equal(t, "Ridley Scott", film.Meta["dc:creator"])
 	assert.True(t, modtime.Equal(film.ModTime))
@@ -90,28 +146,28 @@ func Test_Objects(t *testing.T) {
 	assert.ErrorIs(t, db.Get(ctx, &artwork, schema.ArtworkID(song.ID)), sqlite.ErrNotFound)
 	assert.ErrorIs(t, db.Get(ctx, &got, schema.ObjectID(999)), sqlite.ErrNotFound)
 
-	// List them, by path, of a root, a page at a time
+	// List them, by volume and path, of a volume, a page at a time
 	var list schema.ObjectList
 	require.NoError(t, db.List(ctx, &list, schema.ObjectListRequest{}))
 	assert.Equal(t, uint64(3), list.Count)
-	assert.Equal(t, []string{"/media/books/weather.md", "/media/films/blade-runner.mp4", "/media/music/rain.mp3"}, paths(list))
+	assert.Equal(t, []string{"films/blade-runner.mp4", "music/rain.mp3", "weather.md"}, paths(list))
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, schema.ObjectListRequest{Root: "/media/music"}))
-	assert.Equal(t, []string{"/media/music/rain.mp3"}, paths(list))
+	require.NoError(t, db.List(ctx, &list, schema.ObjectListRequest{Volume: books.ID}))
+	assert.Equal(t, []string{"weather.md"}, paths(list))
 	list = schema.ObjectList{}
 	limit := uint64(1)
 	require.NoError(t, db.List(ctx, &list, schema.ObjectListRequest{OffsetLimit: sqlite.OffsetLimit{Offset: 1, Limit: &limit}}))
 	assert.Equal(t, uint64(3), list.Count)
-	assert.Equal(t, []string{"/media/films/blade-runner.mp4"}, paths(list))
+	assert.Equal(t, []string{"music/rain.mp3"}, paths(list))
 
 	// Search them, of their titles, metadata and text, by prefixes, of all
-	// the words, the best first, of a root
+	// the words, the best first, of a volume
 	for query, want := range map[string][]string{
-		"blade":        {"/media/films/blade-runner.mp4"},
-		"ridley":       {"/media/films/blade-runner.mp4"},
-		"replicant":    {"/media/films/blade-runner.mp4", "/media/books/weather.md"},
-		"rain":         {"/media/music/rain.mp3", "/media/books/weather.md"},
-		"rain watched": {"/media/books/weather.md"},
+		"blade":        {"films/blade-runner.mp4"},
+		"ridley":       {"films/blade-runner.mp4"},
+		"replicant":    {"films/blade-runner.mp4", "weather.md"},
+		"rain":         {"music/rain.mp3", "weather.md"},
+		"rain watched": {"weather.md"},
 		"7020":         nil,
 		`"AND (OR*`:    nil,
 	} {
@@ -121,13 +177,13 @@ func Test_Objects(t *testing.T) {
 		assert.Equal(t, uint64(len(want)), list.Count, query)
 	}
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, schema.ObjectListRequest{Query: "rain", Root: "/media/books"}))
-	assert.Equal(t, []string{"/media/books/weather.md"}, paths(list))
+	require.NoError(t, db.List(ctx, &list, schema.ObjectListRequest{Query: "rain", Volume: books.ID}))
+	assert.Equal(t, []string{"weather.md"}, paths(list))
 
 	// An object which is replaced is the same, with its text replaced
 	var replaced schema.Object
 	require.NoError(t, db.Insert(ctx, &replaced, schema.ObjectMeta{
-		Path: "/media/books/weather.md", Size: 11, ModTime: modtime, Title: "Climate", Text: "sunshine", Run: run.ID,
+		Volume: books.ID, Path: "weather.md", Size: 11, ModTime: modtime, Title: "Climate", Text: "sunshine", Run: books.Run,
 	}))
 	assert.Equal(t, book.ID, replaced.ID)
 	list = schema.ObjectList{}
@@ -135,11 +191,15 @@ func Test_Objects(t *testing.T) {
 	assert.Empty(t, paths(list), "its old text")
 	list = schema.ObjectList{}
 	require.NoError(t, db.List(ctx, &list, schema.ObjectListRequest{Query: "sunshine"}))
-	assert.Equal(t, []string{"/media/books/weather.md"}, paths(list))
+	assert.Equal(t, []string{"weather.md"}, paths(list))
 
-	// A path which isn't absolute is a bad parameter
-	assert.ErrorIs(t, db.Insert(ctx, &got, schema.ObjectMeta{Path: "relative/path"}), sqlite.ErrBadParameter)
-	assert.ErrorIs(t, db.Insert(ctx, &got, schema.ObjectMeta{Path: "/a", Size: -1}), sqlite.ErrBadParameter)
+	// A path which isn't within a volume, of a volume which isn't, or a size
+	// which isn't, is a bad parameter
+	for _, path := range []string{"", ".", "/media/a", "../a", "a/../../b"} {
+		assert.ErrorIs(t, db.Insert(ctx, &got, schema.ObjectMeta{Volume: media.ID, Path: path}), sqlite.ErrBadParameter, path)
+	}
+	assert.ErrorIs(t, db.Insert(ctx, &got, schema.ObjectMeta{Volume: 999, Path: "a"}), sqlite.ErrForeignKeyViolation)
+	assert.ErrorIs(t, db.Insert(ctx, &got, schema.ObjectMeta{Volume: media.ID, Path: "a", Size: -1}), sqlite.ErrBadParameter)
 }
 
 func Test_MarkAndSweep(t *testing.T) {
@@ -147,53 +207,59 @@ func Test_MarkAndSweep(t *testing.T) {
 	db := open(t)
 	modtime := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
 
-	// Objects of two roots, which the first runs index
-	var first, other schema.Run
-	require.NoError(t, db.Insert(ctx, &first, schema.RunMeta{Root: "/media", Started: time.Now()}))
-	require.NoError(t, db.Insert(ctx, &other, schema.RunMeta{Root: "/other", Started: time.Now()}))
-	for _, path := range []string{"/media/kept.txt", "/media/changed.txt", "/media/gone.txt", "/media/sub/gone.txt"} {
-		require.NoError(t, db.Insert(ctx, &schema.Object{}, schema.ObjectMeta{Path: path, Size: 1, ModTime: modtime, Title: "gone", Run: first.ID}))
+	// Objects of two volumes, which their first runs index
+	media := volume(t, db, "/media")
+	other := volume(t, db, "/other")
+	for _, path := range []string{"kept.txt", "changed.txt", "gone.txt", "sub/gone.txt"} {
+		require.NoError(t, db.Insert(ctx, &schema.Object{}, schema.ObjectMeta{Volume: media.ID, Path: path, Size: 1, ModTime: modtime, Title: "gone", Run: media.Run}))
 	}
-	require.NoError(t, db.Insert(ctx, &schema.Object{}, schema.ObjectMeta{Path: "/mediaother/kept.txt", Size: 1, ModTime: modtime, Run: other.ID}))
-	require.NoError(t, db.Insert(ctx, &schema.Object{}, schema.ObjectMeta{Path: "/other/kept.txt", Size: 1, ModTime: modtime, Run: other.ID}))
+	require.NoError(t, db.Insert(ctx, &schema.Object{}, schema.ObjectMeta{Volume: other.ID, Path: "kept.txt", Size: 1, ModTime: modtime, Title: "other", Run: other.Run}))
+	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Finished: time.Now()}))
 
-	// The next run marks what's as it was, and indexes what's changed
-	var second schema.Run
-	require.NoError(t, db.Insert(ctx, &second, schema.RunMeta{Root: "/media", Started: time.Now()}))
+	// Its next run marks what's as it was, and indexes what's changed
+	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeStart{Started: time.Now()}))
+	assert.Equal(t, int64(2), media.Run)
 	var marked schema.Object
-	require.NoError(t, db.Update(ctx, &marked, schema.ObjectMark{Path: "/media/kept.txt", Size: 1, ModTime: modtime, Run: second.ID}, nil))
-	assert.Equal(t, second.ID, marked.Run)
-	assert.ErrorIs(t, db.Update(ctx, &marked, schema.ObjectMark{Path: "/media/changed.txt", Size: 2, ModTime: modtime, Run: second.ID}, nil), sqlite.ErrNotFound)
-	assert.ErrorIs(t, db.Update(ctx, &marked, schema.ObjectMark{Path: "/media/new.txt", Size: 1, ModTime: modtime, Run: second.ID}, nil), sqlite.ErrNotFound)
-	require.NoError(t, db.Insert(ctx, &schema.Object{}, schema.ObjectMeta{Path: "/media/changed.txt", Size: 2, ModTime: modtime, Run: second.ID}))
+	require.NoError(t, db.Update(ctx, &marked, schema.ObjectMark{Volume: media.ID, Path: "kept.txt", Size: 1, ModTime: modtime, Run: media.Run}, nil))
+	assert.Equal(t, media.Run, marked.Run)
+	assert.ErrorIs(t, db.Update(ctx, &marked, schema.ObjectMark{Volume: media.ID, Path: "changed.txt", Size: 2, ModTime: modtime, Run: media.Run}, nil), sqlite.ErrNotFound)
+	assert.ErrorIs(t, db.Update(ctx, &marked, schema.ObjectMark{Volume: media.ID, Path: "new.txt", Size: 1, ModTime: modtime, Run: media.Run}, nil), sqlite.ErrNotFound)
+	assert.ErrorIs(t, db.Update(ctx, &marked, schema.ObjectMark{Volume: other.ID, Path: "changed.txt", Size: 1, ModTime: modtime, Run: media.Run}, nil), sqlite.ErrNotFound, "of another volume")
+	require.NoError(t, db.Insert(ctx, &schema.Object{}, schema.ObjectMeta{Volume: media.ID, Path: "changed.txt", Size: 2, ModTime: modtime, Run: media.Run}))
 
-	// Once it's finished, what it didn't see, of its root, is swept, with its
-	// text, and not what's of another root, or which starts with its path
-	var finished schema.Run
-	require.NoError(t, db.Update(ctx, &finished, schema.RunID(second.ID), schema.RunFinish{Finished: time.Now()}))
-	assert.NotNil(t, finished.Finished)
+	// Once it's indexed, what it didn't see, of its volume, is swept, with its
+	// text, and not another volume's
+	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Finished: time.Now()}))
 	var swept schema.ObjectList
-	require.NoError(t, db.Delete(ctx, &swept, schema.ObjectSweep{Root: "/media/", Run: second.ID}))
-	assert.ElementsMatch(t, []string{"/media/gone.txt", "/media/sub/gone.txt"}, paths(swept))
+	require.NoError(t, db.Delete(ctx, &swept, schema.ObjectSweep{Volume: media.ID, Run: media.Run}))
+	assert.ElementsMatch(t, []string{"gone.txt", "sub/gone.txt"}, paths(swept))
 	var list schema.ObjectList
 	require.NoError(t, db.List(ctx, &list, schema.ObjectListRequest{}))
-	assert.Equal(t, []string{"/media/changed.txt", "/media/kept.txt", "/mediaother/kept.txt", "/other/kept.txt"}, paths(list))
+	assert.Equal(t, []string{"changed.txt", "kept.txt", "kept.txt"}, paths(list))
 	list = schema.ObjectList{}
 	require.NoError(t, db.List(ctx, &list, schema.ObjectListRequest{Query: "gone"}))
-	assert.Equal(t, []string{"/media/kept.txt"}, paths(list), "the text of what's swept")
+	assert.Equal(t, []string{"kept.txt"}, paths(list), "the text of what's swept")
 
 	// Sweeping again sweeps nothing, which, with a reader, is not found, and
 	// an object is deleted, with its text
 	swept = schema.ObjectList{}
-	assert.ErrorIs(t, db.Delete(ctx, &swept, schema.ObjectSweep{Root: "/media", Run: second.ID}), sqlite.ErrNotFound)
+	assert.ErrorIs(t, db.Delete(ctx, &swept, schema.ObjectSweep{Volume: media.ID, Run: media.Run}), sqlite.ErrNotFound)
 	assert.Empty(t, swept.Body)
 	var deleted schema.Object
 	require.NoError(t, db.Delete(ctx, &deleted, schema.ObjectID(marked.ID)))
-	assert.Equal(t, "/media/kept.txt", deleted.Path)
+	assert.Equal(t, "kept.txt", deleted.Path)
 	list = schema.ObjectList{}
 	require.NoError(t, db.List(ctx, &list, schema.ObjectListRequest{Query: "gone"}))
 	assert.Empty(t, paths(list))
 
-	// A run which isn't is not found
-	assert.ErrorIs(t, db.Get(ctx, &finished, schema.RunID(999)), sqlite.ErrNotFound)
+	// A volume is deleted, with its objects, and their text
+	var deletedVolume schema.Volume
+	require.NoError(t, db.Delete(ctx, &deletedVolume, schema.VolumeID(other.ID)))
+	assert.Equal(t, "/other", deletedVolume.Path)
+	list = schema.ObjectList{}
+	require.NoError(t, db.List(ctx, &list, schema.ObjectListRequest{}))
+	assert.Equal(t, []string{"changed.txt"}, paths(list))
+	list = schema.ObjectList{}
+	require.NoError(t, db.List(ctx, &list, schema.ObjectListRequest{Query: "other"}))
+	assert.Empty(t, paths(list), "the text of a deleted volume's objects")
 }

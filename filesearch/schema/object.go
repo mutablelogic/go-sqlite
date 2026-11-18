@@ -14,9 +14,10 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
 
-// ObjectMeta is what's indexed of a file, which is written
+// ObjectMeta is what's indexed of a file, of a volume, which is written
 type ObjectMeta struct {
-	Path    string         `json:"path"`            // Absolute
+	Volume  int64          `json:"volume"`          // Its volume
+	Path    string         `json:"path"`            // Relative to its volume's
 	Size    int64          `json:"size"`            // In bytes
 	ModTime time.Time      `json:"modtime"`         // When it was modified
 	Type    string         `json:"type,omitempty"`  // Its content type
@@ -25,13 +26,14 @@ type ObjectMeta struct {
 	Meta    map[string]any `json:"meta,omitempty"`  // Its metadata, of "ns:key"
 	Artwork []byte         `json:"-"`               // An image, which is kept, and read on its own
 	Text    string         `json:"-"`               // Its content, as Markdown, which is searched, and not kept
-	Run     int64          `json:"run"`             // The run which indexed it
+	Run     int64          `json:"run"`             // The run of its volume which indexed it
 }
 
-// Object is a file which is indexed, which is read
+// Object is a file which is indexed, of a volume, which is read
 type Object struct {
 	ID      int64          `json:"id"`
-	Path    string         `json:"path"`
+	Volume  int64          `json:"volume"`
+	Path    string         `json:"path"` // Relative to its volume's
 	Size    int64          `json:"size"`
 	ModTime time.Time      `json:"modtime"`
 	Type    string         `json:"type,omitempty"`
@@ -39,7 +41,7 @@ type Object struct {
 	Title   string         `json:"title,omitempty"`
 	Meta    map[string]any `json:"meta,omitempty"`
 	Indexed time.Time      `json:"indexed"` // When it was indexed
-	Run     int64          `json:"run"`     // The run which last saw it
+	Run     int64          `json:"run"`     // The run of its volume which last saw it
 }
 
 // ObjectList is a list of objects, and their count, without their offset
@@ -52,30 +54,32 @@ type ObjectList struct {
 // ObjectID selects an object, by its id, to get or delete it
 type ObjectID int64
 
-// ObjectMark selects an object which is as it was, of its path, size and
-// when it was modified, to mark it as seen by a run, rather than indexing
-// it again, with Update, which is ErrNotFound when it isn't
+// ObjectMark selects an object which is as it was, of its volume, path,
+// size and when it was modified, to mark it as seen by its volume's run,
+// rather than indexing it again, with Update, which is ErrNotFound when it
+// isn't
 type ObjectMark struct {
+	Volume  int64
 	Path    string
 	Size    int64
 	ModTime time.Time
 	Run     int64
 }
 
-// ObjectSweep selects the objects of a root, which a complete run of it,
-// and those after it, didn't see, to delete them
+// ObjectSweep selects the objects of a volume, which its run didn't see,
+// once it's indexed, to delete them
 type ObjectSweep struct {
-	Root string
-	Run  int64
+	Volume int64
+	Run    int64
 }
 
-// ObjectListRequest lists objects, of a root, or all of them, and searches
-// them, when there's a query, of words which are all in their text, as
-// prefixes, the best first, or else by their paths
+// ObjectListRequest lists objects, of a volume, or all of them, and
+// searches them, when there's a query, of words which are all in their
+// text, as prefixes, the best first, or else by their paths
 type ObjectListRequest struct {
 	sqlite.OffsetLimit
-	Root  string `json:"root,omitempty" help:"Objects of a folder"`
-	Query string `json:"q,omitempty" help:"Words, which are all in the objects' text"`
+	Volume int64  `json:"volume,omitempty" help:"Objects of a volume"`
+	Query  string `json:"q,omitempty" help:"Words, which are all in the objects' text"`
 }
 
 // Artwork is an object's image, which is read on its own
@@ -97,7 +101,7 @@ func (o Object) String() string {
 
 // Insert binds an object, which replaces one of its path, with its text
 func (o ObjectMeta) Insert(bind *sqlite.Bind) (string, error) {
-	path, err := absPath(o.Path)
+	path, err := relPath(o.Path)
 	if err != nil {
 		return "", err
 	}
@@ -108,6 +112,7 @@ func (o ObjectMeta) Insert(bind *sqlite.Bind) (string, error) {
 	if meta == nil {
 		meta = map[string]any{}
 	}
+	bind.Set("volume", o.Volume)
 	bind.Set("path", path)
 	bind.Set("size", o.Size)
 	bind.Set("modtime", o.ModTime.UTC())
@@ -134,7 +139,7 @@ func (o ObjectMeta) Update(*sqlite.Bind) error {
 // Scan reads an object
 func (o *Object) Scan(row sqlite.Row) error {
 	var typ, kind, title *string
-	if err := row.Scan(&o.ID, &o.Path, &o.Size, &o.ModTime, &typ, &kind, &title, &o.Meta, &o.Indexed, &o.Run); err != nil {
+	if err := row.Scan(&o.ID, &o.Volume, &o.Path, &o.Size, &o.ModTime, &typ, &kind, &title, &o.Meta, &o.Indexed, &o.Run); err != nil {
 		return err
 	}
 	o.Type, o.Kind, o.Title = value(typ), value(kind), value(title)
@@ -181,10 +186,11 @@ func (m ObjectMark) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
 	if op != sqlite.Update {
 		return "", sqlite.ErrNotImplemented.Withf("mark: %v", op)
 	}
-	path, err := absPath(m.Path)
+	path, err := relPath(m.Path)
 	if err != nil {
 		return "", err
 	}
+	bind.Set("volume", m.Volume)
 	bind.Set("path", path)
 	bind.Set("size", m.Size)
 	bind.Set("modtime", m.ModTime.UTC())
@@ -192,23 +198,17 @@ func (m ObjectMark) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
 	return bind.Query("filesearch.object_mark"), nil
 }
 
-// Select the objects of a root, which runs since the run didn't see, to
-// delete them
+// Select the objects of a volume, which its run didn't see, to delete them
 func (s ObjectSweep) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
 	if op != sqlite.Delete {
 		return "", sqlite.ErrNotImplemented.Withf("sweep: %v", op)
 	}
-	root, err := absPath(s.Root)
-	if err != nil {
-		return "", err
-	}
-	bind.Set("root", root)
-	bind.Set("prefix", prefix(root))
+	bind.Set("volume", s.Volume)
 	bind.Set("run", s.Run)
 	return bind.Query("filesearch.object_sweep"), nil
 }
 
-// Select objects, of a root, or all of them, which match the query, when
+// Select objects, of a volume, or all of them, which match the query, when
 // there is one
 func (r ObjectListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
 	if op != sqlite.List {
@@ -216,14 +216,10 @@ func (r ObjectListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, erro
 	}
 	r.OffsetLimit.Bind(bind, ListLimit)
 
-	// Of a root
+	// Of a volume
 	var where string
-	if r.Root != "" {
-		root, err := absPath(r.Root)
-		if err != nil {
-			return "", err
-		}
-		where = "(path = " + bind.Set("root", root) + " OR substr(path, 1, length(" + bind.Set("prefix", prefix(root)) + ")) = @prefix)"
+	if r.Volume != 0 {
+		where = "volume = " + bind.Set("volume", r.Volume)
 	}
 
 	// Searched, of the words of the query, or listed, by path
@@ -259,9 +255,14 @@ func absPath(path string) (string, error) {
 	return filepath.ToSlash(filepath.Clean(path)), nil
 }
 
-// prefix returns the prefix of the paths within a root
-func prefix(root string) string {
-	return strings.TrimSuffix(root, "/") + "/"
+// relPath returns the path, relative to a volume's, cleaned, with /
+// separators, which isn't absolute, or outside of it
+func relPath(path string) (string, error) {
+	clean := filepath.ToSlash(filepath.Clean(path))
+	if path == "" || filepath.IsAbs(path) || strings.HasPrefix(clean, "/") || clean == "." || clean == ".." || strings.HasPrefix(clean, "../") {
+		return "", sqlite.ErrBadParameter.Withf("path isn't within a volume: %q", path)
+	}
+	return clean, nil
 }
 
 // and returns the condition, after AND, or nothing

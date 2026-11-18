@@ -2,6 +2,7 @@ package filesearch
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -153,7 +154,8 @@ func (r *read) addError(err error) {
 
 // addMeta adds a value of metadata, of its key, which is a list of the
 // values, when there's more than one, unless it's an image, or bytes, which
-// aren't searched
+// aren't searched. A value is as the entry marshals it, when it does, such as
+// a duration as "1h58m0s", rather than its nanoseconds
 func addMeta(meta map[string]any, key string, entry metadata.Metadata) {
 	if entry.Image() != nil {
 		return
@@ -161,6 +163,11 @@ func addMeta(meta map[string]any, key string, entry metadata.Metadata) {
 	v := entry.Any()
 	if _, isBytes := v.([]byte); isBytes || v == nil {
 		return
+	}
+	if marshaler, ok := entry.(json.Marshaler); ok {
+		if data, err := marshaler.MarshalJSON(); err == nil {
+			v = json.RawMessage(data)
+		}
 	}
 	switch existing := meta[key].(type) {
 	case nil:

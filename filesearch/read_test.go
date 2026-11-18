@@ -3,7 +3,9 @@ package filesearch_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -12,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"testing"
+	"time"
 
 	// Packages
 	metadata "github.com/mutablelogic/go-metadata"
@@ -181,4 +184,48 @@ func Test_GetObject(t *testing.T) {
 	markdown, err := manager.Markdown(ctx, object.ID)
 	require.NoError(t, err)
 	assert.Contains(t, markdown, "It rained.")
+}
+
+// durationEntry is metadata of a duration, which marshals it as text, as
+// go-metadata's entries do
+type durationEntry time.Duration
+
+func (e durationEntry) NS() string                   { return "fstest" }
+func (e durationEntry) Key() string                  { return "runtime" }
+func (e durationEntry) Value() string                { return time.Duration(e).String() }
+func (e durationEntry) Bytes() []byte                { return []byte(e.Value()) }
+func (e durationEntry) Image() image.Image           { return nil }
+func (e durationEntry) Any() any                     { return time.Duration(e) }
+func (e durationEntry) MarshalJSON() ([]byte, error) { return json.Marshal(e.Value()) }
+
+// countEntry is metadata of a number, which doesn't marshal itself
+type countEntry int
+
+func (e countEntry) NS() string         { return "fstest" }
+func (e countEntry) Key() string        { return "count" }
+func (e countEntry) Value() string      { return fmt.Sprint(int(e)) }
+func (e countEntry) Bytes() []byte      { return []byte(e.Value()) }
+func (e countEntry) Image() image.Image { return nil }
+func (e countEntry) Any() any           { return int(e) }
+
+func Test_ReadFileValues(t *testing.T) {
+	ctx := t.Context()
+	manager := test.New(t)
+	root := t.TempDir()
+
+	// A value is as its entry marshals it, such as a duration as text, or,
+	// when it doesn't, as it is
+	require.NoError(t, metadata.AddTextExtensionType(".fsvalues", "text/x-filesearch-values"))
+	metadata.AddHandler(regexp.MustCompile(`^text/x-filesearch-values$`), "filesearch-values", func(ctx context.Context, r io.Reader, opts *metadata.Opts) ([]metadata.Metadata, error) {
+		return []metadata.Metadata{durationEntry(118 * time.Minute), countEntry(3)}, nil
+	}, metadata.MetadataNamespace)
+	write(t, root, map[string]string{"film.fsvalues": "content"})
+	volume, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root}, nil)
+	require.NoError(t, err)
+	list, err := manager.ListObjects(ctx, schema.ObjectListRequest{Volumes: []int64{volume.ID}})
+	require.NoError(t, err)
+	if assert.Len(t, list.Body, 1) {
+		assert.Equal(t, "1h58m0s", list.Body[0].Meta["fstest:runtime"])
+		assert.EqualValues(t, 3, list.Body[0].Meta["fstest:count"])
+	}
 }

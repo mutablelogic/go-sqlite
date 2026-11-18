@@ -1,6 +1,7 @@
 package filesearch
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -165,8 +166,8 @@ func addMeta(meta map[string]any, key string, entry metadata.Metadata) {
 		return
 	}
 	if marshaler, ok := entry.(json.Marshaler); ok {
-		if data, err := marshaler.MarshalJSON(); err == nil {
-			v = json.RawMessage(data)
+		if marshaled, ok := unmarshal(marshaler); ok {
+			v = marshaled
 		}
 	}
 	switch existing := meta[key].(type) {
@@ -177,6 +178,23 @@ func addMeta(meta map[string]any, key string, entry metadata.Metadata) {
 	default:
 		meta[key] = []any{existing, v}
 	}
+}
+
+// unmarshal returns the value which an entry marshals, decoded, so strings
+// and lists of them are searched, with numbers as they're written, rather than
+// as floats
+func unmarshal(marshaler json.Marshaler) (any, bool) {
+	data, err := marshaler.MarshalJSON()
+	if err != nil {
+		return nil, false
+	}
+	var v any
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	if err := dec.Decode(&v); err != nil || v == nil {
+		return nil, false
+	}
+	return v, true
 }
 
 // stringList returns a value which is a list of strings, or a string, as a

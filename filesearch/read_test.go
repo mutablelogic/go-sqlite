@@ -198,6 +198,18 @@ func (e durationEntry) Image() image.Image           { return nil }
 func (e durationEntry) Any() any                     { return time.Duration(e) }
 func (e durationEntry) MarshalJSON() ([]byte, error) { return json.Marshal(e.Value()) }
 
+// nameEntry is metadata of a name, which marshals itself, as go-metadata's
+// entries do
+type nameEntry string
+
+func (e nameEntry) NS() string                   { return "fstest" }
+func (e nameEntry) Key() string                  { return "director" }
+func (e nameEntry) Value() string                { return string(e) }
+func (e nameEntry) Bytes() []byte                { return []byte(e) }
+func (e nameEntry) Image() image.Image           { return nil }
+func (e nameEntry) Any() any                     { return string(e) }
+func (e nameEntry) MarshalJSON() ([]byte, error) { return json.Marshal(string(e)) }
+
 // countEntry is metadata of a number, which doesn't marshal itself
 type countEntry int
 
@@ -217,7 +229,7 @@ func Test_ReadFileValues(t *testing.T) {
 	// when it doesn't, as it is
 	require.NoError(t, metadata.AddTextExtensionType(".fsvalues", "text/x-filesearch-values"))
 	metadata.AddHandler(regexp.MustCompile(`^text/x-filesearch-values$`), "filesearch-values", func(ctx context.Context, r io.Reader, opts *metadata.Opts) ([]metadata.Metadata, error) {
-		return []metadata.Metadata{durationEntry(118 * time.Minute), countEntry(3)}, nil
+		return []metadata.Metadata{durationEntry(118 * time.Minute), countEntry(3), nameEntry("Ridley Scott")}, nil
 	}, metadata.MetadataNamespace)
 	write(t, root, map[string]string{"film.fsvalues": "content"})
 	volume, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root}, nil)
@@ -227,5 +239,14 @@ func Test_ReadFileValues(t *testing.T) {
 	if assert.Len(t, list.Body, 1) {
 		assert.Equal(t, "1h58m0s", list.Body[0].Meta["fstest:runtime"])
 		assert.EqualValues(t, 3, list.Body[0].Meta["fstest:count"])
+		assert.Equal(t, "Ridley Scott", list.Body[0].Meta["fstest:director"])
+	}
+
+	// A string which marshals itself is searched, though it's only of the
+	// metadata
+	found, err := manager.ListObjects(ctx, schema.ObjectListRequest{Query: types.Ptr("ridley"), Cutoff: types.Ptr(0.0)})
+	require.NoError(t, err)
+	if assert.Len(t, found.Body, 1) {
+		assert.Equal(t, "film.fsvalues", found.Body[0].Path)
 	}
 }

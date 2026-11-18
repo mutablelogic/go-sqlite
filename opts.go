@@ -183,8 +183,8 @@ func WithTracer(t trace.Tracer) Opt {
 // a row. Writes by other processes, and of tables WITHOUT ROWID, aren't
 // published.
 //
-// Publish is called once the writer is released, while it's still held, so
-// it mustn't block, or query the database.
+// Publish is called after the commit, before the writer is released, so it
+// mustn't block, or query the database.
 func WithBroadcaster(b Publisher, tables ...string) Opt {
 	return func(o *Options) error {
 		if b == nil {

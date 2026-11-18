@@ -599,7 +599,7 @@ db, err := ncruces.Open(ctx, path,
 
 * **A change** is its action (`create`, `update` or `delete`), its database (`main`), its table, and its rowid as `Row`.
 * **Tables:** the tables named, or all of them. The shadow tables of virtual tables, such as fts5's, are left out.
-* **Committed:** changes are published after the transaction commits, when the writer is released, so a watcher reads what changed. Rolled-back transactions and savepoints publish nothing.
+* **Committed:** changes are published after the transaction commits, so a watcher reads what changed. Rolled-back transactions and savepoints publish nothing.
 * **Once per row:** a row written several times in a transaction is one change. Created then deleted is none.
 * **Many rows:** over `sqlite.MaxChanges` rows of a table in one transaction are one change of the table, without a `Row`.
 * **Every row:** rows deleted by a foreign key's cascade, by a `DELETE` without a `WHERE`, or replaced by `INSERT OR REPLACE`, are published. A row whose rowid changes is a delete and a create.

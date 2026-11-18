@@ -52,10 +52,17 @@ var _ sqlite.PoolConn = (*poolconn)(nil)
 // wait. A file's journal is a write-ahead log, so they read what's committed
 // while it's written. Within a transaction, use its Conn, rather than the
 // pool's, to write, as the pool's waits for the transaction to end.
-func Open(ctx context.Context, path string, opts ...sqlite.Opt) (sqlite.PoolConn, error) {
+func Open(ctx context.Context, path string, opts ...sqlite.Opt) (_ sqlite.PoolConn, err error) {
 	o, err := sqlite.Apply(opts...)
 	if err != nil {
 		return nil, err
+	}
+	ctx, span := startOpen(ctx, o.Tracer, path)
+	if span != nil {
+		defer func() {
+			endSpan(span, err)
+			span.End()
+		}()
 	}
 	if path = strings.TrimSpace(path); path == "" {
 		return nil, sqlite.ErrBadParameter.With("path is empty")

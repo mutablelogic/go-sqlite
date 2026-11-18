@@ -44,6 +44,15 @@ err := db.Tx(ctx, func(conn sqlite.Conn) error {
 - **Use its `conn`:** the pool's writer waits for the transaction to end. Reads on the pool don't wait.
 - **Bulk:** `Bulk` is a transaction which prepares each statement once, and reuses it, such as for many inserts. It's about twice as fast.
 
+## Tracing
+
+`sqlite.WithTracer` sets an OpenTelemetry tracer, of a span for each query:
+
+- **Named** by the query's name, of `Bind.Query`, such as `users.get`, or `sqlite.query`.
+- **Transactions:** `sqlite.transaction`, `sqlite.commit` and `sqlite.rollback`, of savepoints too. Opening the database is `sqlite.open`.
+- **Attributes:** `db.system`, `db.statement`, and the arguments it bound, as `arg.` and their names.
+- **Errors** are the span's, except not found.
+
 ## Schema versions
 
 `sqlite.Version` and `sqlite.SetVersion` read and set SQLite's `user_version`, so a schema is migrated as it changes.

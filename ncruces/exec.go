@@ -39,24 +39,12 @@ type row struct {
 ////////////////////////////////////////////////////////////////////////////////
 // EXECUTE
 
-// execute executes the query's statements, with its ${key} replaced, and its
-// @key arguments bound, and scans their rows into the reader, which is
-// ErrNotFound without any
-func execute(db *sqlite3.Conn, cache statements, bind *sqlite.Bind, query string, reader sqlite.Reader) error {
-	return executeRows(db, cache, bind, query, reader, false)
-}
-
-// executeOne executes the query's statements, as execute does, and scans the
-// first row into the reader, without reading the others
-func executeOne(db *sqlite3.Conn, cache statements, bind *sqlite.Bind, query string, reader sqlite.Reader) error {
-	return executeRows(db, cache, bind, query, reader, true)
-}
-
-// executeRows executes the query's statements, which are reused, of the
-// cache, when it isn't nil, and the query is one statement, or else
-// prepared, and closed
-func executeRows(db *sqlite3.Conn, cache statements, bind *sqlite.Bind, query string, reader sqlite.Reader, one bool) error {
-	query, vars := bind.Expand(query)
+// executeRows executes the query's statements, whose ${key} are replaced,
+// with their arguments bound, of the vars, which are set in args, when it
+// isn't nil, and scans their rows, or the first, into the reader, which is
+// ErrNotFound without any. They're reused, of the cache, when it isn't nil,
+// and the query is one statement, or else prepared, and closed.
+func executeRows(db *sqlite3.Conn, cache statements, query string, vars map[string]any, reader sqlite.Reader, one bool, args map[string]any) error {
 	scanned := false
 	for strings.TrimSpace(query) != "" {
 		stmt, cached := cache[query]
@@ -79,7 +67,7 @@ func executeRows(db *sqlite3.Conn, cache statements, bind *sqlite.Bind, query st
 			}
 			query = tail
 		}
-		if err := run(stmt, cached, vars, reader, one, &scanned); err != nil {
+		if err := run(stmt, cached, vars, args, reader, one, &scanned); err != nil {
 			return err
 		}
 	}
@@ -92,7 +80,7 @@ func executeRows(db *sqlite3.Conn, cache statements, bind *sqlite.Bind, query st
 // run steps the statement, and then resets it, when it's cached, so it
 // doesn't read, or lock, until it's reused, or closes it, even when it
 // panics, such as when it's scanned
-func run(stmt *sqlite3.Stmt, cached bool, vars map[string]any, reader sqlite.Reader, one bool, scanned *bool) (err error) {
+func run(stmt *sqlite3.Stmt, cached bool, vars, args map[string]any, reader sqlite.Reader, one bool, scanned *bool) (err error) {
 	defer func() {
 		if cached {
 			_ = stmt.Reset()
@@ -101,11 +89,11 @@ func run(stmt *sqlite3.Stmt, cached bool, vars map[string]any, reader sqlite.Rea
 			_ = stmt.Close()
 		}
 	}()
-	return step(stmt, vars, reader, one, scanned)
+	return step(stmt, vars, args, reader, one, scanned)
 }
 
 // step binds the statement's arguments, and scans its rows into the reader
-func step(stmt *sqlite3.Stmt, vars map[string]any, reader sqlite.Reader, one bool, scanned *bool) error {
+func step(stmt *sqlite3.Stmt, vars, args map[string]any, reader sqlite.Reader, one bool, scanned *bool) error {
 	for i := 1; i <= stmt.BindCount(); i++ {
 		name := stmt.BindName(i)
 		if name == "" {
@@ -114,6 +102,9 @@ func step(stmt *sqlite3.Stmt, vars map[string]any, reader sqlite.Reader, one boo
 		}
 		if err := values.Set(param{stmt, i}, vars[name[1:]]); err != nil {
 			return sqlite.ErrBadParameter.Withf("%s: %w", name, err)
+		}
+		if args != nil {
+			args[name[1:]] = vars[name[1:]]
 		}
 	}
 	for stmt.Step() {

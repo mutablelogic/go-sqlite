@@ -3,6 +3,9 @@ package sqlite
 import (
 	"regexp"
 	"strings"
+
+	// Packages
+	trace "go.opentelemetry.io/otel/trace"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,6 +25,9 @@ type Options struct {
 
 	// The bind variables of each query
 	Bind *Bind
+
+	// The OpenTelemetry tracer, of a span of each query
+	Tracer trace.Tracer
 
 	// The options of an implementation, such as ncruces's, which it reads,
 	// and which another rejects
@@ -133,6 +139,18 @@ func WithFunction(name string, args int, deterministic bool, fn func(args ...any
 			return ErrBadParameter.Withf("function %s: nil", name)
 		}
 		o.Functions = append(o.Functions, Function{Name: name, Args: args, Deterministic: deterministic, Fn: fn})
+		return nil
+	}
+}
+
+// WithTracer sets the OpenTelemetry tracer, of a span of each query, which
+// is named by the query's name, of Bind.Query, or sqlite.query, or, of a
+// transaction's statements, sqlite.transaction, sqlite.commit or
+// sqlite.rollback, with its SQL, and its arguments, as arg. and their
+// names, and of opening the database, sqlite.open.
+func WithTracer(t trace.Tracer) Opt {
+	return func(o *Options) error {
+		o.Tracer = t
 		return nil
 	}
 }

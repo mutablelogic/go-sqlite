@@ -2,14 +2,11 @@ module github.com/mutablelogic/go-sqlite/filesearch
 
 go 1.27.2
 
-// The parent module, while it's developed alongside it
-replace github.com/mutablelogic/go-sqlite => ../
-
 require (
 	github.com/mutablelogic/go-client v1.4.13
 	github.com/mutablelogic/go-metadata v1.1.4
 	github.com/mutablelogic/go-server v1.8.17
-	github.com/mutablelogic/go-sqlite v1.0.51
+	github.com/mutablelogic/go-sqlite v1.1.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/sdk v1.47.0

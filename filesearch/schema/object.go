@@ -318,8 +318,11 @@ func (r *ObjectListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, err
 	}
 	sql, ok := orders[order]
 	switch {
-	case order == OrderRank:
+	case order == OrderRank && r.Query == nil:
 		return "", sqlite.ErrBadParameter.With("order by rank is of a search, with a query")
+	case order == OrderRank:
+		// A query without any words matches nothing, so its order is any
+		sql = orders[OrderPath]
 	case !ok:
 		return "", sqlite.ErrBadParameter.Withf("order: %q", r.Order)
 	case r.Cutoff != nil && r.Query == nil:

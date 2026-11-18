@@ -200,9 +200,12 @@ func Test_Objects(t *testing.T) {
 	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Volumes: []int64{999}}))
 	assert.Empty(t, paths(list))
 
-	// A query without any words matches nothing, and without a query, they're
-	// listed
+	// A query without any words matches nothing, of any order, and without a
+	// query, they're listed
 	for _, query := range []string{"", "  "} {
+		list = schema.ObjectList{}
+		require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr(query), Order: schema.OrderRank}))
+		assert.Empty(t, paths(list), "%q", query)
 		list = schema.ObjectList{}
 		require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr(query)}))
 		assert.Empty(t, paths(list), "%q", query)

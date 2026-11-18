@@ -38,6 +38,15 @@ build: tidy
 	@echo Build
 	@${GO} build ./...
 	@$(if $(CMD_DIR),$(MAKE) --no-print-directory $(CMD_DIR),true)
+	@$(MAKE) --no-print-directory filesearch
+
+# Build filesearch, of its own module, which reads documents, email, text
+# and images, or, with MEDIA=1, audio, video and photos' EXIF, HEIF and RAW
+# too, with cgo, and the C libraries which go-metadata needs
+.PHONY: filesearch
+filesearch: go-dep mkdir
+	@echo Build command filesearch $(if $(MEDIA),with media,)
+	@cd filesearch && $(if $(MEDIA),CGO_ENABLED=1,) ${GO} build $(if $(MEDIA),-tags media,) ${BUILD_FLAGS} -o ../${BUILD_DIR}/filesearch ./cmd/filesearch
 
 $(CMD_DIR): go-dep mkdir
 	@echo Build command $(notdir $@) GOOS=${OS} GOARCH=${ARCH}

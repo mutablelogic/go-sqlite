@@ -115,16 +115,31 @@ func (m *Manager) IndexVolume(ctx context.Context, req schema.IndexVolumeRequest
 	}
 	p.start(volume)
 
+	// Count its files, which is quicker than reading them, so how far it's
+	// indexed is known, and say so
+	total, err := m.count(ctx, volume.Path, req.Recursive)
+	if err == nil {
+		p.Lock()
+		p.Total = total
+		p.Unlock()
+		p.say(nil)
+	}
+
 	// Walk it, and then, when it's walked, finish its run, as indexed, and
 	// sweep what it didn't see, in one transaction, so it's indexed only once
 	// it's swept
-	err = m.walk(ctx, &volume, req.Recursive, p)
-	finished := time.Now()
+	if err == nil {
+		err = m.walk(ctx, &volume, req.Recursive, p)
+	}
+	finished, run := time.Now(), volume.Run
+	superseded := sqlite.ErrConflict.Withf("%s is indexed by another run, which started after this one", root)
 	var swept schema.ObjectList
 	if err == nil {
 		err = m.conn.Tx(ctx, func(conn sqlite.Conn) error {
 			swept = schema.ObjectList{}
-			if err := conn.Update(ctx, &volume, schema.VolumeID(volume.ID), schema.VolumeFinish{Finished: finished}); err != nil {
+			if err := conn.Update(ctx, &volume, schema.VolumeID(volume.ID), schema.VolumeFinish{Run: run, Finished: finished}); errors.Is(err, sqlite.ErrNotFound) {
+				return superseded
+			} else if err != nil {
 				return err
 			}
 			if err := conn.Delete(ctx, &swept, schema.ObjectSweep{Volume: volume.ID, Run: volume.Run}); err != nil && !errors.Is(err, sqlite.ErrNotFound) {
@@ -135,9 +150,14 @@ func (m *Manager) IndexVolume(ctx context.Context, req schema.IndexVolumeRequest
 	}
 
 	// Or, when it wasn't, finish its run, without being cancelled, as failed,
-	// with its error
+	// with its error, unless another run started after it, which finishes it
 	if err != nil {
-		if finishErr := m.conn.Update(context.WithoutCancel(ctx), &volume, schema.VolumeID(volume.ID), schema.VolumeFinish{Finished: finished, Error: err}); finishErr != nil {
+		if finishErr := m.conn.Update(context.WithoutCancel(ctx), &volume, schema.VolumeID(volume.ID), schema.VolumeFinish{Run: run, Finished: finished, Error: err}); finishErr != nil {
+			if errors.Is(finishErr, sqlite.ErrNotFound) && !errors.Is(err, superseded) {
+				finishErr = superseded
+			} else if errors.Is(finishErr, sqlite.ErrNotFound) {
+				finishErr = nil
+			}
 			err = errors.Join(err, finishErr)
 			m.endProgress(root, &finished, err)
 			return nil, err
@@ -210,6 +230,31 @@ func (m *Manager) endProgress(root string, finished *time.Time, err error) {
 	p.Current = ""
 	p.Unlock()
 	p.say(err)
+}
+
+// count returns the files of a volume, of its folders, when it's recursive,
+// which aren't excluded, and are regular, without reading them
+func (m *Manager) count(ctx context.Context, root string, recursive bool) (uint64, error) {
+	var total uint64
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if path == root {
+			return err
+		}
+		if err != nil || m.excluded(filepath.Base(path)) || (d.IsDir() && !recursive) {
+			if d != nil && d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if d.Type().IsRegular() {
+			total++
+		}
+		return nil
+	})
+	return total, err
 }
 
 // walk walks the volume, of its folders, when it's recursive, and indexes,
@@ -291,6 +336,16 @@ func (m *Manager) walk(ctx context.Context, volume *schema.Volume, recursive boo
 			return err
 		}
 		rel := relPath(volume.Path, path)
+
+		// What's excluded, of its name, but for the volume's folder, isn't
+		// indexed, nor a folder's files, and isn't an error when it can't be
+		// read, such as a hidden folder of the system's
+		if path != volume.Path && m.excluded(filepath.Base(path)) {
+			if d != nil && d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
 
 		// A file, or a folder, which can't be read, is said, and isn't indexed,
 		// unless it's the volume's, which fails its run

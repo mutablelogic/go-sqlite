@@ -31,6 +31,7 @@ type pool struct {
 	readers chan *sqlite3.Conn // the readers, which are idle, or nil in memory
 	count   int                // the readers
 	done    chan struct{}      // closed when the pool is
+	changes *changes           // the writer's changes, which are published, or nil
 	close   sync.Once
 }
 
@@ -79,6 +80,9 @@ func Open(ctx context.Context, path string, opts ...sqlite.Opt) (_ sqlite.PoolCo
 	}
 	if p.writer, err = p.open(ctx, path, false, append(pragmas, o.Pragmas...)); err != nil {
 		return nil, err
+	}
+	if p.changes = newChanges(o); p.changes != nil {
+		p.changes.hook(p.writer)
 	}
 	p.write <- struct{}{}
 
@@ -183,7 +187,12 @@ func (p *pool) acquireWriter(ctx context.Context) (*sqlite3.Conn, func(), error)
 	}
 	select {
 	case <-p.write:
-		return p.writer, func() { p.write <- struct{}{} }, nil
+		// What's committed is published once it's released, before another
+		// can write
+		return p.writer, func() {
+			p.changes.flush(p.writer)
+			p.write <- struct{}{}
+		}, nil
 	case <-ctx.Done():
 		return nil, nil, ctx.Err()
 	case <-p.done:
@@ -209,6 +218,15 @@ func (p *pool) acquireReader(ctx context.Context) (*sqlite3.Conn, func(), error)
 	case <-p.done:
 		return nil, nil, sqlite.ErrNotAvailable.With("database is closed")
 	}
+}
+
+// writerChanges returns the writer's changes, when the connection is the
+// writer, or else nil, so a reader's statements don't change them
+func (p *pool) writerChanges(db *sqlite3.Conn) *changes {
+	if db != p.writer {
+		return nil
+	}
+	return p.changes
 }
 
 // ready returns an error when the context is done, or the pool is closed

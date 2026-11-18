@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	// Packages
+	schema "github.com/mutablelogic/go-server/broadcaster/schema"
 	values "github.com/mutablelogic/go-sqlite/values"
 	trace "go.opentelemetry.io/otel/trace"
 )
@@ -29,6 +30,18 @@ type Options struct {
 
 	// The OpenTelemetry tracer, of a span of each query
 	Tracer trace.Tracer
+
+	// The broadcaster, which the rows which are written are published to,
+	// once they're committed, and the tables which are, or all of them
+	Broadcaster Publisher
+	Tables      []string
+}
+
+// Publisher is what changes are published to, such as go-server's
+// broadcaster.Broadcaster. Publish doesn't block, and returns the watchers
+// which missed the change.
+type Publisher interface {
+	Publish(schema.Change) int
 }
 
 // Opt is an option of a database, which Open is given
@@ -57,6 +70,10 @@ type Function struct {
 // GLOBALS
 
 const (
+	// MaxChanges is the most rows of a table, of a transaction, which are
+	// published as changes of each, rather than one change of the table
+	MaxChanges = 1000
+
 	// DefaultReaders is the most connections which read at once
 	DefaultReaders = 4
 
@@ -151,6 +168,34 @@ func WithFunction(name string, deterministic bool, fn Fn) Opt {
 func WithTracer(t trace.Tracer) Opt {
 	return func(o *Options) error {
 		o.Tracer = t
+		return nil
+	}
+}
+
+// WithBroadcaster publishes the rows which are inserted, updated and deleted,
+// once they're committed, to a broadcaster, such as go-server's
+// broadcaster.Broadcaster, as a change of each row: its action, the
+// database, such as main, its table, and its rowid. Changes of the tables,
+// when there are some, are published, or else of all of them, other than
+// the shadow tables of virtual tables, such as fts5's. A row which is
+// written more than once in a transaction is one change. A transaction of
+// more than MaxChanges rows of a table is one change of the table, without
+// a row. Writes by other processes, and of tables WITHOUT ROWID, aren't
+// published.
+//
+// Publish is called after the commit, before the writer is released, so it
+// mustn't block, or query the database.
+func WithBroadcaster(b Publisher, tables ...string) Opt {
+	return func(o *Options) error {
+		if b == nil {
+			return ErrBadParameter.With("broadcaster: nil")
+		}
+		for _, table := range tables {
+			if !isIdentifier(table) {
+				return ErrBadParameter.Withf("broadcaster: table %q", table)
+			}
+		}
+		o.Broadcaster, o.Tables = b, append(o.Tables, tables...)
 		return nil
 	}
 }

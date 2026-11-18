@@ -271,6 +271,7 @@ func (c *conn) savepoint(ctx context.Context, fn func(sqlite.Conn) error) error 
 	exec := func(ctx context.Context, sql string) error {
 		return c.do(ctx, true, func(db *sqlite3.Conn) error { return c.pool.exec(ctx, db, sql) })
 	}
+	mark := c.pool.changes.savepoint()
 	if err := exec(ctx, "SAVEPOINT "+name); err != nil {
 		return err
 	}
@@ -279,7 +280,9 @@ func (c *conn) savepoint(ctx context.Context, fn func(sqlite.Conn) error) error 
 	released := false
 	rollback := func() error {
 		ctx := context.WithoutCancel(ctx)
-		return errors.Join(exec(ctx, "ROLLBACK TO "+name), exec(ctx, "RELEASE "+name))
+		err := exec(ctx, "ROLLBACK TO "+name)
+		c.pool.changes.rollbackTo(mark)
+		return errors.Join(err, exec(ctx, "RELEASE "+name))
 	}
 	defer func() {
 		if !released {
@@ -309,7 +312,7 @@ func (c *conn) execute(ctx context.Context, db *sqlite3.Conn, bind *sqlite.Bind,
 	sql, vars := bind.Expand(query)
 	name, _ := vars[sqlite.TraceSpanNameArg].(string)
 	return c.pool.trace(ctx, name, sql, func(args map[string]any) error {
-		return executeRows(db, c.cache(), sql, vars, reader, one, args)
+		return executeRows(db, c.cache(), c.pool.writerChanges(db), sql, vars, reader, one, args)
 	})
 }
 

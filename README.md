@@ -608,18 +608,6 @@ db, err := ncruces.Open(ctx, path,
 * **Publish** is called while the writer is held, so it mustn't block or query the database. A watcher reads changes on its own goroutine, as go-server's broadcaster's do.
 * **Not seen:** writes by other processes, and of tables `WITHOUT ROWID`. Savepoints written by hand in SQL aren't tracked, so their rolled-back rows are still published.
 
-## Implementations
-
-The root package has no driver. Another implementation opens a `sqlite.PoolConn`, and passes the tests of the [`test`](test) package, as `ncruces.Open` does:
-
-```go
-func Test_Implementation(t *testing.T) {
-  test.Run(t, myimpl.Open)
-}
-```
-
-It converts values with `values.Set` and `values.Scan`, by adapting where SQLite gives values, such as a row's columns, and takes them, such as a statement's arguments.
-
 ## License & Distribution
 
 This software is licensed under the **Apache License 2.0**.

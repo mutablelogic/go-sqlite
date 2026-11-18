@@ -58,6 +58,13 @@ WHERE id = @id; -- by their identifier
 	assert.Equal(t, "CREATE TABLE users (id INT)", queries.Query("user.table"))
 	assert.Equal(t, "SELECT * FROM users\nWHERE id = @id", queries.Query("user.select"))
 
+	// A line which looks like a key, in a string, or a block comment, isn't
+	queries, err = NewQueries(strings.NewReader("-- sample\nSELECT 'first\n-- embedded\nlast';\n-- other\nSELECT /*\n-- inside\n*/ 2;\n"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"sample", "other"}, queries.Keys())
+	assert.Equal(t, "SELECT 'first\n-- embedded\nlast'", queries.Query("sample"))
+	assert.Equal(t, "SELECT /*\n-- inside\n*/ 2", queries.Query("other"))
+
 	// Keys can't be duplicated
 	_, err = NewQueries(strings.NewReader("-- user.select\nSELECT 1;\n-- user.select\nSELECT 2;\n"))
 	assert.ErrorIs(t, err, ErrBadParameter)
@@ -82,17 +89,22 @@ func Test_stripComments(t *testing.T) {
 		{"SELECT 'a--b' -- comment", "SELECT 'a--b'"},
 		{"SELECT 'it''s -- not' AS x", "SELECT 'it''s -- not' AS x"},
 		{`SELECT "a--b" FROM t -- comment`, `SELECT "a--b" FROM t`},
-		{`SELECT E'a\'--b' -- comment`, `SELECT E'a\'--b'`},
 		{"SELECT 'line one\n-- line two' -- comment", "SELECT 'line one\n-- line two'"},
 
-		// A dollar-quoted body is kept as it is, with its comments
-		{"CREATE FUNCTION f() RETURNS INT AS $$\n  -- the answer\n  SELECT 42; -- forty-two\n$$ LANGUAGE SQL -- comment", "CREATE FUNCTION f() RETURNS INT AS $$\n  -- the answer\n  SELECT 42; -- forty-two\n$$ LANGUAGE SQL"},
-		{"DO $body$ BEGIN -- start\nEND $body$; -- done", "DO $body$ BEGIN -- start\nEND $body$;"},
+		{`SELECT "a""--b" FROM t -- comment`, `SELECT "a""--b" FROM t`},
 
-		// Positional parameters and placeholders aren't dollar quotes
-		{"SELECT $1, $2 -- params", "SELECT $1, $2"},
+		// SQLite's other quoted identifiers, [a] and `a`, aren't comments
+		{"SELECT 1 AS [a--b] -- comment", "SELECT 1 AS [a--b]"},
+		{"SELECT 1 AS `a--b` -- comment", "SELECT 1 AS `a--b`"},
+		{"SELECT 1 AS `a``--b` -- comment", "SELECT 1 AS `a``--b`"},
+
+		// A block comment is kept as it is, with -- in it, on its lines
+		{"SELECT /* -- note */ 1 -- comment", "SELECT /* -- note */ 1"},
+		{"SELECT /* one\n-- two\n*/ 1 -- comment", "SELECT /* one\n-- two\n*/ 1"},
+
+		// Parameters and placeholders are kept
+		{"SELECT @id -- param", "SELECT @id"},
 		{`SELECT * FROM ${"schema"}.t -- table`, `SELECT * FROM ${"schema"}.t`},
-		{"SELECT a$b$ -- not a tag", "SELECT a$b$"},
 	} {
 		assert.Equal(t, test.want, stripComments(test.sql), test.sql)
 	}

@@ -54,10 +54,11 @@ vet: go-dep
 	@echo Vet
 	@${GO} vet ./...
 
+# The race detector needs cgo on Linux, though SQLite doesn't
 .PHONY: unit-test
 unit-test: go-dep
 	@echo Unit Tests
-	@${GO} test ./...
+	@CGO_ENABLED=1 ${GO} test -race ./...
 
 .PHONY: coverage-test
 coverage-test: go-dep mkdir

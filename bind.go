@@ -94,8 +94,7 @@ func (bind *Bind) withQueries(queries ...*Queries) *Bind {
 	}
 
 	// Make a copy of the bind vars
-	varsCopy := make(map[string]any, len(bind.vars))
-	maps.Copy(varsCopy, bind.vars)
+	varsCopy := bind.snapshot()
 
 	// Iterate through queries
 	for _, q := range queries {
@@ -112,11 +111,11 @@ func (bind *Bind) withQueries(queries ...*Queries) *Bind {
 // STRINGIFY
 
 func (bind *Bind) MarshalJSON() ([]byte, error) {
-	return json.Marshal(bind.vars)
+	return json.Marshal(bind.snapshot())
 }
 
 func (bind *Bind) String() string {
-	data, err := json.MarshalIndent(bind.vars, "", "  ")
+	data, err := json.MarshalIndent(bind.snapshot(), "", "  ")
 	if err != nil {
 		return err.Error()
 	} else {
@@ -208,12 +207,15 @@ func (bind *Bind) Append(key string, value any) bool {
 ///////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS - QUERY
 
-// Query looks up a named query, sets the span name for OpenTelemetry tracing,
-// and returns the resolved SQL string. The name should match a query key
-// that was loaded via withQueries (e.g., "pgqueue.get").
+// Query looks up a named query, which was loaded via WithQueries, such as
+// "index.object.get", sets the span name for OpenTelemetry tracing, and
+// returns its SQL, whose ${key} substitutions are replaced once, when it's
+// executed, so a value which has a $ in it, such as a path, isn't replaced
+// again. It returns an empty string when there's no query of the name.
 func (bind *Bind) Query(name string) string {
 	bind.Set(TraceSpanNameArg, name)
-	return bind.Replace("${" + name + "}")
+	sql, _ := bind.Get(name).(string)
+	return sql
 }
 
 // Replace returns a query string with ${subtitution} replaced by the values:
@@ -223,8 +225,18 @@ func (bind *Bind) Query(name string) string {
 //   - $1 => $1
 //   - $$ => $$
 func (bind *Bind) Replace(query string) string {
-	// Perform the replacement
-	return replace(query, bind.vars)
+	return replace(query, bind.snapshot())
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// snapshot returns a copy of the bind vars, so they're read, formatted or
+// marshaled without the lock held, while they may be set
+func (bind *Bind) snapshot() map[string]any {
+	bind.RLock()
+	defer bind.RUnlock()
+	return maps.Clone(bind.vars)
 }
 
 func replace(query string, vars map[string]any) string {

@@ -1,6 +1,7 @@
 package sqlite_test
 
 import (
+	"sync"
 	"testing"
 
 	// Packages
@@ -94,10 +95,39 @@ func Test_Bind_003(t *testing.T) {
 func Test_Query_001(t *testing.T) {
 	assert := assert.New(t)
 
-	// Test Bind.Query method - sets span name and returns resolved SQL
+	// Test Bind.Query method - sets span name and returns the named SQL
 	bind := sqlite.NewBind("user.select", "SELECT * FROM users WHERE id = @id")
 	sql := bind.Query("user.select")
 	assert.Equal("SELECT * FROM users WHERE id = @id", sql)
+	assert.Equal("user.select", bind.Get(sqlite.TraceSpanNameArg))
+	assert.Empty(bind.Query("user.missing"))
+}
+
+func Test_Query_002(t *testing.T) {
+	assert := assert.New(t)
+
+	// The named SQL's substitutions are replaced once, when it's executed,
+	// so a value with a $ in it isn't replaced again
+	bind := sqlite.NewBind("file.get", `SELECT * FROM ${"table"} WHERE path = ${'path'}`, "table", "files", "path", "a$b.txt", "b", "oops")
+	assert.Equal(`SELECT * FROM "files" WHERE path = 'a$b.txt'`, bind.Replace(bind.Query("file.get")))
+}
+
+func Test_Bind_Concurrent(t *testing.T) {
+	// A bind is read, replaced and marshaled while it's set, without a race
+	bind := sqlite.NewBind("q", "SELECT ${a}")
+	var wg sync.WaitGroup
+	for i := range 4 {
+		wg.Go(func() {
+			for j := range 100 {
+				bind.Set("a", i*j)
+				_ = bind.Replace(bind.Query("q"))
+				_, _ = bind.MarshalJSON()
+				_ = bind.String()
+				_ = bind.Copy()
+			}
+		})
+	}
+	wg.Wait()
 }
 
 func Test_Bind_Copy_001(t *testing.T) {

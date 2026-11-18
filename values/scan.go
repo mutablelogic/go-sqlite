@@ -2,6 +2,8 @@ package values
 
 import (
 	"database/sql"
+	"encoding"
+	"encoding/json"
 	"fmt"
 	"math"
 	"reflect"
@@ -14,18 +16,29 @@ import (
 // GLOBALS
 
 var (
-	timeType = reflect.TypeFor[time.Time]()
+	timeType     = reflect.TypeFor[time.Time]()
+	durationType = reflect.TypeFor[time.Duration]()
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// Scan scans a value which SQLite gives into a pointer: to a bool, an
-// integer, a float, a string, a []byte, which is nil when it's NULL, a
-// time.Time, an any, a named type of one of those, or a pointer to one,
-// which is nil when it's NULL. A sql.Scanner scans Any of the value. A value
-// which doesn't fit, NULL, but for an any, a []byte or a pointer, and text
-// which isn't a number or a time, are errors.
+// Scan scans a value which SQLite gives into a pointer, the first of these
+// which it points to:
+//   - a sql.Scanner, such as a uuid.UUID, scans Any of the value
+//   - an any is Any of the value
+//   - a pointer is nil when it's NULL, or else points to the value
+//   - NULL is nil, for a slice or a map, and otherwise an error
+//   - a time.Time, as Time reads it, or a time.Duration, as Duration does
+//   - an array of bytes of a blob's length, such as the standard library's
+//     uuid.UUID, of the blob, unless it's an encoding.BinaryUnmarshaler
+//   - an encoding.TextUnmarshaler, of text, or an encoding.BinaryUnmarshaler,
+//     of a blob, or whichever it is, when it isn't both
+//   - a json.Unmarshaler, of its JSON
+//   - a bool, an integer, a float, or a string, of named types too, which a
+//     number, or text which is one, fits, without overflowing
+//   - a []byte, or an array of bytes, such as a [16]byte, of its length
+//   - a slice, an array, a map or a struct, of its JSON
 func Scan(v Value, dest any) error {
 	if scanner, ok := dest.(sql.Scanner); ok {
 		return scanner.Scan(Any(v))
@@ -44,8 +57,8 @@ func Scan(v Value, dest any) error {
 func set(v Value, dest reflect.Value) error {
 	typ := v.Type()
 
-	// A scanner, an any, a pointer, which is nil when it's NULL, a []byte,
-	// which is nil when it's NULL, or a time.Time
+	// A scanner, an any, a pointer, which is nil when it's NULL, or a
+	// time.Time
 	if scanner, ok := dest.Addr().Interface().(sql.Scanner); ok {
 		return scanner.Scan(Any(v))
 	}
@@ -68,14 +81,11 @@ func set(v Value, dest reflect.Value) error {
 		}
 		dest.Set(ptr)
 		return nil
-	case dest.Kind() == reflect.Slice && dest.Type().Elem().Kind() == reflect.Uint8:
-		if typ == Null {
-			dest.SetZero()
-		} else {
-			dest.Set(reflect.ValueOf(v.Blob()).Convert(dest.Type()))
-		}
-		return nil
 	case typ == Null:
+		if dest.Kind() == reflect.Slice || dest.Kind() == reflect.Map {
+			dest.SetZero()
+			return nil
+		}
 		return fmt.Errorf("NULL can't be a %s", dest.Type())
 	case dest.Type() == timeType:
 		t, err := Time(v)
@@ -84,9 +94,32 @@ func set(v Value, dest reflect.Value) error {
 		}
 		dest.Set(reflect.ValueOf(t))
 		return nil
+	case dest.Type() == durationType:
+		d, err := Duration(v)
+		if err != nil {
+			return err
+		}
+		dest.Set(reflect.ValueOf(d))
+		return nil
 	}
 
-	// A bool, an integer, a float or a string
+	// A blob, into an array of bytes of its length, such as the standard
+	// library's uuid.UUID, which only unmarshals text
+	if _, ok := dest.Addr().Interface().(encoding.BinaryUnmarshaler); !ok && typ == Blob && isBytes(dest.Type(), reflect.Array) {
+		data := v.Blob()
+		if len(data) != dest.Len() {
+			return fmt.Errorf("a %s of %d bytes isn't a %s", typ, len(data), dest.Type())
+		}
+		reflect.Copy(dest, reflect.ValueOf(data))
+		return nil
+	}
+
+	// Text, binary or JSON, which unmarshals itself
+	if ok, err := unmarshal(v, typ, dest.Addr().Interface()); ok {
+		return err
+	}
+
+	// A bool, an integer, a float, a string, bytes, or JSON
 	switch dest.Kind() {
 	case reflect.Bool:
 		b, err := boolValue(v, typ)
@@ -123,10 +156,62 @@ func set(v Value, dest reflect.Value) error {
 		dest.SetFloat(f)
 	case reflect.String:
 		dest.SetString(v.Text())
+	case reflect.Slice:
+		if dest.Type().Elem().Kind() == reflect.Uint8 {
+			dest.Set(reflect.ValueOf(v.Blob()).Convert(dest.Type()))
+			return nil
+		}
+		return scanJSON(v, typ, dest)
+	case reflect.Array:
+		if dest.Type().Elem().Kind() == reflect.Uint8 {
+			data := v.Blob()
+			if typ != Blob || len(data) != dest.Len() {
+				return fmt.Errorf("a %s of %d bytes isn't a %s", typ, len(data), dest.Type())
+			}
+			reflect.Copy(dest, reflect.ValueOf(data))
+			return nil
+		}
+		return scanJSON(v, typ, dest)
+	case reflect.Map, reflect.Struct:
+		return scanJSON(v, typ, dest)
 	default:
 		return fmt.Errorf("%s can't be scanned into", dest.Type())
 	}
 	return nil
+}
+
+// isBytes returns true when the type is a slice, or an array, of bytes
+func isBytes(t reflect.Type, kind reflect.Kind) bool {
+	return t.Kind() == kind && t.Elem().Kind() == reflect.Uint8
+}
+
+// unmarshal unmarshals the value into a pointer to a type which unmarshals
+// itself: text into an encoding.TextUnmarshaler, a blob into an
+// encoding.BinaryUnmarshaler, or either into whichever it is, when it isn't
+// both, or JSON into a json.Unmarshaler, and returns true, or false when it
+// doesn't unmarshal itself
+func unmarshal(v Value, typ Type, ptr any) (bool, error) {
+	text, isText := ptr.(encoding.TextUnmarshaler)
+	binary, isBinary := ptr.(encoding.BinaryUnmarshaler)
+	switch {
+	case isText && (typ != Blob || !isBinary):
+		return true, text.UnmarshalText(v.Blob())
+	case isBinary:
+		return true, binary.UnmarshalBinary(v.Blob())
+	}
+	if unmarshaler, ok := ptr.(json.Unmarshaler); ok {
+		return true, unmarshaler.UnmarshalJSON(v.Blob())
+	}
+	return false, nil
+}
+
+// scanJSON unmarshals the value, which is JSON text, into a slice, an array,
+// a map or a struct
+func scanJSON(v Value, typ Type, dest reflect.Value) error {
+	if typ != Text {
+		return fmt.Errorf("a %s isn't JSON, for a %s", typ, dest.Type())
+	}
+	return json.Unmarshal([]byte(v.Text()), dest.Addr().Interface())
 }
 
 // boolValue returns the value's bool, of a number, which is true when it

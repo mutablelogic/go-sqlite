@@ -3,11 +3,14 @@ package values_test
 import (
 	"database/sql"
 	"database/sql/driver"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/netip"
 	"strconv"
 	"testing"
 	"time"
+	"uuid"
 
 	// Packages
 	values "github.com/mutablelogic/go-sqlite/values"
@@ -103,6 +106,28 @@ func Test_Set(t *testing.T) {
 		{when, values.Text, "2026-11-18T12:30:00.000000123Z"},
 		{valuer{value: int64(3)}, values.Integer, int64(3)},
 		{sql.NullString{}, values.Null, nil},
+
+		// Durations are nanoseconds
+		{90 * time.Minute, values.Integer, int64(90 * time.Minute)},
+
+		// The standard library's UUIDs, which are text marshalers, are text
+		{uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8"), values.Text, "6ba7b810-9dad-11d1-80b4-00c04fd430c8"},
+
+		// Text, binary and JSON, which marshal themselves, with text rather
+		// than binary, when they're both
+		{netip.MustParseAddr("10.0.0.1"), values.Text, "10.0.0.1"},
+		{binaryOnly{1, 2}, values.Blob, []byte{1, 2}},
+		{json.RawMessage(`{"a":1}`), values.Text, `{"a":1}`},
+
+		// Composites are JSON, and arrays of bytes are blobs
+		{[]string{"a", "b"}, values.Text, `["a","b"]`},
+		{[]int{1, 2}, values.Text, `[1,2]`},
+		{[2]string{"a", "b"}, values.Text, `["a","b"]`},
+		{map[string]int{"a": 1}, values.Text, `{"a":1}`},
+		{struct {
+			A int `json:"a"`
+		}{1}, values.Text, `{"a":1}`},
+		{[3]byte{1, 2, 3}, values.Blob, []byte{1, 2, 3}},
 	} {
 		var s setter
 		require.NoError(t, values.Set(&s, test.value), "%#v", test.value)
@@ -112,7 +137,7 @@ func Test_Set(t *testing.T) {
 
 	// Values which can't be, and a valuer's error
 	failed := errors.New("failed")
-	for _, value := range []any{uint64(1 << 63), []string{"a"}, struct{}{}, valuer{value: valuer{}}} {
+	for _, value := range []any{uint64(1 << 63), make(chan int), func() {}, []any{make(chan int)}, valuer{value: valuer{}}} {
 		assert.Error(t, values.Set(&setter{}, value), "%#v", value)
 	}
 	assert.ErrorIs(t, values.Set(&setter{}, valuer{err: failed}), failed)
@@ -258,4 +283,102 @@ func deref(dest any) any {
 		return *d
 	}
 	return strconv.Quote(fmt.Sprint(dest))
+}
+
+func Test_ScanComposites(t *testing.T) {
+	// The standard library's UUID, which unmarshals text, of text, or a
+	// blob, of its bytes
+	id := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+	var u uuid.UUID
+	require.NoError(t, values.Scan(text(id.String()), &u))
+	assert.Equal(t, id, u)
+	u = uuid.UUID{}
+	require.NoError(t, values.Scan(blob(id[:]), &u))
+	assert.Equal(t, id, u)
+	assert.Error(t, values.Scan(blob(id[:8]), &u))
+	assert.Error(t, values.Scan(text("not a uuid"), &u))
+
+	// Text, of a text unmarshaler, and a blob, of a binary one, which is
+	// both, as netip.Addr is
+	var addr netip.Addr
+	require.NoError(t, values.Scan(text("10.0.0.1"), &addr))
+	assert.Equal(t, netip.MustParseAddr("10.0.0.1"), addr)
+	require.NoError(t, values.Scan(blob([]byte{10, 0, 0, 2}), &addr))
+	assert.Equal(t, netip.MustParseAddr("10.0.0.2"), addr)
+	var b binaryOnly
+	require.NoError(t, values.Scan(blob([]byte{1, 2}), &b))
+	assert.Equal(t, binaryOnly{1, 2}, b)
+	assert.Error(t, values.Scan(text("x"), &addr))
+
+	// JSON, of a json.Unmarshaler, and composites
+	var raw json.RawMessage
+	require.NoError(t, values.Scan(text(`{"a":1}`), &raw))
+	assert.JSONEq(t, `{"a":1}`, string(raw))
+	var strs []string
+	require.NoError(t, values.Scan(text(`["a","b"]`), &strs))
+	assert.Equal(t, []string{"a", "b"}, strs)
+	var arr [2]int
+	require.NoError(t, values.Scan(text(`[1,2]`), &arr))
+	assert.Equal(t, [2]int{1, 2}, arr)
+	var m map[string]int
+	require.NoError(t, values.Scan(text(`{"a":1}`), &m))
+	assert.Equal(t, map[string]int{"a": 1}, m)
+	var st struct {
+		A int `json:"a"`
+	}
+	require.NoError(t, values.Scan(text(`{"a":1}`), &st))
+	assert.Equal(t, 1, st.A)
+
+	// NULL is a nil slice, or map, but not a struct
+	require.NoError(t, values.Scan(null(), &strs))
+	assert.Nil(t, strs)
+	require.NoError(t, values.Scan(null(), &m))
+	assert.Nil(t, m)
+	assert.Error(t, values.Scan(null(), &st))
+
+	// A blob is an array of bytes, of its length
+	var bytes3 [3]byte
+	require.NoError(t, values.Scan(blob([]byte{1, 2, 3}), &bytes3))
+	assert.Equal(t, [3]byte{1, 2, 3}, bytes3)
+	assert.Error(t, values.Scan(blob([]byte{1, 2}), &bytes3))
+	assert.Error(t, values.Scan(text("abc"), &bytes3))
+
+	// JSON which isn't, and which isn't text
+	assert.Error(t, values.Scan(text(`not json`), &strs))
+	assert.Error(t, values.Scan(blob([]byte(`["a"]`)), &strs))
+	assert.Error(t, values.Scan(integer(1), &m))
+}
+
+func Test_Duration(t *testing.T) {
+	for _, test := range []struct {
+		value values.Value
+		want  time.Duration
+	}{
+		{integer(int64(90 * time.Minute)), 90 * time.Minute},
+		{float(1.5), 1500 * time.Millisecond},
+		{text("1h30m"), 90 * time.Minute},
+		{text("1000"), time.Microsecond},
+	} {
+		var d time.Duration
+		require.NoError(t, values.Scan(test.value, &d), "%#v", test.value)
+		assert.Equal(t, test.want, d, "%#v", test.value)
+	}
+	for _, v := range []values.Value{text("x"), blob([]byte{1}), float(1e300)} {
+		_, err := values.Duration(v)
+		assert.Error(t, err, "%#v", v)
+	}
+	var d time.Duration
+	assert.Error(t, values.Scan(null(), &d))
+}
+
+// binaryOnly is a binary marshaler, which isn't a text one
+type binaryOnly [2]byte
+
+func (b binaryOnly) MarshalBinary() ([]byte, error) { return b[:], nil }
+func (b *binaryOnly) UnmarshalBinary(data []byte) error {
+	if len(data) != 2 {
+		return errors.New("two bytes")
+	}
+	copy(b[:], data)
+	return nil
 }

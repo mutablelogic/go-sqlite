@@ -2,6 +2,8 @@ package values
 
 import (
 	"database/sql/driver"
+	"encoding"
+	"encoding/json"
 	"fmt"
 	"math"
 	"reflect"
@@ -11,12 +13,23 @@ import (
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// Set sets a Go value where SQLite takes it: nil is NULL, a bool is 0 or 1,
-// an integer is an integer, which is no larger than an int64, a float is a
-// float, a string is text, a []byte is a blob, and a time.Time is text, of
-// RFC 3339, with nanoseconds. A driver.Valuer is its value, and a named type
-// is of its kind, such as a string. A pointer is of its value, or NULL when
-// it's nil.
+// Set sets a Go value where SQLite takes it, the first of these which it is:
+//   - nil, or a nil pointer, is NULL
+//   - a driver.Valuer is its value, such as a uuid.UUID's text
+//   - a time.Time is text, of RFC 3339, with nanoseconds
+//   - a time.Duration is an integer, of nanoseconds
+//   - a []byte is a blob
+//   - an encoding.TextMarshaler is its text, such as a netip.Addr's, or the
+//     standard library's uuid.UUID's, rather than its binary, when it's
+//     both, so it's compared and read as text
+//   - an encoding.BinaryMarshaler is a blob
+//   - a json.Marshaler is its JSON, as text
+//   - a bool is 0 or 1, an integer, which is no larger than an int64, is an
+//     integer, a float is a float, and a string is text, of named types too
+//   - a pointer is of its value
+//   - an array of bytes, such as a [16]byte, is a blob
+//   - a slice, an array, a map or a struct is its JSON, as text, such as
+//     ["a","b"], which SQLite's json functions read, such as json_each
 func Set(s Setter, value any) error {
 	if value == nil {
 		return s.SetNull()
@@ -37,8 +50,24 @@ func Set(s Setter, value any) error {
 		return Set(s, value)
 	case time.Time:
 		return s.SetText(v.Format(time.RFC3339Nano))
+	case time.Duration:
+		return s.SetInt64(int64(v))
 	case []byte:
 		return s.SetBlob(v)
+	case encoding.TextMarshaler:
+		text, err := v.MarshalText()
+		if err != nil {
+			return err
+		}
+		return s.SetText(string(text))
+	case encoding.BinaryMarshaler:
+		data, err := v.MarshalBinary()
+		if err != nil {
+			return err
+		}
+		return s.SetBlob(data)
+	case json.Marshaler:
+		return setJSON(s, v)
 	}
 	switch rv.Kind() {
 	case reflect.Pointer:
@@ -64,6 +93,28 @@ func Set(s Setter, value any) error {
 		if rv.Type().Elem().Kind() == reflect.Uint8 {
 			return s.SetBlob(rv.Bytes())
 		}
+		return setJSON(s, value)
+	case reflect.Array:
+		if rv.Type().Elem().Kind() == reflect.Uint8 {
+			data := make([]byte, rv.Len())
+			reflect.Copy(reflect.ValueOf(data), rv)
+			return s.SetBlob(data)
+		}
+		return setJSON(s, value)
+	case reflect.Map, reflect.Struct:
+		return setJSON(s, value)
 	}
 	return fmt.Errorf("%T can't be a value", value)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// setJSON sets the value's JSON, as text
+func setJSON(s Setter, value any) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	return s.SetText(string(data))
 }

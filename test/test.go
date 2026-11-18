@@ -7,11 +7,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/netip"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+	"uuid"
 
 	// Packages
 	sqlite "github.com/mutablelogic/go-sqlite"
@@ -194,6 +196,8 @@ func testFunctions(t *testing.T, fn OpenFunc) {
 				return uint64(1 << 63), nil
 			case "slice":
 				return []string{"a"}, nil
+			case "chan":
+				return make(chan int), nil
 			}
 			return nil, nil
 		}),
@@ -224,13 +228,13 @@ func testFunctions(t *testing.T, fn OpenFunc) {
 	}{
 		{"bool", int64(1)}, {"uint", int64(7)}, {"float", 2.5}, {"bytes", []byte{1}},
 		{"ptr", "text"}, {"nilptr", nil}, {"nil", nil}, {"valuer", int64(3)},
-		{"time", "2026-11-18T12:30:00Z"},
+		{"time", "2026-11-18T12:30:00Z"}, {"slice", `["a"]`},
 	} {
 		var got any
 		require.NoError(t, db.With("kind", test.kind).Get(ctx, &column{&got}, value{query: "SELECT result(@kind)"}), test.kind)
 		assert.Equal(t, test.want, got, test.kind)
 	}
-	for _, kind := range []string{"large", "slice"} {
+	for _, kind := range []string{"large", "chan"} {
 		assert.ErrorIs(t, db.With("kind", kind).Get(ctx, &column{new(any)}, value{query: "SELECT result(@kind)"}), sqlite.ErrDatabase, kind)
 	}
 
@@ -292,8 +296,43 @@ func testTypes(t *testing.T, db sqlite.Conn) {
 	assert.Error(t, db.Get(ctx, &column{&i, &u}, value{query: `SELECT 1`}))
 	assert.Error(t, db.Get(ctx, &column{i}, value{query: `SELECT 1`}))
 
+	// Composites are JSON, which SQLite's json functions read, and are
+	// scanned back
+	var tags []string
+	require.NoError(t, db.With("v", []string{"a", "b"}).Get(ctx, &column{&count}, value{query: `SELECT COUNT(*) FROM json_each(@v)`}))
+	assert.Equal(t, int64(2), count)
+	require.NoError(t, db.With("v", []string{"a", "b"}).Get(ctx, &column{&tags}, value{query: `SELECT @v`}))
+	assert.Equal(t, []string{"a", "b"}, tags)
+	meta := map[string]interface{}{"a": float64(1)}
+	var gotMeta map[string]interface{}
+	require.NoError(t, db.With("v", meta).Get(ctx, &column{&gotMeta}, value{query: `SELECT json(@v)`}))
+	assert.Equal(t, meta, gotMeta)
+
+	// Text marshalers, such as netip.Addr, are text, and durations are
+	// nanoseconds, or seconds, of SQLite's arithmetic
+	var addr netip.Addr
+	var kind string
+	require.NoError(t, db.With("v", netip.MustParseAddr("10.0.0.1")).Get(ctx, &column{&addr, &kind}, value{query: `SELECT @v, typeof(@v)`}))
+	assert.Equal(t, netip.MustParseAddr("10.0.0.1"), addr)
+	assert.Equal(t, "text", kind)
+	var d time.Duration
+	require.NoError(t, db.With("v", 90*time.Minute).Get(ctx, &column{&d}, value{query: `SELECT @v`}))
+	assert.Equal(t, 90*time.Minute, d)
+	require.NoError(t, db.Get(ctx, &column{&d}, value{query: `SELECT (julianday('2026-11-18 12:30') - julianday('2026-11-18 11:00')) * 86400`}))
+	assert.InDelta(t, float64(90*time.Minute), float64(d), float64(time.Millisecond))
+
+	// The standard library's UUIDs are text, and read from text, or blobs
+	id := uuid.New()
+	var gotID uuid.UUID
+	require.NoError(t, db.With("v", id).Get(ctx, &column{&gotID, &kind}, value{query: `SELECT @v, typeof(@v)`}))
+	assert.Equal(t, id, gotID)
+	assert.Equal(t, "text", kind)
+	gotID = uuid.UUID{}
+	require.NoError(t, db.With("v", id[:]).Get(ctx, &column{&gotID}, value{query: `SELECT @v`}))
+	assert.Equal(t, id, gotID)
+
 	// A value which can't be bound is a bad parameter
-	assert.ErrorIs(t, db.With("v", []string{"a"}).Exec(ctx, `SELECT @v`), sqlite.ErrBadParameter)
+	assert.ErrorIs(t, db.With("v", make(chan int)).Exec(ctx, `SELECT @v`), sqlite.ErrBadParameter)
 	assert.ErrorIs(t, db.With("v", uint64(1<<63)).Exec(ctx, `SELECT @v`), sqlite.ErrBadParameter)
 }
 

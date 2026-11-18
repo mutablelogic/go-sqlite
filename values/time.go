@@ -3,6 +3,7 @@ package values
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -57,4 +58,31 @@ func Time(v Value) (time.Time, error) {
 		return time.Unix(int64(seconds), int64(math.Round(fraction*1e9))).UTC(), nil
 	}
 	return time.Time{}, fmt.Errorf("a %s isn't a time", v.Type())
+}
+
+// Duration returns the value's duration: an integer, of nanoseconds, which
+// Set writes, a float, of seconds, which SQLite's date and time arithmetic
+// returns, such as (julianday(b) - julianday(a)) * 86400, or text, of Go's
+// format, such as 1h30m, or of nanoseconds
+func Duration(v Value) (time.Duration, error) {
+	switch v.Type() {
+	case Integer:
+		return time.Duration(v.Int64()), nil
+	case Float:
+		seconds := v.Float() * float64(time.Second)
+		if seconds != seconds || seconds >= math.MaxInt64 || seconds <= math.MinInt64 {
+			return 0, fmt.Errorf("%g seconds isn't a duration", v.Float())
+		}
+		return time.Duration(math.Round(seconds)), nil
+	case Text:
+		text := strings.TrimSpace(v.Text())
+		if d, err := time.ParseDuration(text); err == nil {
+			return d, nil
+		}
+		if n, err := strconv.ParseInt(text, 10, 64); err == nil {
+			return time.Duration(n), nil
+		}
+		return 0, fmt.Errorf("%q isn't a duration", text)
+	}
+	return 0, fmt.Errorf("a %s isn't a duration", v.Type())
 }

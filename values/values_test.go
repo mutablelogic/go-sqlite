@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/netip"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 	"uuid"
@@ -339,6 +340,25 @@ func Test_ScanComposites(t *testing.T) {
 	require.NoError(t, values.Scan(text(`{"a":1}`), &st))
 	assert.Equal(t, 1, st.A)
 
+	// A map, or a struct, which was scanned into before, is of the value
+	// alone, rather than merged into what it was
+	m = map[string]int{"old": 1}
+	require.NoError(t, values.Scan(text(`{"a":2}`), &m))
+	assert.Equal(t, map[string]int{"a": 2}, m)
+	st.A = 9
+	require.NoError(t, values.Scan(text(`{}`), &st))
+	assert.Zero(t, st.A)
+
+	// As is one which unmarshals itself, of JSON, or text
+	var labels jsonLabels
+	require.NoError(t, values.Scan(text(`{"a":1}`), &labels))
+	require.NoError(t, values.Scan(text(`{"b":2}`), &labels))
+	assert.Equal(t, jsonLabels{"b": 2}, labels)
+	var words textWords
+	require.NoError(t, values.Scan(text("a b"), &words))
+	require.NoError(t, values.Scan(text("c"), &words))
+	assert.Equal(t, textWords{"c": true}, words)
+
 	// NULL is a nil slice, or map, but not a struct
 	require.NoError(t, values.Scan(null(), &strs))
 	assert.Nil(t, strs)
@@ -402,5 +422,26 @@ func (b *binaryOnly) UnmarshalBinary(data []byte) error {
 		return errors.New("two bytes")
 	}
 	copy(b[:], data)
+	return nil
+}
+
+// jsonLabels unmarshals itself, of JSON, as a map, which merges into what
+// it was, unless it's empty
+type jsonLabels map[string]int
+
+func (l *jsonLabels) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, (*map[string]int)(l))
+}
+
+// textWords unmarshals itself, of text, which adds the words to what it was
+type textWords map[string]bool
+
+func (w *textWords) UnmarshalText(data []byte) error {
+	if *w == nil {
+		*w = make(textWords)
+	}
+	for _, word := range strings.Fields(string(data)) {
+		(*w)[word] = true
+	}
 	return nil
 }

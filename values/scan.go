@@ -219,6 +219,9 @@ func scanJSON(v Value, typ Type, dest reflect.Value) error {
 	if typ != Text {
 		return fmt.Errorf("a %s isn't JSON, for a %s", typ, dest.Type())
 	}
+	// It's of the value alone, and not merged into what it was, as a map's
+	// keys, or a struct's fields, would be
+	dest.SetZero()
 	return json.Unmarshal([]byte(v.Text()), dest.Addr().Interface())
 }
 

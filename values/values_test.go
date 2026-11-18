@@ -339,6 +339,15 @@ func Test_ScanComposites(t *testing.T) {
 	require.NoError(t, values.Scan(text(`{"a":1}`), &st))
 	assert.Equal(t, 1, st.A)
 
+	// A map, or a struct, which was scanned into before, is of the value
+	// alone, rather than merged into what it was
+	m = map[string]int{"old": 1}
+	require.NoError(t, values.Scan(text(`{"a":2}`), &m))
+	assert.Equal(t, map[string]int{"a": 2}, m)
+	st.A = 9
+	require.NoError(t, values.Scan(text(`{}`), &st))
+	assert.Zero(t, st.A)
+
 	// NULL is a nil slice, or map, but not a struct
 	require.NoError(t, values.Scan(null(), &strs))
 	assert.Nil(t, strs)

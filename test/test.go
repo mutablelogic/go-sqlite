@@ -109,6 +109,7 @@ func Run(t *testing.T, fn OpenFunc) {
 			t.Run("List", func(t *testing.T) { testList(t, open(t, fn, kind)) })
 			t.Run("Types", func(t *testing.T) { testTypes(t, open(t, fn, kind)) })
 			t.Run("Errors", func(t *testing.T) { testErrors(t, open(t, fn, kind)) })
+			t.Run("Statements", func(t *testing.T) { testStatements(t, open(t, fn, kind)) })
 			t.Run("Tx", func(t *testing.T) { testTx(t, open(t, fn, kind)) })
 			t.Run("Bulk", func(t *testing.T) { testBulk(t, open(t, fn, kind)) })
 			t.Run("Version", func(t *testing.T) { testVersion(t, open(t, fn, kind)) })
@@ -569,6 +570,39 @@ func testErrors(t *testing.T, db sqlite.Conn) {
 
 	// A selector's error is returned as it is
 	assert.ErrorIs(t, db.Get(ctx, &user{}, userSelector{ID: -1}), sqlite.ErrBadParameter)
+}
+
+func testStatements(t *testing.T, db sqlite.Conn) {
+	ctx := t.Context()
+
+	// A query of several statements executes them all
+	require.NoError(t, db.Exec(ctx, `INSERT INTO users (name) VALUES ('a'); INSERT INTO users (name) VALUES ('b')`))
+	assert.Equal(t, uint64(2), count(t, db))
+
+	// Or none, when one fails, or its reader panics
+	err := db.Exec(ctx, `INSERT INTO users (name) VALUES ('c'); INSERT INTO users (name) VALUES (NULL)`)
+	assert.ErrorIs(t, err, sqlite.ErrNotNullViolation)
+	assert.Equal(t, uint64(2), count(t, db))
+	panics := readerFunc(func(sqlite.Row) error { panic("scan") })
+	assert.Panics(t, func() {
+		_ = db.Update(ctx, panics, query{`INSERT INTO users (name) VALUES ('d') RETURNING id, name, email; SELECT 1`}, nil)
+	})
+	assert.Equal(t, uint64(2), count(t, db))
+
+	// Within a transaction, the query's statements are rolled back, and the
+	// transaction goes on
+	require.NoError(t, db.Tx(ctx, func(conn sqlite.Conn) error {
+		require.NoError(t, conn.Exec(ctx, `INSERT INTO users (name) VALUES ('e')`))
+		assert.ErrorIs(t, conn.Exec(ctx, `INSERT INTO users (name) VALUES ('f'); INSERT INTO users (name) VALUES (NULL)`), sqlite.ErrNotNullViolation)
+		return conn.Exec(ctx, `INSERT INTO users (name) VALUES ('g'); INSERT INTO users (name) VALUES ('h')`)
+	}))
+	var list userList
+	require.NoError(t, db.List(ctx, &list, userSelector{}))
+	names := make([]string, 0, len(list.Users))
+	for _, user := range list.Users {
+		names = append(names, user.Name)
+	}
+	assert.Equal(t, []string{"a", "b", "e", "g", "h"}, names)
 }
 
 func testTx(t *testing.T, db sqlite.Conn) {

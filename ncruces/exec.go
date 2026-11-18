@@ -1,6 +1,7 @@
 package ncruces
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -22,6 +23,9 @@ type statements map[string]*sqlite3.Stmt
 // GLOBALS
 
 const (
+	// multiSavepoint is the savepoint of a query of several statements
+	multiSavepoint = "statements"
+
 	// maxStatements is the most statements a bulk transaction reuses, as a
 	// query whose ${key} differs, such as of a value, rather than an @key
 	// argument, is another statement; others are prepared, and closed
@@ -44,7 +48,23 @@ type row struct {
 // isn't nil, and scans their rows, or the first, into the reader, which is
 // ErrNotFound without any. They're reused, of the cache, when it isn't nil,
 // and the query is one statement, or else prepared, and closed.
-func executeRows(db *sqlite3.Conn, cache statements, query string, vars map[string]any, reader sqlite.Reader, one bool, args map[string]any) error {
+func executeRows(db *sqlite3.Conn, cache statements, query string, vars map[string]any, reader sqlite.Reader, one bool, args map[string]any) (err error) {
+	// A query of several statements is executed in a savepoint, so all of
+	// them are, or, when one fails, or a reader panics, none are
+	var savepoint, done bool
+	defer func() {
+		if !savepoint {
+			return
+		}
+		if err == nil && done {
+			err = db.Exec("RELEASE " + multiSavepoint)
+			return
+		}
+		old := db.SetInterrupt(context.Background())
+		defer db.SetInterrupt(old)
+		err = errors.Join(err, db.Exec("ROLLBACK TO "+multiSavepoint), db.Exec("RELEASE "+multiSavepoint))
+	}()
+
 	scanned := false
 	for strings.TrimSpace(query) != "" {
 		stmt, cached := cache[query]
@@ -65,12 +85,20 @@ func executeRows(db *sqlite3.Conn, cache statements, query string, vars map[stri
 				cache[query] = stmt
 				cached = true
 			}
+			if !savepoint && strings.TrimSpace(tail) != "" {
+				if err := db.Exec("SAVEPOINT " + multiSavepoint); err != nil {
+					_ = stmt.Close()
+					return err
+				}
+				savepoint = true
+			}
 			query = tail
 		}
 		if err := run(stmt, cached, vars, args, reader, one, &scanned); err != nil {
 			return err
 		}
 	}
+	done = true
 	if reader != nil && !scanned {
 		return sqlite.ErrNotFound
 	}

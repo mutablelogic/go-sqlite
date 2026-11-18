@@ -152,7 +152,7 @@ func Test_Objects(t *testing.T) {
 	assert.Equal(t, uint64(3), list.Count)
 	assert.Equal(t, []string{"films/blade-runner.mp4", "music/rain.mp3", "weather.md"}, paths(list))
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Volume: books.ID}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Volumes: []int64{books.ID}}))
 	assert.Equal(t, []string{"weather.md"}, paths(list))
 	list = schema.ObjectList{}
 	limit := uint64(1)
@@ -177,8 +177,19 @@ func Test_Objects(t *testing.T) {
 		assert.Equal(t, uint64(len(want)), list.Count, query)
 	}
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: "rain", Volume: books.ID}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: "rain", Volumes: []int64{books.ID}}))
 	assert.Equal(t, []string{"weather.md"}, paths(list))
+
+	// Of several volumes, and of none, which is all of them
+	list = schema.ObjectList{}
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: "rain", Volumes: []int64{books.ID, media.ID}}))
+	assert.Equal(t, []string{"music/rain.mp3", "weather.md"}, paths(list))
+	list = schema.ObjectList{}
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Volumes: []int64{media.ID, books.ID}}))
+	assert.Equal(t, []string{"films/blade-runner.mp4", "music/rain.mp3", "weather.md"}, paths(list))
+	list = schema.ObjectList{}
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Volumes: []int64{999}}))
+	assert.Empty(t, paths(list))
 
 	// An object which is replaced is the same, with its text replaced
 	var replaced schema.Object

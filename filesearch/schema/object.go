@@ -74,13 +74,14 @@ type ObjectSweep struct {
 	Run    int64
 }
 
-// ObjectListRequest lists objects, of a volume, or all of them, and
-// searches them, when there's a query, of words which are all in their
-// text, as prefixes, the best first, or else by their paths
+// ObjectListRequest lists objects, of the volumes, or all of them, when
+// there are none, and searches them, when there's a query, of words which
+// are all in their text, as prefixes, the best first, or else by their
+// paths
 type ObjectListRequest struct {
 	sqlite.OffsetLimit
-	Volume int64  `json:"volume,omitempty" help:"Objects of a volume"`
-	Query  string `json:"q,omitempty" help:"Words, which are all in the objects' text"`
+	Volumes []int64 `json:"volume,omitempty" help:"Objects of the volumes, or of all of them"`
+	Query   string  `json:"q,omitempty" help:"Words, which are all in the objects' text"`
 }
 
 // Artwork is an object's image, which is read on its own
@@ -209,18 +210,18 @@ func (s ObjectSweep) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
 	return bind.Query("filesearch.object_sweep"), nil
 }
 
-// Select objects, of a volume, or all of them, which match the query, when
-// there is one
+// Select objects, of the volumes, or all of them, which match the query,
+// when there is one
 func (r *ObjectListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
 	if op != sqlite.List {
 		return "", sqlite.ErrNotImplemented.Withf("list: %v", op)
 	}
 	r.OffsetLimit.Bind(bind, ListLimit)
 
-	// Of a volume
+	// Of the volumes, which are a JSON array, or all of them
 	var where string
-	if r.Volume != 0 {
-		where = "volume = " + bind.Set("volume", r.Volume)
+	if len(r.Volumes) > 0 {
+		where = "volume IN (SELECT value FROM json_each(" + bind.Set("volumes", r.Volumes) + "))"
 	}
 
 	// Searched, of the words of the query, or listed, by path

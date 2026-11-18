@@ -33,7 +33,7 @@ func write(t *testing.T, root string, files map[string]string) {
 // objects returns the paths of the objects of a volume, in order
 func objects(t *testing.T, manager *filesearch.Manager, volume int64) []string {
 	t.Helper()
-	list, err := manager.ListObjects(t.Context(), schema.ObjectListRequest{Volume: volume})
+	list, err := manager.ListObjects(t.Context(), schema.ObjectListRequest{Volumes: []int64{volume}})
 	require.NoError(t, err)
 	var paths []string
 	for _, o := range list.Body {
@@ -79,14 +79,14 @@ func Test_IndexVolume(t *testing.T) {
 
 	// A list has its request, with its limit clamped to what's returned,
 	// and the caller's request isn't changed
-	list, err = manager.ListObjects(ctx, schema.ObjectListRequest{Volume: volume.ID})
+	list, err = manager.ListObjects(ctx, schema.ObjectListRequest{Volumes: []int64{volume.ID}})
 	require.NoError(t, err)
-	assert.Equal(t, volume.ID, list.Volume)
+	assert.Equal(t, []int64{volume.ID}, list.Volumes)
 	if assert.NotNil(t, list.Limit) {
 		assert.Equal(t, uint64(3), *list.Limit, "of the default, clamped to the count")
 	}
 	limit := uint64(2)
-	req := schema.ObjectListRequest{Volume: volume.ID, OffsetLimit: sqlite.OffsetLimit{Offset: 2, Limit: &limit}}
+	req := schema.ObjectListRequest{Volumes: []int64{volume.ID}, OffsetLimit: sqlite.OffsetLimit{Offset: 2, Limit: &limit}}
 	list, err = manager.ListObjects(ctx, req)
 	require.NoError(t, err)
 	assert.Len(t, list.Body, 1)
@@ -240,7 +240,7 @@ func Test_IndexVolumeBatches(t *testing.T) {
 	require.NoError(t, err)
 	paths := objects(t, manager, volume.ID)
 	assert.Len(t, paths, 100, "a page of them")
-	list, err := manager.ListObjects(ctx, schema.ObjectListRequest{Volume: volume.ID})
+	list, err := manager.ListObjects(ctx, schema.ObjectListRequest{Volumes: []int64{volume.ID}})
 	require.NoError(t, err)
 	assert.Equal(t, uint64(250), list.Count)
 	_, err = manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root, Recursive: true}, nil)

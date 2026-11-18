@@ -104,7 +104,7 @@ The options are:
 
 * `sqlite.WithMaxReaders(int)` - The most connections which read at once. The default is 4.
 * `sqlite.WithPragma(string, string)` - Set a pragma on each connection, such as `cache_size`, of `-4000`.
-* `sqlite.WithFunction(...)` - Create a function, written in Go, which SQL calls. See [Functions](#functions).
+* `sqlite.WithFunction(string, bool, sqlite.Fn)` - Add a user-defined function, called from SQL. See [Functions](#functions).
 * `sqlite.WithBind(string, any)` - Set a bind variable for every query.
 * `sqlite.WithTracer(trace.Tracer)` - Set an OpenTelemetry tracer. See [Tracing](#tracing).
 
@@ -463,26 +463,28 @@ db.Get(ctx, &doc, Search{Query: "rain"}) // SELECT rowid, title FROM docs WHERE 
 
 ## Functions
 
-`sqlite.WithFunction` creates a function, written in Go, which SQL calls, on each connection:
+`sqlite.WithFunction` adds user-defined functions, called from SQL:
 
 ```go
 db, err := ncruces.Open(ctx, path,
-  sqlite.WithFunction("double", 1, true, func(args ...any) (any, error) {
-    n, ok := args[0].(int64)
-    if !ok {
-      return nil, sqlite.ErrBadParameter.With("double: not an integer")
-    }
+  sqlite.WithFunction("double", true, sqlite.Func1(func(n int64) (int64, error) {
     return n * 2, nil
-  }),
+  })),
+  sqlite.WithFunction("elapsed", true, sqlite.Func2(func(from, to time.Time) (time.Duration, error) {
+    return to.Sub(from), nil
+  })),
 )
 ```
 
 ```sql
-SELECT double(21) -- 42
+SELECT double(21)                                          -- 42
+SELECT elapsed('2026-11-18 11:00', '2026-11-18 12:30')     -- 5400000000000, 90 minutes
 ```
 
-* **Arguments** are `int64`, `float64`, `string`, `[]byte` or `nil`. Use -1 for any number of them.
-* **Results** are converted as [Values](#values) are. An error is the query's.
+* **Arity:** `Func0`, `Func1`, `Func2` and `Func3` are of no, one, two and three arguments. `FuncN` is of any number of one type, such as `FuncN(func(args ...any) (any, error))`.
+* **Arguments** are scanned, as rows are, so they're of any type a row is scanned into, such as `time.Time`, a slice, of JSON, or a pointer, which is nil when it's NULL. An argument which isn't of its type is an error, which says which.
+* **Results** are converted as [Values](#values) are.
+* **Errors** are the query's.
 * **Deterministic** functions always return the same result for the same arguments, so they can be used in indexes.
 
 ## Schema Versions

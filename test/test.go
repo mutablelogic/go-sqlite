@@ -133,7 +133,11 @@ func testOpen(t *testing.T, fn OpenFunc) {
 	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
 	_, err = fn(ctx, sqlite.Memory, sqlite.WithPragma("cache_size", "1; DROP TABLE users"))
 	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
-	_, err = fn(ctx, sqlite.Memory, sqlite.WithFunction("f", 1, true, nil))
+	_, err = fn(ctx, sqlite.Memory, sqlite.WithFunction("f", true, sqlite.Fn{}))
+	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
+	_, err = fn(ctx, sqlite.Memory, sqlite.WithFunction("f", true, sqlite.Func1[int64, int64](nil)))
+	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
+	_, err = fn(ctx, sqlite.Memory, sqlite.WithFunction("not a name", true, sqlite.Func0(func() (int, error) { return 1, nil })))
 	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
 
 	// A context which is done doesn't open, or create, the database
@@ -175,18 +179,35 @@ func testFunctions(t *testing.T, fn OpenFunc) {
 	failed := errors.New("failed")
 
 	// Functions, of each connection, the readers' too, whose arguments are
-	// int64, float64, string, []byte or nil, and which return a result, or
-	// an error
+	// scanned into their types, and whose results are set, of theirs
 	db, err := fn(ctx, filepath.Join(t.TempDir(), "test.db"),
-		sqlite.WithFunction("double", 1, true, func(args ...any) (any, error) {
-			if n, ok := args[0].(int64); ok {
-				return n * 2, nil
+		sqlite.WithFunction("answer", true, sqlite.Func0(func() (int64, error) {
+			return 42, nil
+		})),
+		sqlite.WithFunction("double", true, sqlite.Func1(func(n int64) (int64, error) {
+			return n * 2, nil
+		})),
+		sqlite.WithFunction("elapsed", true, sqlite.Func2(func(from, to time.Time) (time.Duration, error) {
+			return to.Sub(from), nil
+		})),
+		sqlite.WithFunction("clamp", true, sqlite.Func3(func(n, lo, hi float64) (float64, error) {
+			return min(max(n, lo), hi), nil
+		})),
+		sqlite.WithFunction("nullable", true, sqlite.Func1(func(n *int64) (string, error) {
+			if n == nil {
+				return "null", nil
 			}
+			return fmt.Sprint(*n), nil
+		})),
+		sqlite.WithFunction("tags", true, sqlite.Func1(func(tags []string) (string, error) {
+			return strings.Join(tags, "+"), nil
+		})),
+		sqlite.WithFunction("fails", true, sqlite.Func1(func(string) (any, error) {
 			return nil, failed
-		}),
-		sqlite.WithFunction("result", 1, true, func(args ...any) (any, error) {
+		})),
+		sqlite.WithFunction("result", true, sqlite.Func1(func(kind string) (any, error) {
 			text := "text"
-			switch args[0] {
+			switch kind {
 			case "bool":
 				return true, nil
 			case "uint":
@@ -211,14 +232,21 @@ func testFunctions(t *testing.T, fn OpenFunc) {
 				return make(chan int), nil
 			}
 			return nil, nil
-		}),
-		sqlite.WithFunction("kind", -1, true, func(args ...any) (any, error) {
+		})),
+		sqlite.WithFunction("kind", true, sqlite.FuncN(func(args ...any) (string, error) {
 			kinds := make([]string, 0, len(args))
 			for _, arg := range args {
 				kinds = append(kinds, fmt.Sprintf("%T", arg))
 			}
 			return strings.Join(kinds, ","), nil
-		}),
+		})),
+		sqlite.WithFunction("sum", true, sqlite.FuncN(func(args ...int64) (int64, error) {
+			var sum int64
+			for _, n := range args {
+				sum += n
+			}
+			return sum, nil
+		})),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() { assert.NoError(t, db.Close()) })
@@ -227,9 +255,27 @@ func testFunctions(t *testing.T, fn OpenFunc) {
 		require.NoError(t, conn.Get(ctx, v, v))
 		assert.Equal(t, int64(42), v.value)
 	}
-	var kinds string
-	require.NoError(t, db.Get(ctx, &column{&kinds}, value{query: "SELECT kind(1, 1.5, 'a', x'00', NULL)"}))
-	assert.Equal(t, "int64,float64,string,[]uint8,<nil>", kinds)
+
+	// Of each arity, and type
+	for _, test := range []struct {
+		query string
+		want  any
+	}{
+		{"SELECT answer()", int64(42)},
+		{"SELECT double('21')", int64(42)},
+		{"SELECT elapsed('2026-11-18 11:00', '2026-11-18 12:30')", int64(90 * time.Minute)},
+		{"SELECT clamp(5, 0, 1.5)", 1.5},
+		{"SELECT nullable(NULL)", "null"},
+		{"SELECT nullable(7)", "7"},
+		{`SELECT tags('["a","b"]')`, "a+b"},
+		{"SELECT kind(1, 1.5, 'a', x'00', NULL)", "int64,float64,string,[]uint8,<nil>"},
+		{"SELECT sum()", int64(0)},
+		{"SELECT sum(1, 2, 3)", int64(6)},
+	} {
+		var got any
+		require.NoError(t, db.Get(ctx, &column{&got}, value{query: test.query}), test.query)
+		assert.Equal(t, test.want, got, test.query)
+	}
 
 	// Results are of their kinds, and pointers, which are NULL when they're
 	// nil, and driver.Valuers
@@ -249,10 +295,23 @@ func testFunctions(t *testing.T, fn OpenFunc) {
 		assert.ErrorIs(t, db.With("kind", kind).Get(ctx, &column{new(any)}, value{query: "SELECT result(@kind)"}), sqlite.ErrDatabase, kind)
 	}
 
-	// Its error is the query's
-	err = db.Get(ctx, &value{}, value{query: "SELECT double('a')"})
-	assert.ErrorIs(t, err, sqlite.ErrDatabase)
-	assert.ErrorContains(t, err, "failed")
+	// An argument which isn't of its type, NULL, which isn't a pointer, the
+	// wrong number of arguments, and the function's error, are the query's,
+	// which say which argument, or what failed
+	for query, want := range map[string]string{
+		"SELECT double('a')":                "argument 1",
+		"SELECT double(NULL)":               "argument 1",
+		"SELECT clamp(1, 'x', 2)":           "argument 2",
+		"SELECT sum(1, 'x')":                "argument 2",
+		"SELECT double(1, 2)":               "double",
+		"SELECT fails('a')":                 "failed",
+		`SELECT tags('not json')`:           "argument 1",
+		"SELECT elapsed('x', '2026-11-18')": "argument 1",
+	} {
+		err := db.Get(ctx, &column{new(any)}, value{query: query})
+		assert.ErrorIs(t, err, sqlite.ErrDatabase, query)
+		assert.ErrorContains(t, err, want, query)
+	}
 }
 
 func testTypes(t *testing.T, db sqlite.Conn) {

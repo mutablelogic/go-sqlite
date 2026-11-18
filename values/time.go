@@ -31,6 +31,10 @@ var (
 const (
 	// The Julian day of the Unix epoch
 	unixJulianDay = 2440587.5
+
+	// The most seconds from the Unix epoch, of a time which is a Julian day,
+	// which is the year 9999, as SQLite's date and time functions read
+	maxSeconds = 253402300800
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -54,6 +58,9 @@ func Time(v Value) (time.Time, error) {
 		return time.Unix(v.Int64(), 0).UTC(), nil
 	case Float:
 		days := v.Float() - unixJulianDay
+		if math.IsNaN(days) || math.IsInf(days, 0) || math.Abs(days*86400) >= maxSeconds {
+			return time.Time{}, fmt.Errorf("%g isn't a Julian day", v.Float())
+		}
 		seconds, fraction := math.Modf(days * 86400)
 		return time.Unix(int64(seconds), int64(math.Round(fraction*1e9))).UTC(), nil
 	}

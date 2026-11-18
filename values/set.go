@@ -91,14 +91,12 @@ func Set(s Setter, value any) error {
 		return s.SetText(rv.String())
 	case reflect.Slice:
 		if rv.Type().Elem().Kind() == reflect.Uint8 {
-			return s.SetBlob(rv.Bytes())
+			return s.SetBlob(bytesOf(rv))
 		}
 		return setJSON(s, value)
 	case reflect.Array:
 		if rv.Type().Elem().Kind() == reflect.Uint8 {
-			data := make([]byte, rv.Len())
-			reflect.Copy(reflect.ValueOf(data), rv)
-			return s.SetBlob(data)
+			return s.SetBlob(bytesOf(rv))
 		}
 		return setJSON(s, value)
 	case reflect.Map, reflect.Struct:
@@ -109,6 +107,16 @@ func Set(s Setter, value any) error {
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+// bytesOf returns the bytes of a slice, or an array, of bytes, or a named
+// type of byte, such as a uint8
+func bytesOf(rv reflect.Value) []byte {
+	data := make([]byte, rv.Len())
+	for i := range data {
+		data[i] = byte(rv.Index(i).Uint())
+	}
+	return data
+}
 
 // setJSON sets the value's JSON, as text
 func setJSON(s Setter, value any) error {

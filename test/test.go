@@ -412,7 +412,7 @@ func testList(t *testing.T, db sqlite.Conn) {
 	assert.Empty(t, list.Users)
 
 	// A query which ends with a ;, or a comment, is listed
-	for _, sql := range []string{"SELECT id, name, email FROM users;", "SELECT id, name, email FROM users; -- all of them\n"} {
+	for _, sql := range []string{"SELECT id, name, email FROM users;", "SELECT id, name, email FROM users; -- all of them\n", "SELECT id, name, email FROM users; /* all of them */"} {
 		require.NoError(t, db.List(ctx, &list, query{sql}), sql)
 	}
 

@@ -2,6 +2,9 @@ module github.com/mutablelogic/go-sqlite
 
 go 1.27.2
 
+// Versions before the rewrite, which aren't compatible with it
+retract [v1.0.1, v1.0.51]
+
 require (
 	github.com/mutablelogic/go-server v1.8.16
 	github.com/ncruces/go-sqlite3 v0.37.0

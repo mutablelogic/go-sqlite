@@ -17,10 +17,11 @@ BUILD_LD_FLAGS += -X $(VERSION_PKG).GitBranch=$(shell git name-rev HEAD --name-o
 BUILD_LD_FLAGS += -X $(VERSION_PKG).BuildDate=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 BUILD_FLAGS = -ldflags "-s -w ${BUILD_LD_FLAGS}"
 
-# SQLite is pure Go, from ncruces/go-sqlite3, so nothing needs cgo, and the
-# go.work in a parent folder isn't used, unless GOWORK is set
+# SQLite is pure Go, from ncruces/go-sqlite3, so nothing needs cgo. The
+# repo's go.work builds filesearch with this go-sqlite, rather than its
+# release, and a go.work in a parent folder isn't used, unless GOWORK is set
 export CGO_ENABLED ?= 0
-export GOWORK ?= off
+export GOWORK ?= $(CURDIR)/go.work
 
 ###############################################################################
 # ALL

@@ -19,6 +19,9 @@ import (
 	sqlite "github.com/mutablelogic/go-sqlite"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+	codes "go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	tracetest "go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,6 +102,7 @@ func Run(t *testing.T, fn OpenFunc) {
 	t.Run("Open", func(t *testing.T) { testOpen(t, fn) })
 	t.Run("Close", func(t *testing.T) { testClose(t, fn) })
 	t.Run("Functions", func(t *testing.T) { testFunctions(t, fn) })
+	t.Run("Tracer", func(t *testing.T) { testTracer(t, fn) })
 	for _, kind := range []string{"Memory", "File"} {
 		t.Run(kind, func(t *testing.T) {
 			t.Run("CRUD", func(t *testing.T) { testCRUD(t, open(t, fn, kind)) })
@@ -343,6 +347,55 @@ func testTypes(t *testing.T, db sqlite.Conn) {
 	// A value which can't be bound is a bad parameter
 	assert.ErrorIs(t, db.With("v", make(chan int)).Exec(ctx, `SELECT @v`), sqlite.ErrBadParameter)
 	assert.ErrorIs(t, db.With("v", uint64(1<<63)).Exec(ctx, `SELECT @v`), sqlite.ErrBadParameter)
+}
+
+func testTracer(t *testing.T, fn OpenFunc) {
+	ctx := t.Context()
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	db := openPath(t, fn, filepath.Join(t.TempDir(), "test.db"), sqlite.WithTracer(provider.Tracer("test")))
+
+	// Spans of opening it, a named query, with the arguments it bound, a
+	// transaction, which commits, and one which rolls back, a get which finds
+	// nothing, which isn't an error, and SQL which isn't, which is
+	email := "a@example.com"
+	require.NoError(t, db.Insert(ctx, &user{}, userMeta{Name: "a", Email: &email}))
+	require.NoError(t, db.Tx(ctx, func(conn sqlite.Conn) error { return nil }))
+	assert.Error(t, db.Tx(ctx, func(conn sqlite.Conn) error { return errors.New("failed") }))
+	assert.ErrorIs(t, db.Get(ctx, &user{}, userSelector{ID: 99}), sqlite.ErrNotFound)
+	assert.Error(t, db.Exec(ctx, "NOT SQL"))
+
+	spans := make(map[string]sdktrace.ReadOnlySpan)
+	for _, span := range recorder.Ended() {
+		spans[span.Name()] = span
+	}
+	attrs := func(span sdktrace.ReadOnlySpan) map[string]string {
+		result := make(map[string]string)
+		for _, attr := range span.Attributes() {
+			result[string(attr.Key)] = attr.Value.Emit()
+		}
+		return result
+	}
+	for _, name := range []string{"sqlite.open", "users.insert", "users.get", "sqlite.transaction", "sqlite.commit", "sqlite.rollback", "sqlite.query"} {
+		if assert.Contains(t, spans, name) {
+			assert.Equal(t, "sqlite", attrs(spans[name])["db.system"], name)
+		}
+	}
+	if span, ok := spans["users.insert"]; ok {
+		assert.Equal(t, "a", attrs(span)["arg.name"])
+		assert.Equal(t, email, attrs(span)["arg.email"])
+		assert.NotContains(t, attrs(span), "arg.table", "a substitution, which isn't an argument")
+		assert.Contains(t, attrs(span)["db.statement"], `INSERT INTO "users"`)
+		assert.Equal(t, codes.Unset, span.Status().Code)
+	}
+	if span, ok := spans["users.get"]; ok {
+		assert.Equal(t, "99", attrs(span)["arg.id"])
+		assert.Equal(t, codes.Unset, span.Status().Code, "not found isn't an error")
+	}
+	if span, ok := spans["sqlite.query"]; ok {
+		assert.Equal(t, "NOT SQL", attrs(span)["db.statement"])
+		assert.Equal(t, codes.Error, span.Status().Code)
+	}
 }
 
 func testCRUD(t *testing.T, db sqlite.Conn) {
@@ -725,11 +778,11 @@ func open(t *testing.T, fn OpenFunc, kind string) sqlite.Conn {
 }
 
 // openPath returns the database of the path, as open does
-func openPath(t *testing.T, fn OpenFunc, path string) sqlite.Conn {
+func openPath(t *testing.T, fn OpenFunc, path string, opts ...sqlite.Opt) sqlite.Conn {
 	t.Helper()
 	q, err := sqlite.NewQueries(strings.NewReader(queries))
 	require.NoError(t, err)
-	db, err := fn(t.Context(), path, sqlite.WithBind("table", "users"))
+	db, err := fn(t.Context(), path, append([]sqlite.Opt{sqlite.WithBind("table", "users")}, opts...)...)
 	require.NoError(t, err)
 	t.Cleanup(func() { assert.NoError(t, db.Close()) })
 	conn := db.WithQueries(q)

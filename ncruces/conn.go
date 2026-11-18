@@ -82,8 +82,7 @@ func (c *conn) begin(ctx context.Context, fn func(sqlite.Conn) error, bulk bool)
 	// Begin, interrupted when the context is done
 	old := db.SetInterrupt(ctx)
 	defer db.SetInterrupt(old)
-	txn, err := db.BeginImmediate()
-	if err != nil {
+	if err := c.pool.exec(ctx, db, "BEGIN IMMEDIATE"); err != nil {
 		return c.pool.error(ctx, err)
 	}
 
@@ -92,7 +91,9 @@ func (c *conn) begin(ctx context.Context, fn func(sqlite.Conn) error, bulk bool)
 	defer func() {
 		if !committed {
 			db.SetInterrupt(context.Background())
-			_ = txn.Rollback()
+			if !db.GetAutocommit() {
+				_ = c.pool.exec(context.WithoutCancel(ctx), db, "ROLLBACK")
+			}
 		}
 	}()
 	t := &tx{db: db}
@@ -110,7 +111,7 @@ func (c *conn) begin(ctx context.Context, fn func(sqlite.Conn) error, bulk bool)
 		return err
 	}
 	db.SetInterrupt(ctx)
-	if err := txn.Commit(); err != nil {
+	if err := c.pool.exec(ctx, db, "COMMIT"); err != nil {
 		return c.pool.error(ctx, err)
 	}
 	committed = true
@@ -121,7 +122,7 @@ func (c *conn) begin(ctx context.Context, fn func(sqlite.Conn) error, bulk bool)
 func (c *conn) Exec(ctx context.Context, query string) error {
 	bind := c.bind.Copy()
 	return c.do(ctx, true, func(db *sqlite3.Conn) error {
-		return execute(db, c.cache(), bind, query, nil)
+		return c.execute(ctx, db, bind, query, nil, false)
 	})
 }
 
@@ -134,7 +135,7 @@ func (c *conn) Insert(ctx context.Context, reader sqlite.Reader, writer sqlite.W
 		return err
 	}
 	return c.do(ctx, true, func(db *sqlite3.Conn) error {
-		return execute(db, c.cache(), bind, query, reader)
+		return c.execute(ctx, db, bind, query, reader, false)
 	})
 }
 
@@ -154,7 +155,7 @@ func (c *conn) Update(ctx context.Context, reader sqlite.Reader, sel sqlite.Sele
 		return err
 	}
 	return c.do(ctx, true, func(db *sqlite3.Conn) error {
-		return execute(db, c.cache(), bind, query, reader)
+		return c.execute(ctx, db, bind, query, reader, false)
 	})
 }
 
@@ -167,7 +168,7 @@ func (c *conn) Delete(ctx context.Context, reader sqlite.Reader, sel sqlite.Sele
 		return err
 	}
 	return c.do(ctx, true, func(db *sqlite3.Conn) error {
-		return execute(db, c.cache(), bind, query, reader)
+		return c.execute(ctx, db, bind, query, reader, false)
 	})
 }
 
@@ -180,7 +181,7 @@ func (c *conn) Get(ctx context.Context, reader sqlite.Reader, sel sqlite.Selecto
 		return err
 	}
 	return c.do(ctx, false, func(db *sqlite3.Conn) error {
-		return executeOne(db, c.cache(), bind, query, reader)
+		return c.execute(ctx, db, bind, query, reader, true)
 	})
 }
 
@@ -203,27 +204,27 @@ func (c *conn) List(ctx context.Context, reader sqlite.Reader, sel sqlite.Select
 		// The count and the rows are read in one transaction, unless they're
 		// in one already
 		if c.tx == nil {
-			if err := db.Exec("BEGIN"); err != nil {
+			if err := c.pool.exec(ctx, db, "BEGIN"); err != nil {
 				return err
 			}
 			defer func() {
 				// It only read, so it ends without being interrupted
 				db.SetInterrupt(context.Background())
 				if !db.GetAutocommit() {
-					err = errors.Join(err, db.Exec("COMMIT"))
+					err = errors.Join(err, c.pool.exec(context.WithoutCancel(ctx), db, "COMMIT"))
 				}
 			}()
 		}
 
 		// Count the rows, of all of the query
 		if counter, ok := reader.(sqlite.ListReader); ok {
-			if err := execute(db, c.cache(), bind, `SELECT COUNT(*) FROM (`+query+`)`, readerFunc(counter.ScanCount)); err != nil {
+			if err := c.execute(ctx, db, bind, `SELECT COUNT(*) FROM (`+query+`)`, readerFunc(counter.ScanCount), false); err != nil {
 				return err
 			}
 		}
 
 		// Read the rows, of the offset and limit
-		if err := execute(db, c.cache(), bind, query+` ${offsetlimit}`, reader); !errors.Is(err, sqlite.ErrNotFound) {
+		if err := c.execute(ctx, db, bind, query+` ${offsetlimit}`, reader, false); !errors.Is(err, sqlite.ErrNotFound) {
 			return err
 		}
 		return nil
@@ -268,7 +269,7 @@ func (c *conn) do(ctx context.Context, write bool, fn func(*sqlite3.Conn) error)
 func (c *conn) savepoint(ctx context.Context, fn func(sqlite.Conn) error) error {
 	name := fmt.Sprintf("sp%d", c.depth+1)
 	exec := func(ctx context.Context, sql string) error {
-		return c.do(ctx, true, func(db *sqlite3.Conn) error { return db.Exec(sql) })
+		return c.do(ctx, true, func(db *sqlite3.Conn) error { return c.pool.exec(ctx, db, sql) })
 	}
 	if err := exec(ctx, "SAVEPOINT "+name); err != nil {
 		return err
@@ -300,6 +301,16 @@ func (c *conn) savepoint(ctx context.Context, fn func(sqlite.Conn) error) error 
 	}
 	released = true
 	return nil
+}
+
+// execute executes the query, with its ${key} replaced, and its arguments
+// bound, which is traced, and scans its rows, or the first, into the reader
+func (c *conn) execute(ctx context.Context, db *sqlite3.Conn, bind *sqlite.Bind, query string, reader sqlite.Reader, one bool) error {
+	sql, vars := bind.Expand(query)
+	name, _ := vars[sqlite.TraceSpanNameArg].(string)
+	return c.pool.trace(ctx, name, sql, func(args map[string]any) error {
+		return executeRows(db, c.cache(), sql, vars, reader, one, args)
+	})
 }
 
 // cache returns the transaction's prepared statements, of a bulk operation,

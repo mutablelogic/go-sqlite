@@ -41,6 +41,19 @@ This builds the pure Go handlers: documents, email, text and images. For audio, 
 CGO_ENABLED=1 go install -tags media github.com/mutablelogic/go-sqlite/filesearch/cmd/filesearch@latest
 ```
 
+This needs go-metadata's C libraries: FFmpeg 8, libexif, libheif and LibRaw. On macOS, with Homebrew:
+
+```bash
+brew install ffmpeg@8 libexif libheif libraw
+export PKG_CONFIG_PATH="$(brew --prefix ffmpeg@8)/lib/pkgconfig"
+export CGO_CFLAGS_ALLOW="-Xpreprocessor" CGO_LDFLAGS_ALLOW="-Xpreprocessor"
+CGO_ENABLED=1 go install -tags media github.com/mutablelogic/go-sqlite/filesearch/cmd/filesearch@latest
+```
+
+* **`PKG_CONFIG_PATH`:** Homebrew doesn't link `ffmpeg@8` into its prefix, as it's a versioned formula, so it isn't found otherwise.
+* **`CGO_*_ALLOW`:** Homebrew's LibRaw is built with OpenMP, whose `-Xpreprocessor` flag cgo rejects unless it's allowed.
+* **The linker** warns about duplicate libraries, which is harmless.
+
 ## Build
 
 From a clone of the repo:
@@ -50,7 +63,7 @@ make filesearch           # build/filesearch: documents, email, text and images,
 make filesearch MEDIA=1   # also audio, video, and photos' EXIF, HEIF and RAW
 ```
 
-`MEDIA=1` needs cgo and go-metadata's C libraries: FFmpeg 8, libexif, libheif and LibRaw. See go-metadata's README.
+`MEDIA=1` needs cgo and go-metadata's C libraries: FFmpeg 8, libexif, libheif and LibRaw. On macOS, the Makefile finds Homebrew's `ffmpeg@8`, and allows LibRaw's flags, itself.
 
 ## Run
 

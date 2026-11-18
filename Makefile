@@ -41,6 +41,25 @@ build: tidy
 	@$(if $(CMD_DIR),$(MAKE) --no-print-directory $(CMD_DIR),true)
 	@$(MAKE) --no-print-directory filesearch
 
+# The flags of the C libraries which cgo doesn't allow by default, for
+# filesearch with MEDIA=1: the -Xpreprocessor flag of LibRaw built with
+# OpenMP, as Homebrew's is, which is before -fopenmp
+CGO_CFLAGS_ALLOW ?= -Xpreprocessor
+CGO_LDFLAGS_ALLOW ?= -Xpreprocessor
+export CGO_CFLAGS_ALLOW CGO_LDFLAGS_ALLOW
+
+# On macOS, Homebrew's ffmpeg@8, which is keg-only, so isn't found otherwise,
+# when it's installed. The linker warns about the libraries which more than
+# one of the C libraries link, which isn't a problem.
+ifeq ($(OS),darwin)
+BREW ?= $(shell command -v brew 2>/dev/null)
+BREW_FFMPEG := $(if $(BREW),$(wildcard $(shell $(BREW) --prefix ffmpeg@8 2>/dev/null)/lib/pkgconfig))
+ifneq ($(BREW_FFMPEG),)
+export PKG_CONFIG_PATH := $(BREW_FFMPEG)$(if $(PKG_CONFIG_PATH),:$(PKG_CONFIG_PATH))
+endif
+export CGO_LDFLAGS += -Wl,-no_warn_duplicate_libraries
+endif
+
 # Build filesearch, of its own module, which reads documents, email, text
 # and images, or, with MEDIA=1, audio, video and photos' EXIF, HEIF and RAW
 # too, with cgo, and the C libraries which go-metadata needs

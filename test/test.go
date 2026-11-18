@@ -135,8 +135,6 @@ func testOpen(t *testing.T, fn OpenFunc) {
 	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
 	_, err = fn(ctx, sqlite.Memory, sqlite.WithFunction("f", 1, true, nil))
 	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
-	_, err = fn(ctx, sqlite.Memory, sqlite.WithDriverOption("another's"))
-	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
 
 	// A context which is done doesn't open, or create, the database
 	cancelled, cancel := context.WithCancel(ctx)

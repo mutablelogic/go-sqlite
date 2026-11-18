@@ -26,7 +26,11 @@ var Queries string
 
 const (
 	// Version is the version of the schema, of the database's user_version
-	Version = 1
+	Version = 2
+
+	// MinPathLength is the fewest characters of a part of a path, a folder
+	// or a name, which is searched
+	MinPathLength = 3
 
 	// ListLimit is the most objects which are listed, or searched, at once
 	ListLimit = 100
@@ -50,13 +54,27 @@ func Create(ctx context.Context, conn sqlite.Conn) error {
 		if version > Version {
 			return sqlite.ErrNotImplemented.Withf("schema version %d is newer than %d", version, Version)
 		}
-		if version < 1 {
+
+		// Version 1's objects are deleted, so they're indexed again, when their
+		// volumes are, and then its text, which hasn't the parts of paths, is
+		// dropped, as a virtual table's columns can't be added, and its text
+		// isn't kept, so it's created again
+		if version == 1 {
+			for _, sql := range []string{`DELETE FROM object`, `DROP TABLE IF EXISTS object_text`} {
+				if err := conn.With(sqlite.TraceSpanNameArg, "filesearch.migrate_2").Exec(ctx, sql); err != nil {
+					return err
+				}
+			}
+		}
+
+		// The schema, of its version, which creates what isn't there
+		if version < Version {
 			for _, key := range objects.Keys() {
 				if err := conn.With(sqlite.TraceSpanNameArg, key).Exec(ctx, objects.Query(key)); err != nil {
 					return err
 				}
 			}
-			if err := sqlite.SetVersion(ctx, conn, 1); err != nil {
+			if err := sqlite.SetVersion(ctx, conn, Version); err != nil {
 				return err
 			}
 		}

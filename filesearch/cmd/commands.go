@@ -37,11 +37,13 @@ type IndexCmd struct {
 
 // SearchCmd searches the files which are indexed
 type SearchCmd struct {
-	Flags  `embed:""`
-	Words  []string `arg:"" name:"words" help:"Words, which are all in the files' text, as prefixes" optional:""`
-	Volume []int64  `name:"volume" help:"The volumes to search, or all of them"`
-	Offset uint64   `name:"offset" help:"The offset of the first file"`
-	Limit  *uint64  `name:"limit" help:"The most files, which is at most 100"`
+	Flags   `embed:""`
+	Words   []string `arg:"" name:"words" help:"Words, which are all in the files' text, as prefixes" optional:""`
+	Volume  []int64  `name:"volume" help:"The volumes to search, or all of them"`
+	Order   string   `name:"order" help:"rank, the best first, of a search, which is its default, or path" enum:",rank,path" default:""`
+	MinRank *float64 `name:"min-rank" help:"The lowest rank, of a search, which is higher the better a file matches"`
+	Offset  uint64   `name:"offset" help:"The offset of the first file"`
+	Limit   *uint64  `name:"limit" help:"The most files, which is at most 100"`
 }
 
 // VolumesCmd lists the volumes
@@ -83,6 +85,8 @@ func (cmd *SearchCmd) Run(ctx server.Cmd) error {
 		req := schema.ObjectListRequest{
 			OffsetLimit: sqlite.OffsetLimit{Offset: cmd.Offset, Limit: cmd.Limit},
 			Volumes:     cmd.Volume,
+			Order:       schema.Order(cmd.Order),
+			MinRank:     cmd.MinRank,
 		}
 		if len(cmd.Words) > 0 {
 			query := strings.Join(cmd.Words, " ")

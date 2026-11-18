@@ -44,8 +44,8 @@ ON CONFLICT (volume, path) DO UPDATE SET
     artwork = excluded.artwork, indexed = excluded.indexed, run = excluded.run
 RETURNING id, volume, path, size, modtime, type, kind, title, meta, indexed, run;
 DELETE FROM object_text WHERE rowid = (SELECT id FROM object WHERE volume = @volume AND path = @path);
-INSERT INTO object_text (rowid, title, meta, text)
-VALUES ((SELECT id FROM object WHERE volume = @volume AND path = @path), @title, @meta_text, @text);
+INSERT INTO object_text (rowid, title, path, meta, text)
+VALUES ((SELECT id FROM object WHERE volume = @volume AND path = @path), @title, @path_text, @meta_text, @text);
 
 -- filesearch.object_get
 SELECT id, volume, path, size, modtime, type, kind, title, meta, indexed, run
@@ -62,19 +62,22 @@ RETURNING id, volume, path, size, modtime, type, kind, title, meta, indexed, run
 DELETE FROM object
 WHERE volume = @volume AND run < @run
 AND EXISTS (SELECT 1 FROM volume WHERE id = @volume AND run = @run AND status = 'indexed')
-RETURNING id, volume, path, size, modtime, type, kind, title, meta, indexed, run;
+RETURNING id, volume, path, size, modtime, type, kind, title, meta, indexed, run, NULL AS rank;
 
 -- filesearch.object_list
-SELECT id, volume, path, size, modtime, type, kind, title, meta, indexed, run
-FROM object ${where} ORDER BY volume, path
+SELECT id, volume, path, size, modtime, type, kind, title, meta, indexed, run, NULL AS rank
+FROM object ${where} ORDER BY ${order}
 
 -- filesearch.object_search
--- Objects whose text matches, the best first, of their titles, then their
--- metadata, then their content
-SELECT object.id, volume, path, size, modtime, type, kind, object.title, object.meta, indexed, run
-FROM object_text JOIN object ON object.id = object_text.rowid
-WHERE object_text MATCH @match ${and}
-ORDER BY bm25(object_text, 10.0, 2.0, 1.0)
+-- Objects whose text matches, of their rank, which is higher the better
+-- they match, of their titles, then their paths, then their metadata, then
+-- their content, of a minimum, or not
+SELECT * FROM (
+    SELECT object.id, volume, object.path, size, modtime, type, kind, object.title, object.meta, indexed, run,
+           -bm25(object_text, 10.0, 5.0, 2.0, 1.0) AS rank
+    FROM object_text JOIN object ON object.id = object_text.rowid
+    WHERE object_text MATCH @match ${and}
+) ${rank} ORDER BY ${order}
 
 -- filesearch.artwork_get
 SELECT artwork FROM object WHERE id = @id AND artwork IS NOT NULL;

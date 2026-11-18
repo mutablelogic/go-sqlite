@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	// Packages
 	sqlite "github.com/mutablelogic/go-sqlite"
@@ -40,8 +41,9 @@ type Object struct {
 	Kind    string         `json:"kind,omitempty"`
 	Title   string         `json:"title,omitempty"`
 	Meta    map[string]any `json:"meta,omitempty"`
-	Indexed time.Time      `json:"indexed"` // When it was indexed
-	Run     int64          `json:"run"`     // The run of its volume which last saw it
+	Indexed time.Time      `json:"indexed"`        // When it was indexed
+	Run     int64          `json:"run"`            // The run of its volume which last saw it
+	Rank    *float64       `json:"rank,omitempty"` // How well it matches a search, which is higher the better, or nil
 }
 
 // ObjectList is a list of objects, of its request, with the limit which was
@@ -81,9 +83,20 @@ type ObjectSweep struct {
 // query without any words matches nothing.
 type ObjectListRequest struct {
 	sqlite.OffsetLimit
-	Volumes []int64 `json:"volume,omitempty" help:"Objects of the volumes, or of all of them"`
-	Query   *string `json:"q,omitempty" help:"Words, which are all in the objects' text"`
+	Volumes []int64  `json:"volume,omitempty" help:"Objects of the volumes, or of all of them"`
+	Query   *string  `json:"q,omitempty" help:"Words, which are all in the objects' text"`
+	Order   Order    `json:"order,omitempty" help:"rank, the best first, of a search, or path"`
+	MinRank *float64 `json:"min_rank,omitempty" help:"The lowest rank, of a search"`
 }
+
+// Order is the order of a list of objects
+type Order string
+
+// The orders of a list of objects
+const (
+	OrderRank Order = "rank" // The best match first, of a search, which is its default
+	OrderPath Order = "path" // By volume, and path, which is a list's default
+)
 
 // Artwork is an object's image, which is read on its own
 type Artwork []byte
@@ -123,6 +136,7 @@ func (o ObjectMeta) Insert(bind *sqlite.Bind) (string, error) {
 	bind.Set("kind", nullString(o.Kind))
 	bind.Set("title", nullString(o.Title))
 	bind.Set("meta", meta)
+	bind.Set("path_text", pathText(path))
 	bind.Set("meta_text", metaText(meta))
 	bind.Set("artwork", o.Artwork)
 	bind.Set("text", o.Text)
@@ -147,6 +161,7 @@ func (o *Object) Scan(row sqlite.Row) error {
 	if err := row.Scan(&o.ID, &o.Volume, &o.Path, &o.Size, &o.ModTime, &typ, &kind, &title, &o.Meta, &o.Indexed, &o.Run); err != nil {
 		return err
 	}
+	o.Rank = nil
 	o.Type, o.Kind, o.Title = value(typ), value(kind), value(title)
 	return nil
 }
@@ -154,9 +169,11 @@ func (o *Object) Scan(row sqlite.Row) error {
 // Scan reads an object of a list
 func (l *ObjectList) Scan(row sqlite.Row) error {
 	var o Object
-	if err := o.Scan(row); err != nil {
+	var typ, kind, title *string
+	if err := row.Scan(&o.ID, &o.Volume, &o.Path, &o.Size, &o.ModTime, &typ, &kind, &title, &o.Meta, &o.Indexed, &o.Run, &o.Rank); err != nil {
 		return err
 	}
+	o.Type, o.Kind, o.Title = value(typ), value(kind), value(title)
 	l.Body = append(l.Body, o)
 	return nil
 }
@@ -227,20 +244,45 @@ func (r *ObjectListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, err
 		where = "volume IN (SELECT value FROM json_each(" + bind.Set("volumes", r.Volumes) + "))"
 	}
 
-	// Searched, of the words of the query, which, without any, matches
-	// nothing, or listed, by path, without a query
+	// Searched, of the words of the query, of their rank, or path, and a
+	// minimum rank, or not
 	if r.Query != nil {
 		if match := matchQuery(*r.Query); match != "" {
 			bind.Set("match", match)
 			bind.Set("and", and(where))
+			switch r.Order {
+			case "", OrderRank:
+				bind.Set("order", "rank DESC, volume, path")
+			case OrderPath:
+				bind.Set("order", "volume, path")
+			default:
+				return "", sqlite.ErrBadParameter.Withf("order: %q", r.Order)
+			}
+			if r.MinRank != nil {
+				bind.Set("rank", "WHERE rank >= "+bind.Set("min_rank", *r.MinRank))
+			} else {
+				bind.Set("rank", "")
+			}
 			return bind.Query("filesearch.object_search"), nil
 		}
+		// A query without any words matches nothing
 		where = "FALSE"
+	}
+
+	// Or listed, by path, without a query, which hasn't a rank
+	switch {
+	case r.Order == OrderRank:
+		return "", sqlite.ErrBadParameter.With("order by rank is of a search, with a query")
+	case r.Order != "" && r.Order != OrderPath:
+		return "", sqlite.ErrBadParameter.Withf("order: %q", r.Order)
+	case r.MinRank != nil && r.Query == nil:
+		return "", sqlite.ErrBadParameter.With("a minimum rank is of a search, with a query")
 	}
 	if where != "" {
 		where = "WHERE " + where
 	}
 	bind.Set("where", where)
+	bind.Set("order", "volume, path")
 	return bind.Query("filesearch.object_list"), nil
 }
 
@@ -291,6 +333,18 @@ func matchQuery(query string) string {
 		words[i] = `"` + strings.ReplaceAll(word, `"`, `""`) + `"*`
 	}
 	return strings.Join(words, " ")
+}
+
+// pathText returns the text of a path, which is searched: its parts, which
+// are its folders, and its name, of MinPathLength characters, or more
+func pathText(path string) string {
+	var parts []string
+	for _, part := range strings.Split(path, "/") {
+		if utf8.RuneCountInString(part) >= MinPathLength {
+			parts = append(parts, part)
+		}
+	}
+	return strings.Join(parts, "\n")
 }
 
 // metaText returns the text of the metadata, which is searched: the values

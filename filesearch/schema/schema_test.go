@@ -206,6 +206,38 @@ func Test_Objects(t *testing.T) {
 	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: nil}))
 	assert.Len(t, paths(list), 3)
 
+	// A search has the rank of each object, which is higher the better it
+	// matches, the best first, and of a minimum, or by path; a list hasn't
+	list = schema.ObjectList{}
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("replicant")}))
+	if assert.Len(t, list.Body, 2) {
+		require.NotNil(t, list.Body[0].Rank)
+		require.NotNil(t, list.Body[1].Rank)
+		assert.Greater(t, *list.Body[0].Rank, *list.Body[1].Rank)
+		assert.Greater(t, *list.Body[1].Rank, 0.0)
+		cutoff := (*list.Body[0].Rank + *list.Body[1].Rank) / 2
+		ranked := schema.ObjectList{}
+		require.NoError(t, db.List(ctx, &ranked, &schema.ObjectListRequest{Query: types.Ptr("replicant"), MinRank: &cutoff}))
+		assert.Equal(t, []string{list.Body[0].Path}, paths(ranked))
+		assert.Equal(t, uint64(1), ranked.Count, "of the minimum")
+	}
+	list = schema.ObjectList{}
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("replicant"), Order: schema.OrderPath}))
+	assert.Equal(t, []string{"films/blade-runner.mp4", "weather.md"}, paths(list))
+	list = schema.ObjectList{}
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{}))
+	for _, o := range list.Body {
+		assert.Nil(t, o.Rank, o.Path)
+	}
+	for name, req := range map[string]schema.ObjectListRequest{
+		"order by rank, of a list":  {Order: schema.OrderRank},
+		"a minimum rank, of a list": {MinRank: types.Ptr(1.0)},
+		"an order which isn't":      {Order: "size"},
+		"an order of a search":      {Query: types.Ptr("rain"), Order: "size"},
+	} {
+		assert.ErrorIs(t, db.List(ctx, &schema.ObjectList{}, &req), sqlite.ErrBadParameter, name)
+	}
+
 	// An object which is replaced is the same, with its text replaced
 	var replaced schema.Object
 	require.NoError(t, db.Insert(ctx, &replaced, schema.ObjectMeta{
@@ -213,11 +245,32 @@ func Test_Objects(t *testing.T) {
 	}))
 	assert.Equal(t, book.ID, replaced.ID)
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("weather")}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("watched")}))
 	assert.Empty(t, paths(list), "its old text")
+	list = schema.ObjectList{}
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("weather")}))
+	assert.Equal(t, []string{"weather.md"}, paths(list), "its path")
 	list = schema.ObjectList{}
 	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("sunshine")}))
 	assert.Equal(t, []string{"weather.md"}, paths(list))
+
+	// The parts of their paths, of three characters or more, are searched,
+	// after their titles
+	var tagged schema.Object
+	require.NoError(t, db.Insert(ctx, &tagged, schema.ObjectMeta{
+		Volume: media.ID, Path: "Holiday Spain 2014/x/IMG_20140705.jpg", Size: 1, ModTime: modtime, Title: "IMG_20140705", Run: media.Run,
+	}))
+	for query, want := range map[string][]string{
+		"spain":        {"Holiday Spain 2014/x/IMG_20140705.jpg"},
+		"holiday 2014": {"Holiday Spain 2014/x/IMG_20140705.jpg"},
+		"jpg":          {"Holiday Spain 2014/x/IMG_20140705.jpg"},
+		"x":            nil,
+		"films runner": {"films/blade-runner.mp4"},
+	} {
+		list = schema.ObjectList{}
+		require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr(query)}), query)
+		assert.Equal(t, want, paths(list), query)
+	}
 
 	// A path which isn't within a volume, of a volume which isn't, or a size
 	// which isn't, is a bad parameter
@@ -294,4 +347,45 @@ func Test_MarkAndSweep(t *testing.T) {
 	list = schema.ObjectList{}
 	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("other")}))
 	assert.Empty(t, paths(list), "the text of a deleted volume's objects")
+}
+
+func Test_MigrateVersion1(t *testing.T) {
+	ctx := t.Context()
+	db, err := ncruces.Open(ctx, t.TempDir()+"/index.db")
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, db.Close()) })
+
+	// A database of version 1, whose text hasn't the parts of paths, with
+	// an object
+	require.NoError(t, schema.Create(ctx, db))
+	for _, sql := range []string{
+		`DROP TABLE object_text`,
+		`CREATE VIRTUAL TABLE object_text USING fts5(title, meta, text, content = '', contentless_delete = 1)`,
+		`INSERT INTO volume (path) VALUES ('/media')`,
+		`INSERT INTO object (volume, path, size, modtime, indexed, run) VALUES (1, 'a.txt', 1, '2026-11-18T12:00:00Z', '2026-11-18T12:00:00Z', 1)`,
+	} {
+		require.NoError(t, db.Exec(ctx, sql))
+	}
+	require.NoError(t, sqlite.SetVersion(ctx, db, 1))
+
+	// It's migrated: its text is created again, with the parts of paths, and
+	// its objects are deleted, so they're indexed again, and its volumes are
+	// kept
+	require.NoError(t, schema.Create(ctx, db))
+	version, err := sqlite.Version(ctx, db)
+	require.NoError(t, err)
+	assert.Equal(t, int64(schema.Version), version)
+	queries, err := schema.NewQueries()
+	require.NoError(t, err)
+	conn := db.WithQueries(queries)
+	var list schema.ObjectList
+	require.NoError(t, conn.List(ctx, &list, &schema.ObjectListRequest{}))
+	assert.Zero(t, list.Count)
+	var volumes schema.VolumeList
+	require.NoError(t, conn.List(ctx, &volumes, &schema.VolumeListRequest{}))
+	assert.Equal(t, uint64(1), volumes.Count)
+	var object schema.Object
+	require.NoError(t, conn.Insert(ctx, &object, schema.ObjectMeta{Volume: 1, Path: "Spain/a.txt", Size: 1, Run: 1}))
+	require.NoError(t, conn.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("spain")}))
+	assert.Equal(t, uint64(1), list.Count)
 }

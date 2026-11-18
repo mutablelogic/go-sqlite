@@ -29,7 +29,7 @@ func (v VolumeList) String() string {
 
 // Header returns the columns of an object, as a table's row
 func (o Object) Header() []string {
-	return []string{"Volume", "Path", "Title", "Kind", "Type", "Size", "Modified"}
+	return []string{"Volume", "Path", "Title", "Kind", "Type", "Size", "Modified", "Rank"}
 }
 
 // Width returns the width of a column, which is its own
@@ -54,6 +54,11 @@ func (o Object) Cell(col int) tui.CellText {
 		return FormatSize(o.Size)
 	case 6:
 		return o.ModTime.Local().Format(time.DateTime)
+	case 7:
+		if o.Rank == nil {
+			return ""
+		}
+		return fmt.Sprintf("%.2f", *o.Rank)
 	}
 	return ""
 }

@@ -26,7 +26,9 @@ import (
 // traced
 func (p *pool) exec(ctx context.Context, db *sqlite3.Conn, sql string) error {
 	return p.trace(ctx, "", sql, func(map[string]any) error {
-		return db.Exec(sql)
+		err := db.Exec(sql)
+		p.writerChanges(db).settle(db)
+		return err
 	})
 }
 

@@ -230,3 +230,42 @@ func Test_ChangesCascade(t *testing.T) {
 	require.NoError(t, db.Exec(ctx, "DELETE FROM a WHERE id = 1"))
 	assert.ElementsMatch(t, []string{"delete main.a 1", "delete main.c 1", "delete main.c 2"}, p.take())
 }
+
+func Test_ChangesSettled(t *testing.T) {
+	ctx := t.Context()
+	db, p := openChanges(t, "a")
+
+	// A commit is kept, though a transaction after it, of a table which isn't
+	// published, or of nothing, is rolled back
+	require.NoError(t, db.Exec(ctx, "BEGIN; INSERT INTO a (id, name) VALUES (1, 'one'); COMMIT; BEGIN; INSERT INTO b (id, name) VALUES (1, 'one'); ROLLBACK"))
+	assert.Equal(t, []string{"create main.a 1"}, p.take())
+	require.NoError(t, db.Exec(ctx, "BEGIN; INSERT INTO a (id, name) VALUES (2, 'two'); COMMIT; BEGIN; ROLLBACK"))
+	assert.Equal(t, []string{"create main.a 2"}, p.take())
+}
+
+func Test_ChangesStatementFails(t *testing.T) {
+	ctx := t.Context()
+	db, p := openChanges(t)
+	require.NoError(t, db.Exec(ctx, "INSERT INTO a (id, name) VALUES (1, 'one')"))
+	p.take()
+
+	// A statement which fails, in a transaction, is undone, of its rows, by
+	// default, and isn't of FAIL, whose rows before it failed are kept
+	require.NoError(t, db.Tx(ctx, func(conn sqlite.Conn) error {
+		assert.Error(t, conn.Exec(ctx, "INSERT INTO a (id, name) VALUES (2, 'two'), (1, 'duplicate')"))
+		assert.Error(t, conn.Exec(ctx, "INSERT OR FAIL INTO a (id, name) VALUES (3, 'three'), (1, 'duplicate')"))
+		assert.Error(t, conn.Exec(ctx, "DELETE FROM a WHERE id = 1 OR id = (SELECT abs(-9223372036854775807 - 1))"))
+		return nil
+	}))
+	assert.Equal(t, []string{"create main.a 3"}, p.take())
+}
+
+func Test_ChangesWithoutRowid(t *testing.T) {
+	ctx := t.Context()
+	db, p := openChanges(t)
+
+	// A table WITHOUT ROWID isn't published, as its rows have no rowids
+	require.NoError(t, db.Exec(ctx, "CREATE TABLE w (k TEXT PRIMARY KEY) WITHOUT ROWID"))
+	require.NoError(t, db.Exec(ctx, "INSERT INTO w (k) VALUES ('one'), ('two'); INSERT INTO a (id, name) VALUES (1, 'one')"))
+	assert.Equal(t, []string{"create main.a 1"}, p.take())
+}

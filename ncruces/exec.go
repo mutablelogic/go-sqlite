@@ -62,7 +62,9 @@ func executeRows(db *sqlite3.Conn, cache statements, changes *changes, query str
 			return
 		}
 		if err == nil && done {
-			if err = db.Exec("RELEASE " + multiSavepoint); err == nil {
+			err = db.Exec("RELEASE " + multiSavepoint)
+			changes.settle(db)
+			if err == nil {
 				return
 			}
 		}
@@ -73,6 +75,7 @@ func executeRows(db *sqlite3.Conn, cache statements, changes *changes, query str
 		rollbackErr := db.Exec("ROLLBACK TO " + multiSavepoint)
 		changes.rollbackTo(mark)
 		err = errors.Join(err, rollbackErr, db.Exec("RELEASE "+multiSavepoint))
+		changes.settle(db)
 	}()
 
 	scanned, first := false, true
@@ -111,7 +114,10 @@ func executeRows(db *sqlite3.Conn, cache statements, changes *changes, query str
 			query = tail
 		}
 		first = false
-		if err := run(stmt, cached, vars, args, reader, one, &scanned); err != nil {
+		statementMark := changes.savepoint()
+		err := run(stmt, cached, vars, args, reader, one, &scanned)
+		changes.statement(db, statementMark, err)
+		if err != nil {
 			return err
 		}
 	}

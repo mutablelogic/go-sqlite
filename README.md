@@ -606,6 +606,7 @@ db, err := ncruces.Open(ctx, path,
 * **Many rows:** over `sqlite.MaxChanges` rows of a table in one transaction are one change of the table, without a `Row`.
 * **Every row:** rows deleted by a foreign key's cascade, by a `DELETE` without a `WHERE`, or replaced by `INSERT OR REPLACE`, are published. A row whose rowid changes is a delete and a create.
 * **Publish** is called while the writer is held, so it mustn't block or query the database. A watcher reads changes on its own goroutine, as go-server's broadcaster's do.
+* **Failed statements:** in a transaction, rows undone by a failed statement aren't published, and rows kept by `INSERT OR FAIL` are.
 * **Not seen:** writes by other processes, and of tables `WITHOUT ROWID`. Savepoints written by hand in SQL aren't tracked, so their rolled-back rows are still published.
 
 ## License & Distribution

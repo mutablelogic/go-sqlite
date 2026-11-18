@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	// Packages
+	schema "github.com/mutablelogic/go-server/broadcaster/schema"
+	sqlite "github.com/mutablelogic/go-sqlite"
 	assert "github.com/stretchr/testify/assert"
 	attribute "go.opentelemetry.io/otel/attribute"
 )
@@ -31,5 +33,28 @@ func Test_argAttribute(t *testing.T) {
 		{nil, attribute.String("arg.v", "null")},
 	} {
 		assert.Equal(t, test.want, argAttribute("v", test.value), "%#v", test.value)
+	}
+}
+
+// publisher ignores the changes which are published
+type publisher struct{}
+
+func (publisher) Publish(schema.Change) int { return 0 }
+
+func Test_WriterChanges(t *testing.T) {
+	// Only the writer's statements change its changes, not a reader's
+	db, err := Open(t.Context(), t.TempDir()+"/test.db", sqlite.WithBroadcaster(publisher{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	p := db.(*poolconn).pool
+	if p.writerChanges(p.writer) == nil {
+		t.Error("the writer has no changes")
+	}
+	reader := <-p.readers
+	defer func() { p.readers <- reader }()
+	if p.writerChanges(reader) != nil {
+		t.Error("a reader has the writer's changes")
 	}
 }

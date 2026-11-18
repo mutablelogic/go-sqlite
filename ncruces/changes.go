@@ -18,13 +18,14 @@ import (
 // published to the broadcaster once it's committed, and the writer is
 // released, so a watcher which reads them reads what's committed. SQLite's
 // hooks say when a row is written, and a transaction is committed, or rolled
-// back. They don't say when a savepoint is rolled back to, so savepoint and
-// rollbackTo are called around each.
+// back. They don't say when a savepoint is rolled back to, or a statement
+// fails, and its rows are undone, or whether a commit succeeded, so
+// savepoint, rollbackTo and statement are called, of the writer's
+// statements.
 type changes struct {
 	sync.Mutex
 	publisher sqlite.Publisher
 	tables    map[string]bool // The tables which are published, or all of them
-	kinds     map[string]bool // Whether a table is published, of its type: not a shadow table
 
 	pending    []written       // Written, in the transaction
 	committing []written       // Committed, unless the commit is rolled back
@@ -48,7 +49,7 @@ func newChanges(o *sqlite.Options) *changes {
 	if o.Broadcaster == nil {
 		return nil
 	}
-	c := &changes{publisher: o.Broadcaster, kinds: make(map[string]bool)}
+	c := &changes{publisher: o.Broadcaster}
 	if len(o.Tables) > 0 {
 		c.tables = make(map[string]bool, len(o.Tables))
 		for _, table := range o.Tables {
@@ -95,10 +96,6 @@ func (c *changes) preupdate(data sqlite3.PreUpdateData) {
 	}
 	c.Lock()
 	defer c.Unlock()
-
-	// A write after a commit is of another transaction, so the commit
-	// succeeded
-	c.promote()
 	for _, row := range rows {
 		row.db, row.table = data.Schema, data.Table
 		c.pending = append(c.pending, row)
@@ -106,7 +103,7 @@ func (c *changes) preupdate(data sqlite3.PreUpdateData) {
 }
 
 // commit moves the transaction's rows to those which are committing, as
-// the commit can still fail, and be rolled back
+// the commit can still fail, until its statement ends
 func (c *changes) commit() bool {
 	c.Lock()
 	defer c.Unlock()
@@ -149,35 +146,118 @@ func (c *changes) rollbackTo(mark int) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// PUBLISH
+// STATEMENTS
 
-// flush publishes what's committed, other than the shadow tables of virtual
-// tables, of the writer, which is held, and isn't in a transaction
-func (c *changes) flush(db *sqlite3.Conn) {
+// statement is called once a statement of the writer ends, with its error,
+// and the mark of where its rows start. A statement which fails, in a
+// transaction, may have been undone, of its default conflict mode, ABORT,
+// or not, of FAIL, so its rows are checked.
+func (c *changes) statement(db *sqlite3.Conn, mark int, err error) {
+	if c == nil {
+		return
+	}
+	if err != nil && !db.GetAutocommit() {
+		c.verify(db, mark)
+	}
+	c.settle(db)
+}
+
+// settle confirms a commit, once its statement ends: it succeeded when
+// there's no transaction, as a commit which fails, and is rolled back, is
+// forgotten, of the rollback hook, or else it failed, such as when the
+// database is busy, and its transaction continues, with its rows
+func (c *changes) settle(db *sqlite3.Conn) {
 	if c == nil {
 		return
 	}
 	c.Lock()
-	c.promote()
+	defer c.Unlock()
+	if db.GetAutocommit() {
+		c.promote()
+	} else if len(c.committing) > 0 {
+		c.pending = append(c.committing, c.pending...)
+		c.committing = nil
+	}
+}
+
+// verify forgets the rows of a statement which failed, after its mark,
+// which were undone: those created which aren't, and those deleted which
+// are. Those updated are kept, though they may have been undone. A
+// statement of more than MaxChanges rows is kept, as it is.
+func (c *changes) verify(db *sqlite3.Conn, mark int) {
+	c.Lock()
+	defer c.Unlock()
+	if mark >= len(c.pending) || len(c.pending)-mark > sqlite.MaxChanges {
+		return
+	}
+	kept := c.pending[:mark]
+	for _, row := range c.pending[mark:] {
+		if row.action == schema.ChangeUpdate {
+			kept = append(kept, row)
+			continue
+		}
+		exists, err := rowExists(db, row)
+		if err != nil || exists == (row.action == schema.ChangeCreate) {
+			kept = append(kept, row)
+		}
+	}
+	c.pending = kept
+}
+
+// rowExists returns whether a row of a table exists, of its rowid
+func rowExists(db *sqlite3.Conn, row written) (bool, error) {
+	stmt, _, err := db.Prepare("SELECT 1 FROM " + quote(row.db) + "." + quote(row.table) + " WHERE rowid = ?")
+	if err != nil {
+		return false, err
+	}
+	defer stmt.Close()
+	if err := stmt.BindInt64(1, row.rowid); err != nil {
+		return false, err
+	}
+	exists := stmt.Step()
+	return exists, stmt.Err()
+}
+
+// quote returns an identifier, in double quotes
+func quote(name string) string {
+	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// PUBLISH
+
+// flush publishes what's committed, of the writer, which is held, and isn't
+// in a transaction, other than the shadow tables of virtual tables, and
+// tables WITHOUT ROWID, whose types are read once, of each flush, as a table
+// can be dropped, and another created, of its name
+func (c *changes) flush(db *sqlite3.Conn) {
+	if c == nil {
+		return
+	}
+	c.settle(db)
+	c.Lock()
 	committed := c.committed
 	c.committed = nil
 	c.Unlock()
+	kinds := make(map[string]bool)
 	for _, change := range committed {
-		if c.published(db, change.Schema, change.Table) {
+		key := strings.ToLower(change.Schema + "." + change.Table)
+		published, exists := kinds[key]
+		if !exists {
+			published = isPublished(db, change.Schema, change.Table)
+			kinds[key] = published
+		}
+		if published {
 			c.publisher.Publish(change)
 		}
 	}
 }
 
-// published returns whether the changes of a table are published, which
-// they are unless it's a shadow table, such as fts5's, or the table can't
-// be found
-func (c *changes) published(db *sqlite3.Conn, name, table string) bool {
-	key := strings.ToLower(name + "." + table)
-	if published, exists := c.kinds[key]; exists {
-		return published
-	}
-	stmt, _, err := db.Prepare("SELECT type FROM pragma_table_list WHERE schema = ? AND name = ?")
+// isPublished returns whether the changes of a table are published, which
+// they are unless it's a shadow table, such as fts5's, or WITHOUT ROWID,
+// whose rows have no rowids, or the table can't be found
+func isPublished(db *sqlite3.Conn, name, table string) bool {
+	stmt, _, err := db.Prepare("SELECT type, wr FROM pragma_table_list WHERE schema = ? AND name = ?")
 	if err != nil {
 		return true
 	}
@@ -187,12 +267,11 @@ func (c *changes) published(db *sqlite3.Conn, name, table string) bool {
 	}
 	published := true
 	if stmt.Step() {
-		published = stmt.ColumnText(0) != "shadow"
+		published = stmt.ColumnText(0) != "shadow" && stmt.ColumnInt(1) == 0
 	}
 	if stmt.Err() != nil {
 		return true
 	}
-	c.kinds[key] = published
 	return published
 }
 

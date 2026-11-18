@@ -312,7 +312,7 @@ func (c *conn) execute(ctx context.Context, db *sqlite3.Conn, bind *sqlite.Bind,
 	sql, vars := bind.Expand(query)
 	name, _ := vars[sqlite.TraceSpanNameArg].(string)
 	return c.pool.trace(ctx, name, sql, func(args map[string]any) error {
-		return executeRows(db, c.cache(), c.pool.changes, sql, vars, reader, one, args)
+		return executeRows(db, c.cache(), c.pool.writerChanges(db), sql, vars, reader, one, args)
 	})
 }
 

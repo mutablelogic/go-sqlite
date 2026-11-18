@@ -60,3 +60,20 @@ func Test_FTS5Changes(t *testing.T) {
 	require.NoError(t, db.Exec(ctx, `INSERT INTO doc (id, body) VALUES (1, 'rain'); INSERT INTO doc_text (rowid, body) VALUES (1, 'rain')`))
 	assert.Equal(t, []string{"doc"}, p.tables)
 }
+
+func Test_FTS5ChangesRecreated(t *testing.T) {
+	ctx := t.Context()
+
+	// A table which is created, of the name of a shadow table which was
+	// dropped, is published
+	p := &publisher{}
+	db, err := ncruces.Open(ctx, t.TempDir()+"/test.db", sqlite.WithBroadcaster(p))
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, db.Close()) })
+	require.NoError(t, db.Exec(ctx, `CREATE VIRTUAL TABLE doc_text USING fts5(body)`))
+	require.NoError(t, db.Exec(ctx, `INSERT INTO doc_text (rowid, body) VALUES (1, 'rain')`))
+	require.NoError(t, db.Exec(ctx, `DROP TABLE doc_text; CREATE TABLE doc_text_data (id INTEGER PRIMARY KEY)`))
+	p.tables = nil
+	require.NoError(t, db.Exec(ctx, `INSERT INTO doc_text_data (id) VALUES (1)`))
+	assert.Equal(t, []string{"doc_text_data"}, p.tables)
+}

@@ -220,6 +220,15 @@ func (p *pool) acquireReader(ctx context.Context) (*sqlite3.Conn, func(), error)
 	}
 }
 
+// writerChanges returns the writer's changes, when the connection is the
+// writer, or else nil, so a reader's statements don't change them
+func (p *pool) writerChanges(db *sqlite3.Conn) *changes {
+	if db != p.writer {
+		return nil
+	}
+	return p.changes
+}
+
 // ready returns an error when the context is done, or the pool is closed
 func (p *pool) ready(ctx context.Context) error {
 	select {

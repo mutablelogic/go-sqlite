@@ -67,7 +67,8 @@ type ObjectMark struct {
 }
 
 // ObjectSweep selects the objects of a volume, which its run didn't see,
-// once it's indexed, to delete them
+// once its run indexed it, to delete them. The run is the volume's latest,
+// so a run which is indexing, or failed, or an older one, sweeps nothing.
 type ObjectSweep struct {
 	Volume int64
 	Run    int64
@@ -138,6 +139,8 @@ func (o ObjectMeta) Update(*sqlite.Bind) error {
 
 // Scan reads an object
 func (o *Object) Scan(row sqlite.Row) error {
+	// The metadata is of this row, and not of one read before it
+	o.Meta = nil
 	var typ, kind, title *string
 	if err := row.Scan(&o.ID, &o.Volume, &o.Path, &o.Size, &o.ModTime, &typ, &kind, &title, &o.Meta, &o.Indexed, &o.Run); err != nil {
 		return err

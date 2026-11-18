@@ -135,6 +135,16 @@ func Test_IndexVolume(t *testing.T) {
 		assert.Equal(t, uint64(3), volumes.Body[0].Objects)
 	}
 
+	// Reindexed, all of them are indexed again, though they're as they were
+	again, err = manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root, Recursive: true, Reindex: true}, nil)
+	require.NoError(t, err)
+	progress, err = manager.Progress(volume.ID)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(3), progress.Indexed)
+	assert.Zero(t, progress.Marked)
+	assert.Zero(t, progress.Swept)
+	assert.Equal(t, []string{"d.txt", "notes/b.md", "photos/c.jpeg"}, objects(t, manager, volume.ID))
+
 	// Indexed again, not recursively, its folders' files are swept
 	_, err = manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root}, nil)
 	require.NoError(t, err)

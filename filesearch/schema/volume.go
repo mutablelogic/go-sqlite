@@ -20,10 +20,12 @@ type VolumeMeta struct {
 }
 
 // IndexVolumeRequest indexes a volume, of a folder, and its folders, when
-// it's recursive
+// it's recursive, of the files which are new, or changed, or all of them,
+// when they're reindexed
 type IndexVolumeRequest struct {
 	Path      string `json:"path"`
 	Recursive bool   `json:"recursive,omitempty"`
+	Reindex   bool   `json:"reindex,omitempty"`
 }
 
 // Volume is a folder which is indexed, with the status of its indexing

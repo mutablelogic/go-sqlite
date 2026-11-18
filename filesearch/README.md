@@ -17,6 +17,7 @@ make filesearch MEDIA=1          # and audio, video and photos' EXIF, HEIF and R
 
 ```bash
 filesearch index ~/Documents     # Index a folder, of its folders too, with --no-recursive not
+filesearch index --reindex ~/Documents  # Index all of its files again, such as when they're read differently
 filesearch search tax return     # Search, of all of the words, the best first, of a rank of 0.15 or more
 filesearch search --cutoff 0.5 tax  # Of a rank of 0.5, or more, or 0, for any
 filesearch search --order date tax  # The newest first, rather than the best

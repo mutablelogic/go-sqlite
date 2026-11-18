@@ -8,6 +8,7 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -129,7 +130,7 @@ func (m *Manager) IndexVolume(ctx context.Context, req schema.IndexVolumeRequest
 	// sweep what it didn't see, in one transaction, so it's indexed only once
 	// it's swept
 	if err == nil {
-		err = m.walk(ctx, &volume, req.Recursive, p)
+		err = m.walk(ctx, &volume, req.Recursive, req.Reindex, p)
 	}
 	finished := time.Now()
 	var swept schema.ObjectList
@@ -252,8 +253,9 @@ func (m *Manager) count(ctx context.Context, root string, recursive bool) (uint6
 }
 
 // walk walks the volume, of its folders, when it's recursive, and indexes,
-// or marks, its files, a batch at a time
-func (m *Manager) walk(ctx context.Context, volume *schema.Volume, recursive bool, p *progress) error {
+// or marks, its files, a batch at a time, or indexes all of them again,
+// when they're reindexed
+func (m *Manager) walk(ctx context.Context, volume *schema.Volume, recursive, reindex bool, p *progress) error {
 	batch := make([]file, 0, batchSize)
 	// A batch is marked, of the files which are as they were, in a
 	// transaction, and then those which are new, or changed, are read, outside
@@ -267,10 +269,12 @@ func (m *Manager) walk(ctx context.Context, volume *schema.Volume, recursive boo
 		}
 		defer func() { batch = batch[:0] }()
 
-		// Mark what's as it was
+		// Mark what's as it was, unless everything is indexed again
 		var events []event
 		var changed []file
-		if err := m.conn.Bulk(ctx, func(conn sqlite.Conn) error {
+		if reindex {
+			changed = slices.Clone(batch)
+		} else if err := m.conn.Bulk(ctx, func(conn sqlite.Conn) error {
 			events, changed = make([]event, 0, len(batch)), nil
 			for _, f := range batch {
 				e, err := markFile(ctx, conn, volume, f)

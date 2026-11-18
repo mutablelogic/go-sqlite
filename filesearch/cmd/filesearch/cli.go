@@ -11,12 +11,14 @@ import (
 	// video, and photos' EXIF, HEIF and RAW, are built with the media tag
 	// (see cli_media.go).
 	_ "github.com/mutablelogic/go-metadata/application"
+	_ "github.com/mutablelogic/go-metadata/audio/kind"
 	_ "github.com/mutablelogic/go-metadata/audio/playlist"
 	_ "github.com/mutablelogic/go-metadata/image/photoshop"
 	_ "github.com/mutablelogic/go-metadata/image/raster"
 	_ "github.com/mutablelogic/go-metadata/image/svg"
 	_ "github.com/mutablelogic/go-metadata/message"
 	_ "github.com/mutablelogic/go-metadata/text"
+	_ "github.com/mutablelogic/go-metadata/video/kind"
 	_ "github.com/mutablelogic/go-metadata/video/subtitle"
 	_ "github.com/mutablelogic/go-metadata/video/tmdb"
 )

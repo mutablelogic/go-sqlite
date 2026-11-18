@@ -7,7 +7,7 @@ replace github.com/mutablelogic/go-sqlite => ../
 
 require (
 	github.com/mutablelogic/go-client v1.4.13
-	github.com/mutablelogic/go-metadata v1.1.3
+	github.com/mutablelogic/go-metadata v1.1.4
 	github.com/mutablelogic/go-server v1.8.16
 	github.com/mutablelogic/go-sqlite v1.0.51
 	github.com/stretchr/testify v1.12.1

@@ -6,7 +6,7 @@ go 1.27.2
 retract [v1.0.1, v1.0.51]
 
 require (
-	github.com/mutablelogic/go-server v1.8.16
+	github.com/mutablelogic/go-server v1.8.18
 	github.com/ncruces/go-sqlite3 v0.37.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/otel v1.47.0

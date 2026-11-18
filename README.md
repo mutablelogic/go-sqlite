@@ -497,10 +497,21 @@ err := db.Tx(ctx, func(conn sqlite.Conn) error {
   }
   if version < 1 {
     // ...create the schema...
+    if err := sqlite.SetVersion(ctx, conn, 1); err != nil {
+      return err
+    }
   }
-  return sqlite.SetVersion(ctx, conn, 1)
+  if version < 2 {
+    // ...migrate it from version 1...
+    if err := sqlite.SetVersion(ctx, conn, 2); err != nil {
+      return err
+    }
+  }
+  return nil
 })
 ```
+
+Each step sets its own version, so a database which is already newer isn't changed, and one which fails part way is rolled back to the version it was.
 
 ## Errors
 

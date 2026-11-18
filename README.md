@@ -369,7 +369,7 @@ if err := conn.Exec(ctx, queries.Query("mytable.create")); err != nil {
 }
 ```
 
-A `Selector` or `Writer` returns a query by its key, with `bind.Query`, which also names its span, when it's traced:
+A `Selector` or `Writer` returns a query by its key, with `bind.Query`, which also names its span, when it's [traced](#tracing):
 
 ```go
 func (obj MyObject) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {

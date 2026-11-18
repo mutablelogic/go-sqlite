@@ -4,6 +4,7 @@ A SQLite client for Go, of the same shape as [go-pg](https://github.com/mutablel
 
 - **Implementations:** the root package is the interfaces, queries and errors, without a driver. [`ncruces`](ncruces) implements them with [ncruces/go-sqlite3](https://github.com/ncruces/go-sqlite3)'s own API, which is SQLite compiled to WebAssembly.
 - **One writer, many readers:** writes and transactions are on one connection, and reads on several, of `WithMaxReaders`. A file's journal is a write-ahead log, so reads see what's committed while a transaction writes.
+- **Values:** [`values`](values) converts between Go and SQLite: bools, integers, floats, strings, `[]byte`, `time.Time`, `driver.Valuer`, `sql.Scanner`, named types, and pointers, which are NULL when nil.
 - **Queries:** named SQL from a file (`NewQueries`), `${key}` substitutions and `@key` arguments (`Bind`), and objects which read, write and select themselves (`Reader`, `Writer`, `Selector`).
 
 ## Open a database
@@ -44,4 +45,4 @@ err := db.Tx(ctx, func(conn sqlite.Conn) error {
 
 ## Implementations
 
-Another implementation opens a `sqlite.PoolConn`, and passes `test.Run(t, open)`, as `ncruces.Open` does.
+Another implementation opens a `sqlite.PoolConn`, and passes `test.Run(t, open)`, as `ncruces.Open` does. It converts values with `values.Set` and `values.Scan`, by adapting where SQLite gives and takes them.

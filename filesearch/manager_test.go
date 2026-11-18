@@ -9,6 +9,7 @@ import (
 	sqlite "github.com/mutablelogic/go-sqlite"
 	filesearch "github.com/mutablelogic/go-sqlite/filesearch"
 	schema "github.com/mutablelogic/go-sqlite/filesearch/schema"
+	test "github.com/mutablelogic/go-sqlite/filesearch/test"
 	ncruces "github.com/mutablelogic/go-sqlite/ncruces"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
@@ -18,7 +19,7 @@ import (
 
 func Test_New(t *testing.T) {
 	ctx := t.Context()
-	path := filepath.Join(t.TempDir(), "index.db")
+	path := test.Path(t)
 
 	// A manager creates its database, and its schema, and is closed
 	manager, err := filesearch.New(ctx, path)
@@ -62,6 +63,13 @@ func Test_NewErrors(t *testing.T) {
 	_, err = filesearch.New(ctx, path)
 	assert.ErrorIs(t, err, sqlite.ErrNotImplemented)
 	require.NoError(t, os.Remove(path), "it was closed")
+}
+
+func Test_Manager(t *testing.T) {
+	// A manager, of a temporary database, which is closed, and deleted, when
+	// the test ends
+	manager := test.New(t, filesearch.WithMaxReaders(2))
+	require.NoError(t, manager.Ping(t.Context()))
 }
 
 func Test_NewTracer(t *testing.T) {

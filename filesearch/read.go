@@ -1,7 +1,9 @@
 package filesearch
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -153,7 +155,8 @@ func (r *read) addError(err error) {
 
 // addMeta adds a value of metadata, of its key, which is a list of the
 // values, when there's more than one, unless it's an image, or bytes, which
-// aren't searched
+// aren't searched. A value is as the entry marshals it, when it does, such as
+// a duration as "1h58m0s", rather than its nanoseconds
 func addMeta(meta map[string]any, key string, entry metadata.Metadata) {
 	if entry.Image() != nil {
 		return
@@ -161,6 +164,11 @@ func addMeta(meta map[string]any, key string, entry metadata.Metadata) {
 	v := entry.Any()
 	if _, isBytes := v.([]byte); isBytes || v == nil {
 		return
+	}
+	if marshaler, ok := entry.(json.Marshaler); ok {
+		if marshaled, ok := unmarshal(marshaler); ok {
+			v = marshaled
+		}
 	}
 	switch existing := meta[key].(type) {
 	case nil:
@@ -170,6 +178,23 @@ func addMeta(meta map[string]any, key string, entry metadata.Metadata) {
 	default:
 		meta[key] = []any{existing, v}
 	}
+}
+
+// unmarshal returns the value which an entry marshals, decoded, so strings
+// and lists of them are searched, with numbers as they're written, rather than
+// as floats
+func unmarshal(marshaler json.Marshaler) (any, bool) {
+	data, err := marshaler.MarshalJSON()
+	if err != nil {
+		return nil, false
+	}
+	var v any
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	if err := dec.Decode(&v); err != nil || v == nil {
+		return nil, false
+	}
+	return v, true
 }
 
 // stringList returns a value which is a list of strings, or a string, as a

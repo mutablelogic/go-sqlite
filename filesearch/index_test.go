@@ -74,7 +74,7 @@ func Test_IndexVolume(t *testing.T) {
 	list, err := manager.ListObjects(ctx, schema.ObjectListRequest{Query: types.Ptr("c")})
 	require.NoError(t, err)
 	if assert.Len(t, list.Body, 1) {
-		assert.Equal(t, "image/jpeg", list.Body[0].Type)
+		assert.Equal(t, "text/plain", list.Body[0].Type, "of its content, without its charset")
 		assert.Equal(t, "c", list.Body[0].Title)
 	}
 
@@ -197,7 +197,7 @@ func Test_IndexVolumeErrors(t *testing.T) {
 	assert.Equal(t, schema.StatusFailed, failed.Status)
 	assert.Contains(t, failed.Error, "canceled")
 	assert.ErrorIs(t, errs[len(errs)-1], context.Canceled, "it's said, as it finished")
-	assert.Equal(t, []string{"a.txt", "b.txt", "c.txt"}, objects(t, manager, volume.ID), "its batch was committed, and nothing is swept")
+	assert.Equal(t, []string{"a.txt", "b.txt"}, objects(t, manager, volume.ID), "what's changed isn't read, once it's cancelled, and nothing is swept")
 	again, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, schema.StatusIndexed, again.Status)

@@ -60,10 +60,14 @@ unit-test: go-dep
 	@echo Unit Tests
 	@CGO_ENABLED=1 ${GO} test -race ./...
 
+# Coverage is of the packages, other than the tests which drivers pass,
+# which test the root package, as well as the driver
+COVER_PKG = $(shell GOWORK=off ${GO} list ./... | grep -v /sqlitetest | paste -sd, -)
+
 .PHONY: coverage-test
 coverage-test: go-dep mkdir
 	@echo Test Coverage
-	@${GO} test -coverprofile ${BUILD_DIR}/coverprofile.out ./...
+	@${GO} test -coverpkg=$(COVER_PKG) -coverprofile ${BUILD_DIR}/coverprofile.out ./...
 	@${GO} tool cover -func ${BUILD_DIR}/coverprofile.out > ${BUILD_DIR}/coverage.txt
 
 ###############################################################################

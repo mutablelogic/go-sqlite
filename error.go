@@ -1,8 +1,10 @@
 package sqlite
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 
 	// Packages
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
@@ -13,6 +15,13 @@ import (
 
 // Err is a kind of error, which SQLite's errors are mapped to
 type Err int
+
+// DatabaseError is a driver's error, which is ErrDatabase, and the kinds of
+// error it is, such as ErrConflict and ErrUniqueViolation, with errors.Is
+type DatabaseError struct {
+	err   error
+	kinds []Err
+}
 
 /////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -82,6 +91,34 @@ func (e Err) Withf(format string, a ...any) error {
 	return fmt.Errorf("%w: %w", e, fmt.Errorf(format, a...))
 }
 
+// NewDatabaseError returns the driver's error, which is ErrDatabase, and the
+// kinds of error it is, such as ErrConflict and ErrUniqueViolation, for a
+// Driver to return from its Error method
+func NewDatabaseError(err error, kinds ...Err) error {
+	if err == nil {
+		return nil
+	}
+	return &DatabaseError{err: err, kinds: append([]Err{ErrDatabase}, kinds...)}
+}
+
+// Error returns the driver's error's message
+func (e *DatabaseError) Error() string {
+	return e.err.Error()
+}
+
+// Unwrap returns the driver's error
+func (e *DatabaseError) Unwrap() error {
+	return e.err
+}
+
+// Is returns true when the error is of the kind, or the driver's error is
+func (e *DatabaseError) Is(target error) bool {
+	if kind, ok := target.(Err); ok && slices.Contains(e.kinds, kind) {
+		return true
+	}
+	return errors.Is(e.err, target)
+}
+
 // HTTPError returns the error as an HTTP error, of its status.
 func HTTPError(err error) error {
 	switch {
@@ -100,4 +137,23 @@ func HTTPError(err error) error {
 	default:
 		return httpresponse.ErrInternalError.With(err.Error())
 	}
+}
+
+/////////////////////////////////////////////////////////////////////
+// PRIVATE METHODS
+
+// normalize returns the error as one of the package's: no rows is
+// ErrNotFound, and the driver's errors are DatabaseErrors
+func normalize(driver Driver, err error) error {
+	var dbErr *DatabaseError
+	var kind Err
+	switch {
+	case err == nil:
+		return nil
+	case errors.As(err, &kind), errors.As(err, &dbErr):
+		return err
+	case errors.Is(err, sql.ErrNoRows):
+		return ErrNotFound
+	}
+	return driver.Error(err)
 }

@@ -4,6 +4,7 @@ import (
 	"regexp"
 
 	// Packages
+	tmdb "github.com/mutablelogic/go-metadata/pkg/tmdb"
 	sqlite "github.com/mutablelogic/go-sqlite"
 	trace "go.opentelemetry.io/otel/trace"
 )
@@ -20,6 +21,7 @@ type opt struct {
 	readers        int
 	exclude        []*regexp.Regexp // Of the names of files and folders, which aren't indexed
 	defaultExclude bool             // DefaultExclude, as well
+	tmdb           *tmdb.Client     // Of the movies and episodes on TMDB which videos are, or nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,6 +101,17 @@ func WithExclude(patterns ...string) Opt {
 			}
 			o.exclude = append(o.exclude, re)
 		}
+		return nil
+	}
+}
+
+// WithTMDB looks up the movies and episodes on TMDB which videos are, of
+// their names, with the client, so their titles, dates, descriptions and
+// posters are TMDB's. A video is looked up when it's indexed, which is when
+// it's new, or changed.
+func WithTMDB(client *tmdb.Client) Opt {
+	return func(o *opt) error {
+		o.tmdb = client
 		return nil
 	}
 }

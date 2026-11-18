@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	// Packages
+	tmdb "github.com/mutablelogic/go-metadata/pkg/tmdb"
 	server "github.com/mutablelogic/go-server"
 	servercmd "github.com/mutablelogic/go-server/pkg/cmd"
 	filesearch "github.com/mutablelogic/go-sqlite/filesearch"
@@ -25,8 +26,11 @@ type Flags struct {
 	Readers int    `name:"readers" help:"The most connections which read the database at once, such as to search it" default:"4"`
 
 	// The names of files and folders which aren't indexed
-	Exclude        []string `name:"exclude" help:"Regular expressions, of the names of files and folders which aren't indexed, such as '\\.bak$'"`
-	DefaultExclude bool     `name:"default-exclude" help:"Don't index hidden files and folders, lock files, backups, temporary files, and the files of systems, and dependencies" default:"true" negatable:""`
+	Exclude []string `name:"exclude" help:"Regular expressions, of the names of files and folders which aren't indexed, such as '\\.bak$'"`
+	// The movies and episodes on TMDB which videos are
+	TMDBKey string `name:"tmdb-key" env:"TMDB_TOKEN" help:"The API Read Access Token of TMDB, with which videos are looked up on TMDB, of their names, when they're indexed. Set it in the environment, rather than as a flag, to keep it out of the shell's history."`
+
+	DefaultExclude bool `name:"default-exclude" help:"Don't index hidden files and folders, lock files, backups, temporary files, and the files of systems, and dependencies" default:"true" negatable:""`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -58,6 +62,13 @@ func (flags Flags) WithManager(ctx server.Cmd, srv *servercmd.RunServer, fn func
 	}, opts...)
 	if !flags.DefaultExclude {
 		opts = append(opts, filesearch.WithoutDefaultExclude())
+	}
+	if flags.TMDBKey != "" {
+		client, err := tmdb.New(flags.TMDBKey)
+		if err != nil {
+			return err
+		}
+		opts = append(opts, filesearch.WithTMDB(client))
 	}
 	manager, err := filesearch.New(ctx.Context(), path, opts...)
 	if err != nil {

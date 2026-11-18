@@ -32,7 +32,7 @@ filesearch cat photo.jpg         # Or, without content, its artwork, which is dr
 filesearch cat --artwork song.mp3 > cover.jpg  # Its artwork, rather than its content
 ```
 
-The database is `filesearch.db`, in the user's cache folder, or `--db`. A file is of its full path, its path within its volume, or the end of it, after a `/`, such as its name, which is an error when it's of more than one file.
+The database is `filesearch.db`, in the user's cache folder, or `--db`. With `--tmdb-key`, or `TMDB_TOKEN`, the films and episodes on [TMDB](https://www.themoviedb.org/) which videos are, of their names, are looked up as they're indexed, with their titles, dates, descriptions and posters. A file is of its full path, its path within its volume, or the end of it, after a `/`, such as its name, which is an error when it's of more than one file.
 
 Hidden files and folders, lock files, backups and autosaves, temporary files and partial downloads, the files of Windows and of file systems, and dependencies' folders aren't indexed, unless `--no-default-exclude`. `--exclude` excludes others, by a regular expression of their names, such as `--exclude '\.bak$'`.
 
@@ -44,6 +44,7 @@ volume, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: folder, 
 list, err := manager.ListObjects(ctx, schema.ObjectListRequest{Query: types.Ptr("tax return"), Cutoff: types.Ptr(0.5)})
 ```
 
+- **TMDB:** `WithTMDB(client)` looks up the films and episodes which videos are, with go-metadata's `video/tmdb` handler, which the program imports.
 - **Excluded:** `WithExclude(patterns...)` excludes files and folders by regular expressions of their names, as well as `DefaultExclude`, unless `WithoutDefaultExclude()`. What was indexed, and then is excluded, is swept.
 - **`ProgressFn`** is called as each batch of files is committed, with a file's error, when it can't be read, and once it's finished.
 - **`Progress(volume)`** is how far a run has indexed a volume, or how it did.

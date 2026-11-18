@@ -3,7 +3,9 @@ package ncruces
 import (
 	"context"
 	"errors"
+	"math"
 	"reflect"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -80,7 +82,8 @@ func endSpan(span trace.Span, err error) {
 
 // argAttribute returns the attribute of an argument, arg. and its name, of
 // its value, of a string, a number or a bool, of named types and pointers
-// too, or else its JSON
+// too, an unsigned integer which is larger than an int64 as text, or else
+// its JSON
 func argAttribute(name string, value any) attribute.KeyValue {
 	key := "arg." + name
 	rv := reflect.ValueOf(value)
@@ -94,6 +97,12 @@ func argAttribute(name string, value any) attribute.KeyValue {
 		return attribute.Bool(key, rv.Bool())
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return attribute.Int64(key, rv.Int())
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		if n := rv.Uint(); n <= math.MaxInt64 {
+			return attribute.Int64(key, int64(n))
+		} else {
+			return attribute.String(key, strconv.FormatUint(n, 10))
+		}
 	case reflect.Float32, reflect.Float64:
 		return attribute.Float64(key, rv.Float())
 	}

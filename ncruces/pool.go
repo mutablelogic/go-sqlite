@@ -1,5 +1,10 @@
 // Package ncruces opens SQLite databases with ncruces/go-sqlite3, which is
 // SQLite compiled to WebAssembly, so it's pure Go, without cgo.
+//
+// Extensions are added to each connection by importing their subfolders,
+// such as full-text search:
+//
+//	import _ "github.com/mutablelogic/go-sqlite/ncruces/fts5"
 package ncruces
 
 import (
@@ -21,7 +26,6 @@ import (
 // a file's journal is a write-ahead log
 type pool struct {
 	opts    *sqlite.Options
-	init    []func(*sqlite3.Conn) error
 	writer  *sqlite3.Conn
 	write   chan struct{}      // the writer's token, which is held while it's used
 	readers chan *sqlite3.Conn // the readers, which are idle, or nil in memory
@@ -34,9 +38,6 @@ type pool struct {
 type poolconn struct {
 	conn
 }
-
-// initOpt is the functions which are called on each connection
-type initOpt []func(*sqlite3.Conn) error
 
 // Ensure interfaces are satisfied
 var _ sqlite.PoolConn = (*poolconn)(nil)
@@ -68,13 +69,6 @@ func Open(ctx context.Context, path string, opts ...sqlite.Opt) (_ sqlite.PoolCo
 		return nil, sqlite.ErrBadParameter.With("path is empty")
 	}
 	p := &pool{opts: o, write: make(chan struct{}, 1), done: make(chan struct{})}
-	for _, opt := range o.Driver {
-		fn, ok := opt.(initOpt)
-		if !ok {
-			return nil, sqlite.ErrBadParameter.Withf("option of another implementation: %T", opt)
-		}
-		p.init = append(p.init, fn...)
-	}
 	memory := path == sqlite.Memory
 
 	// The writer, whose file is created, and its journal set, before it's
@@ -107,23 +101,6 @@ func Open(ctx context.Context, path string, opts ...sqlite.Opt) (_ sqlite.PoolCo
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// OPTIONS
-
-// WithInit calls the functions, in order, on each connection as it's opened,
-// such as to create collations or virtual tables, or to register an
-// extension, of github.com/ncruces/go-sqlite3/ext, whose Register functions
-// are of the same signature. Functions are created with sqlite.WithFunction.
-func WithInit(fn ...func(*sqlite3.Conn) error) sqlite.Opt {
-	var init initOpt
-	for _, fn := range fn {
-		if fn != nil {
-			init = append(init, fn)
-		}
-	}
-	return sqlite.WithDriverOption(init)
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
 // Ping the writer, and a reader
@@ -143,8 +120,9 @@ func (p *poolconn) Close() error {
 // PRIVATE METHODS
 
 // open opens a connection, which reads and writes, creating its file, or only
-// reads, with its pragmas, functions and init functions, which are
-// interrupted when the context is done
+// reads, with its pragmas and functions, which are interrupted when the
+// context is done. Its extensions, of the subfolders of this package which
+// are imported, are registered as it's opened.
 func (p *pool) open(ctx context.Context, path string, readonly bool, pragmas []sqlite.Pragma) (*sqlite3.Conn, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -174,11 +152,6 @@ func (p *pool) setup(db *sqlite3.Conn, pragmas []sqlite.Pragma) error {
 	}
 	for _, fn := range p.opts.Functions {
 		if err := createFunction(db, fn); err != nil {
-			return err
-		}
-	}
-	for _, fn := range p.init {
-		if err := fn(db); err != nil {
 			return err
 		}
 	}

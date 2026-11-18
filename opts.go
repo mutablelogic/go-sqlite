@@ -28,10 +28,6 @@ type Options struct {
 
 	// The OpenTelemetry tracer, of a span of each query
 	Tracer trace.Tracer
-
-	// The options of an implementation, such as ncruces's, which it reads,
-	// and which another rejects
-	Driver []any
 }
 
 // Opt is an option of a database, which Open is given
@@ -162,15 +158,6 @@ func WithBind(k string, v any) Opt {
 			return ErrBadParameter.With("bind: empty key")
 		}
 		o.Bind.Set(k, v)
-		return nil
-	}
-}
-
-// WithDriverOption sets an option of an implementation, such as ncruces's,
-// which it reads, as its own options do.
-func WithDriverOption(v any) Opt {
-	return func(o *Options) error {
-		o.Driver = append(o.Driver, v)
 		return nil
 	}
 }

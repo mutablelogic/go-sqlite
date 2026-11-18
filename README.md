@@ -29,7 +29,10 @@ defer db.Close()
 - **In memory:** `sqlite.Memory`, which is one connection.
 - **Pragmas:** foreign keys are on, the journal is WAL, and the busy timeout is 10s. Others are set with `sqlite.WithPragma`.
 - **Functions:** `sqlite.WithFunction` creates a Go function, which SQL calls, on each connection.
-- **Extensions:** `ncruces.WithInit` calls a function with each ncruces connection, such as an extension's `Register`, or one which creates a virtual table.
+- **Extensions:** importing a subfolder of `ncruces` adds its extension to each connection:
+  - `_ "github.com/mutablelogic/go-sqlite/ncruces/fts5"`: full-text search, of `fts5` virtual tables.
+  - `_ "github.com/mutablelogic/go-sqlite/ncruces/rtree"`: spatial indexes, of `rtree` and `geopoly`.
+  - `_ "github.com/mutablelogic/go-sqlite/ncruces/vec1"`: vector search, of `vec1`.
 
 ## Transactions
 

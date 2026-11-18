@@ -57,7 +57,8 @@ const (
 // PUBLIC METHODS
 
 // IndexVolume indexes a volume, of a folder, which is added, when it isn't
-// one already. Its run walks it, of its folders, when it's recursive, and
+// one already. Its run walks it, of its folders, when the request is
+// recursive, and
 // marks each file which is as it was, of its size and when it was
 // modified, and indexes those which are new, or changed. Once it's indexed,
 // the objects which the run didn't see are swept. A file which can't be
@@ -69,14 +70,14 @@ const (
 // It returns the volume, which is indexed, or failed, with its error, such
 // as when the context is done. A volume which this manager is indexing is
 // ErrConflict.
-func (m *Manager) IndexVolume(ctx context.Context, meta schema.VolumeMeta, fn ProgressFn) (_ *schema.Volume, err error) {
+func (m *Manager) IndexVolume(ctx context.Context, req schema.IndexVolumeRequest, fn ProgressFn) (_ *schema.Volume, err error) {
 	ctx, endSpan := otel.StartSpan(m.tracer, ctx, "filesearch.IndexVolume",
-		attribute.String("arg.req", types.Stringify(meta)),
+		attribute.String("arg.req", types.Stringify(req)),
 	)
 	defer func() { endSpan(err) }()
 
 	// The folder, which is a volume's, by its absolute path
-	root, err := filepath.Abs(meta.Path)
+	root, err := filepath.Abs(req.Path)
 	if err != nil {
 		return nil, sqlite.ErrBadParameter.Withf("path: %v", err)
 	}
@@ -85,7 +86,6 @@ func (m *Manager) IndexVolume(ctx context.Context, meta schema.VolumeMeta, fn Pr
 	} else if !info.IsDir() {
 		return nil, sqlite.ErrBadParameter.Withf("path isn't a folder: %q", root)
 	}
-	meta.Path = root
 
 	// The volume, which isn't indexing, of this manager, and its run
 	p, err := m.startProgress(root, fn)
@@ -93,7 +93,7 @@ func (m *Manager) IndexVolume(ctx context.Context, meta schema.VolumeMeta, fn Pr
 		return nil, err
 	}
 	var volume schema.Volume
-	if err := m.conn.Insert(ctx, &volume, meta); err != nil {
+	if err := m.conn.Insert(ctx, &volume, schema.VolumeMeta{Path: root}); err != nil {
 		m.endProgress(root, nil, nil)
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func (m *Manager) IndexVolume(ctx context.Context, meta schema.VolumeMeta, fn Pr
 
 	// Walk it, and then finish its run, without being cancelled, as indexed,
 	// or failed
-	walkErr := m.walk(ctx, &volume, p)
+	walkErr := m.walk(ctx, &volume, req.Recursive, p)
 	finished := time.Now()
 	if err := m.conn.Update(context.WithoutCancel(ctx), &volume, schema.VolumeID(volume.ID), schema.VolumeFinish{Finished: finished, Error: walkErr}); err != nil {
 		err = errors.Join(walkErr, err)
@@ -192,7 +192,7 @@ func (m *Manager) endProgress(root string, finished *time.Time, err error) {
 
 // walk walks the volume, of its folders, when it's recursive, and indexes,
 // or marks, its files, a batch at a time
-func (m *Manager) walk(ctx context.Context, volume *schema.Volume, p *progress) error {
+func (m *Manager) walk(ctx context.Context, volume *schema.Volume, recursive bool, p *progress) error {
 	batch := make([]file, 0, batchSize)
 	flush := func() error {
 		if len(batch) == 0 {
@@ -231,7 +231,7 @@ func (m *Manager) walk(ctx context.Context, volume *schema.Volume, p *progress) 
 		// Its folders, when it's recursive, and its files, which are regular
 		switch {
 		case d.IsDir():
-			if path != volume.Path && !volume.Recursive {
+			if path != volume.Path && !recursive {
 				return fs.SkipDir
 			}
 			return nil

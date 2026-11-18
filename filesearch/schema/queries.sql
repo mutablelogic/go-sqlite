@@ -1,32 +1,31 @@
 -- filesearch.volume_insert
--- A volume, of its path, or the one which is of it already, which is
--- recursive, or not, as it's indexed next
-INSERT INTO volume (path, recursive) VALUES (@path, @recursive)
-ON CONFLICT (path) DO UPDATE SET recursive = excluded.recursive
-RETURNING id, path, recursive, status, run, started, finished, error;
+-- A volume, of its path, or the one which is of it already
+INSERT INTO volume (path) VALUES (@path)
+ON CONFLICT (path) DO UPDATE SET path = excluded.path
+RETURNING id, path, status, run, started, finished, error;
 
 -- filesearch.volume_get
-SELECT id, path, recursive, status, run, started, finished, error FROM volume WHERE id = @id;
+SELECT id, path, status, run, started, finished, error FROM volume WHERE id = @id;
 
 -- filesearch.volume_list
-SELECT id, path, recursive, status, run, started, finished, error FROM volume ORDER BY path
+SELECT id, path, status, run, started, finished, error FROM volume ORDER BY path
 
 -- filesearch.volume_start
 -- Its next run starts, which is indexing it
 UPDATE volume SET status = 'indexing', run = run + 1, started = @started, finished = NULL, error = NULL
 WHERE id = @id
-RETURNING id, path, recursive, status, run, started, finished, error;
+RETURNING id, path, status, run, started, finished, error;
 
 -- filesearch.volume_finish
 -- Its run finishes, which indexed it, or failed, with its error
 UPDATE volume SET status = @status, finished = @finished, error = @error
 WHERE id = @id AND status = 'indexing'
-RETURNING id, path, recursive, status, run, started, finished, error;
+RETURNING id, path, status, run, started, finished, error;
 
 -- filesearch.volume_delete
 -- A volume, with its objects, and their text
 DELETE FROM volume WHERE id = @id
-RETURNING id, path, recursive, status, run, started, finished, error;
+RETURNING id, path, status, run, started, finished, error;
 
 -- filesearch.object_mark
 -- An object which is as it was, of its size and when it was modified, is

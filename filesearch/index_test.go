@@ -55,7 +55,7 @@ func Test_IndexVolume(t *testing.T) {
 	// A volume is indexed, of its files and folders, as it's recursive, with
 	// their types and titles, and its progress is said
 	var said []schema.Progress
-	volume, err := manager.IndexVolume(ctx, schema.VolumeMeta{Path: root, Recursive: true}, func(p schema.Progress, err error) {
+	volume, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root, Recursive: true}, func(p schema.Progress, err error) {
 		assert.NoError(t, err)
 		said = append(said, p)
 	})
@@ -92,7 +92,7 @@ func Test_IndexVolume(t *testing.T) {
 	// indexed, and what's gone is swept
 	write(t, root, map[string]string{"notes/b.md": "# B, changed", "d.txt": "d"})
 	require.NoError(t, os.Remove(filepath.Join(root, "a.txt")))
-	again, err := manager.IndexVolume(ctx, schema.VolumeMeta{Path: root, Recursive: true}, nil)
+	again, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root, Recursive: true}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, volume.ID, again.ID)
 	assert.Equal(t, int64(2), again.Run)
@@ -105,9 +105,8 @@ func Test_IndexVolume(t *testing.T) {
 	assert.Equal(t, uint64(1), progress.Swept)
 
 	// Indexed again, not recursively, its folders' files are swept
-	again, err = manager.IndexVolume(ctx, schema.VolumeMeta{Path: root}, nil)
+	_, err = manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root}, nil)
 	require.NoError(t, err)
-	assert.False(t, again.Recursive)
 	assert.Equal(t, []string{"d.txt"}, objects(t, manager, volume.ID))
 }
 
@@ -118,9 +117,9 @@ func Test_IndexVolumeErrors(t *testing.T) {
 	write(t, root, map[string]string{"a.txt": "a", "b.txt": "b"})
 
 	// A path which isn't a folder isn't a volume
-	_, err := manager.IndexVolume(ctx, schema.VolumeMeta{Path: filepath.Join(root, "a.txt")}, nil)
+	_, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: filepath.Join(root, "a.txt")}, nil)
 	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
-	_, err = manager.IndexVolume(ctx, schema.VolumeMeta{Path: filepath.Join(root, "missing")}, nil)
+	_, err = manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: filepath.Join(root, "missing")}, nil)
 	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
 
 	// A volume which is indexing is a conflict, and its progress is where it
@@ -132,7 +131,7 @@ func Test_IndexVolumeErrors(t *testing.T) {
 	var volume *schema.Volume
 	go func() {
 		var err error
-		volume, err = manager.IndexVolume(ctx, schema.VolumeMeta{Path: root}, func(p schema.Progress, err error) {
+		volume, err = manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root}, func(p schema.Progress, err error) {
 			once.Do(func() {
 				indexing = p.Volume
 				close(walking)
@@ -142,7 +141,7 @@ func Test_IndexVolumeErrors(t *testing.T) {
 		done <- err
 	}()
 	<-walking
-	_, err = manager.IndexVolume(ctx, schema.VolumeMeta{Path: root}, nil)
+	_, err = manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root}, nil)
 	assert.ErrorIs(t, err, sqlite.ErrConflict)
 	progress, err := manager.Progress(indexing)
 	require.NoError(t, err)
@@ -163,7 +162,7 @@ func Test_IndexVolumeErrors(t *testing.T) {
 	write(t, root, map[string]string{"c.txt": "c"})
 	cancelled, cancel := context.WithCancel(ctx)
 	var errs []error
-	failed, err := manager.IndexVolume(cancelled, schema.VolumeMeta{Path: root}, func(p schema.Progress, err error) {
+	failed, err := manager.IndexVolume(cancelled, schema.IndexVolumeRequest{Path: root}, func(p schema.Progress, err error) {
 		cancel()
 		errs = append(errs, err)
 	})
@@ -190,7 +189,7 @@ func Test_IndexVolumeUnreadable(t *testing.T) {
 	// A folder which can't be read is an error, which is said, and the others
 	// are indexed
 	var errs []error
-	volume, err := manager.IndexVolume(ctx, schema.VolumeMeta{Path: root, Recursive: true}, func(p schema.Progress, err error) {
+	volume, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root, Recursive: true}, func(p schema.Progress, err error) {
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -215,14 +214,14 @@ func Test_IndexVolumeBatches(t *testing.T) {
 		files[filepath.Join("files", time.Duration(i).String()+".txt")] = "x"
 	}
 	write(t, root, files)
-	volume, err := manager.IndexVolume(ctx, schema.VolumeMeta{Path: root, Recursive: true}, nil)
+	volume, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root, Recursive: true}, nil)
 	require.NoError(t, err)
 	paths := objects(t, manager, volume.ID)
 	assert.Len(t, paths, 100, "a page of them")
 	list, err := manager.ListObjects(ctx, schema.ObjectListRequest{Volume: volume.ID})
 	require.NoError(t, err)
 	assert.Equal(t, uint64(250), list.Count)
-	_, err = manager.IndexVolume(ctx, schema.VolumeMeta{Path: root, Recursive: true}, nil)
+	_, err = manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root, Recursive: true}, nil)
 	require.NoError(t, err)
 	progress, err := manager.Progress(volume.ID)
 	require.NoError(t, err)

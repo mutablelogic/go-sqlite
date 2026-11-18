@@ -75,13 +75,13 @@ type ObjectSweep struct {
 }
 
 // ObjectListRequest lists objects, of the volumes, or all of them, when
-// there are none, and searches them, when there's a query, of words which
-// are all in their text, as prefixes, the best first, or else by their
-// paths
+// there are none, by their paths, or, when there's a query, searches them,
+// of its words, which are all in their text, as prefixes, the best first. A
+// query without any words matches nothing.
 type ObjectListRequest struct {
 	sqlite.OffsetLimit
 	Volumes []int64 `json:"volume,omitempty" help:"Objects of the volumes, or of all of them"`
-	Query   string  `json:"q,omitempty" help:"Words, which are all in the objects' text"`
+	Query   *string `json:"q,omitempty" help:"Words, which are all in the objects' text"`
 }
 
 // Artwork is an object's image, which is read on its own
@@ -224,11 +224,15 @@ func (r *ObjectListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, err
 		where = "volume IN (SELECT value FROM json_each(" + bind.Set("volumes", r.Volumes) + "))"
 	}
 
-	// Searched, of the words of the query, or listed, by path
-	if match := matchQuery(r.Query); match != "" {
-		bind.Set("match", match)
-		bind.Set("and", and(where))
-		return bind.Query("filesearch.object_search"), nil
+	// Searched, of the words of the query, which, without any, matches
+	// nothing, or listed, by path, without a query
+	if r.Query != nil {
+		if match := matchQuery(*r.Query); match != "" {
+			bind.Set("match", match)
+			bind.Set("and", and(where))
+			return bind.Query("filesearch.object_search"), nil
+		}
+		where = "FALSE"
 	}
 	if where != "" {
 		where = "WHERE " + where

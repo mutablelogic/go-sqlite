@@ -11,6 +11,7 @@ import (
 	"time"
 
 	// Packages
+	types "github.com/mutablelogic/go-server/pkg/types"
 	sqlite "github.com/mutablelogic/go-sqlite"
 	filesearch "github.com/mutablelogic/go-sqlite/filesearch"
 	schema "github.com/mutablelogic/go-sqlite/filesearch/schema"
@@ -70,7 +71,7 @@ func Test_IndexVolume(t *testing.T) {
 		assert.NotNil(t, said[3].Finished)
 		assert.Equal(t, uint64(3), said[3].Indexed)
 	}
-	list, err := manager.ListObjects(ctx, schema.ObjectListRequest{Query: "c"})
+	list, err := manager.ListObjects(ctx, schema.ObjectListRequest{Query: types.Ptr("c")})
 	require.NoError(t, err)
 	if assert.Len(t, list.Body, 1) {
 		assert.Equal(t, "image/jpeg", list.Body[0].Type)
@@ -93,10 +94,10 @@ func Test_IndexVolume(t *testing.T) {
 	assert.Equal(t, uint64(2), list.Offset)
 	assert.Equal(t, uint64(1), *list.Limit, "of the one which is returned")
 	assert.Equal(t, uint64(2), limit, "the caller's")
-	list, err = manager.ListObjects(ctx, schema.ObjectListRequest{Query: "c", OffsetLimit: sqlite.OffsetLimit{Offset: 5}})
+	list, err = manager.ListObjects(ctx, schema.ObjectListRequest{Query: types.Ptr("c"), OffsetLimit: sqlite.OffsetLimit{Offset: 5}})
 	require.NoError(t, err)
 	assert.Empty(t, list.Body)
-	assert.Equal(t, "c", list.Query)
+	assert.Equal(t, "c", *list.Query)
 	assert.Equal(t, uint64(0), *list.Limit, "past the end")
 
 	// Its progress, once it's finished, is how it did

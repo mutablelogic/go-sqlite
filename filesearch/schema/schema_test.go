@@ -6,6 +6,7 @@ import (
 	"time"
 
 	// Packages
+	types "github.com/mutablelogic/go-server/pkg/types"
 	sqlite "github.com/mutablelogic/go-sqlite"
 	schema "github.com/mutablelogic/go-sqlite/filesearch/schema"
 	ncruces "github.com/mutablelogic/go-sqlite/ncruces"
@@ -172,17 +173,17 @@ func Test_Objects(t *testing.T) {
 		`"AND (OR*`:    nil,
 	} {
 		list = schema.ObjectList{}
-		require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: query}), query)
+		require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr(query)}), query)
 		assert.Equal(t, want, paths(list), query)
 		assert.Equal(t, uint64(len(want)), list.Count, query)
 	}
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: "rain", Volumes: []int64{books.ID}}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("rain"), Volumes: []int64{books.ID}}))
 	assert.Equal(t, []string{"weather.md"}, paths(list))
 
 	// Of several volumes, and of none, which is all of them
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: "rain", Volumes: []int64{books.ID, media.ID}}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("rain"), Volumes: []int64{books.ID, media.ID}}))
 	assert.Equal(t, []string{"music/rain.mp3", "weather.md"}, paths(list))
 	list = schema.ObjectList{}
 	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Volumes: []int64{media.ID, books.ID}}))
@@ -191,6 +192,18 @@ func Test_Objects(t *testing.T) {
 	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Volumes: []int64{999}}))
 	assert.Empty(t, paths(list))
 
+	// A query without any words matches nothing, and without a query, they're
+	// listed
+	for _, query := range []string{"", "  "} {
+		list = schema.ObjectList{}
+		require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr(query)}))
+		assert.Empty(t, paths(list), "%q", query)
+		assert.Zero(t, list.Count, "%q", query)
+	}
+	list = schema.ObjectList{}
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: nil}))
+	assert.Len(t, paths(list), 3)
+
 	// An object which is replaced is the same, with its text replaced
 	var replaced schema.Object
 	require.NoError(t, db.Insert(ctx, &replaced, schema.ObjectMeta{
@@ -198,10 +211,10 @@ func Test_Objects(t *testing.T) {
 	}))
 	assert.Equal(t, book.ID, replaced.ID)
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: "weather"}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("weather")}))
 	assert.Empty(t, paths(list), "its old text")
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: "sunshine"}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("sunshine")}))
 	assert.Equal(t, []string{"weather.md"}, paths(list))
 
 	// A path which isn't within a volume, of a volume which isn't, or a size
@@ -248,7 +261,7 @@ func Test_MarkAndSweep(t *testing.T) {
 	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{}))
 	assert.Equal(t, []string{"changed.txt", "kept.txt", "kept.txt"}, paths(list))
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: "gone"}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("gone")}))
 	assert.Equal(t, []string{"kept.txt"}, paths(list), "the text of what's swept")
 
 	// Sweeping again sweeps nothing, which, with a reader, is not found, and
@@ -260,7 +273,7 @@ func Test_MarkAndSweep(t *testing.T) {
 	require.NoError(t, db.Delete(ctx, &deleted, schema.ObjectID(marked.ID)))
 	assert.Equal(t, "kept.txt", deleted.Path)
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: "gone"}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("gone")}))
 	assert.Empty(t, paths(list))
 
 	// A volume is deleted, with its objects, and their text
@@ -271,6 +284,6 @@ func Test_MarkAndSweep(t *testing.T) {
 	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{}))
 	assert.Equal(t, []string{"changed.txt"}, paths(list))
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: "other"}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("other")}))
 	assert.Empty(t, paths(list), "the text of a deleted volume's objects")
 }

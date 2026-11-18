@@ -44,9 +44,10 @@ type Object struct {
 	Run     int64          `json:"run"`     // The run of its volume which last saw it
 }
 
-// ObjectList is a list of objects, and their count, without their offset
-// and limit
+// ObjectList is a list of objects, of its request, with the limit which was
+// used, and their count, without their offset and limit
 type ObjectList struct {
+	ObjectListRequest
 	Count uint64   `json:"count"`
 	Body  []Object `json:"body,omitempty"`
 }
@@ -210,7 +211,7 @@ func (s ObjectSweep) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
 
 // Select objects, of a volume, or all of them, which match the query, when
 // there is one
-func (r ObjectListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
+func (r *ObjectListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
 	if op != sqlite.List {
 		return "", sqlite.ErrNotImplemented.Withf("list: %v", op)
 	}

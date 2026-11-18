@@ -77,6 +77,28 @@ func Test_IndexVolume(t *testing.T) {
 		assert.Equal(t, "c", list.Body[0].Title)
 	}
 
+	// A list has its request, with its limit clamped to what's returned,
+	// and the caller's request isn't changed
+	list, err = manager.ListObjects(ctx, schema.ObjectListRequest{Volume: volume.ID})
+	require.NoError(t, err)
+	assert.Equal(t, volume.ID, list.Volume)
+	if assert.NotNil(t, list.Limit) {
+		assert.Equal(t, uint64(3), *list.Limit, "of the default, clamped to the count")
+	}
+	limit := uint64(2)
+	req := schema.ObjectListRequest{Volume: volume.ID, OffsetLimit: sqlite.OffsetLimit{Offset: 2, Limit: &limit}}
+	list, err = manager.ListObjects(ctx, req)
+	require.NoError(t, err)
+	assert.Len(t, list.Body, 1)
+	assert.Equal(t, uint64(2), list.Offset)
+	assert.Equal(t, uint64(1), *list.Limit, "of the one which is returned")
+	assert.Equal(t, uint64(2), limit, "the caller's")
+	list, err = manager.ListObjects(ctx, schema.ObjectListRequest{Query: "c", OffsetLimit: sqlite.OffsetLimit{Offset: 5}})
+	require.NoError(t, err)
+	assert.Empty(t, list.Body)
+	assert.Equal(t, "c", list.Query)
+	assert.Equal(t, uint64(0), *list.Limit, "past the end")
+
 	// Its progress, once it's finished, is how it did
 	progress, err := manager.Progress(volume.ID)
 	require.NoError(t, err)

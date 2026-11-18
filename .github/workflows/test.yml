@@ -1,0 +1,109 @@
+name: Test
+
+on:
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+  statuses: write
+  pull-requests: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Run tests
+        run: make test
+
+      - name: Extract coverage percentage
+        id: coverage
+        if: always()
+        run: |
+          if [ -f build/coverage.txt ]; then
+            COVERAGE="$(awk '/^total:/{print $3}' build/coverage.txt | tr -d '%')"
+          else
+            COVERAGE=""
+          fi
+          echo "coverage=${COVERAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish coverage summary
+        if: always()
+        run: |
+          echo "## Test Coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f build/coverage.txt ]; then
+            echo "Total: **${{ steps.coverage.outputs.coverage }}%**" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`\`\`text" >> "$GITHUB_STEP_SUMMARY"
+            tail -n 20 build/coverage.txt >> "$GITHUB_STEP_SUMMARY"
+            echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Coverage report was not generated (build/coverage.txt not found)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Set commit coverage status
+        if: always() && steps.coverage.outputs.coverage != ''
+        uses: actions/github-script@v9
+        env:
+          COVERAGE: ${{ steps.coverage.outputs.coverage }}
+        with:
+          script: |
+            const sha = context.payload.pull_request?.head?.sha || context.sha;
+            const state = '${{ job.status }}' === 'success' ? 'success' : 'failure';
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha,
+              state,
+              context: 'go-sqlite/coverage',
+              description: `Coverage ${process.env.COVERAGE}%`,
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            });
+
+      - name: Comment coverage on pull request
+        if: always() && github.event_name == 'pull_request' && steps.coverage.outputs.coverage != ''
+        uses: actions/github-script@v9
+        env:
+          COVERAGE: ${{ steps.coverage.outputs.coverage }}
+        with:
+          script: |
+            const body = [
+              '<!-- go-sqlite-coverage -->',
+              `Coverage for this change: **${process.env.COVERAGE}%**`,
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const previous = comments.find(c =>
+              c.user?.type === 'Bot' && c.body?.includes('<!-- go-sqlite-coverage -->')
+            );
+
+            if (previous) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: previous.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }

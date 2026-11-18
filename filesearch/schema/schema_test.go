@@ -175,17 +175,17 @@ func Test_Objects(t *testing.T) {
 		`"AND (OR*`:    nil,
 	} {
 		list = schema.ObjectList{}
-		require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr(query)}), query)
+		require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr(query)}), query)
 		assert.Equal(t, want, paths(list), query)
 		assert.Equal(t, uint64(len(want)), list.Count, query)
 	}
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("rain"), Volumes: []int64{books.ID}}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr("rain"), Volumes: []int64{books.ID}}))
 	assert.Equal(t, []string{"weather.md"}, paths(list))
 
 	// Of several volumes, and of none, which is all of them
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("rain"), Volumes: []int64{books.ID, media.ID}}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr("rain"), Volumes: []int64{books.ID, media.ID}}))
 	assert.Equal(t, []string{"music/rain.mp3", "weather.md"}, paths(list))
 	list = schema.ObjectList{}
 	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Volumes: []int64{media.ID, books.ID}}))
@@ -198,7 +198,7 @@ func Test_Objects(t *testing.T) {
 	// listed
 	for _, query := range []string{"", "  "} {
 		list = schema.ObjectList{}
-		require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr(query)}))
+		require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr(query)}))
 		assert.Empty(t, paths(list), "%q", query)
 		assert.Zero(t, list.Count, "%q", query)
 	}
@@ -209,20 +209,21 @@ func Test_Objects(t *testing.T) {
 	// A search has the rank of each object, which is higher the better it
 	// matches, the best first, and of a minimum, or by path; a list hasn't
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("replicant")}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr("replicant")}))
 	if assert.Len(t, list.Body, 2) {
 		require.NotNil(t, list.Body[0].Rank)
 		require.NotNil(t, list.Body[1].Rank)
 		assert.Greater(t, *list.Body[0].Rank, *list.Body[1].Rank)
 		assert.Greater(t, *list.Body[1].Rank, 0.0)
+		assert.Less(t, *list.Body[0].Rank, 1.0, "between 0 and 1")
 		cutoff := (*list.Body[0].Rank + *list.Body[1].Rank) / 2
 		ranked := schema.ObjectList{}
-		require.NoError(t, db.List(ctx, &ranked, &schema.ObjectListRequest{Query: types.Ptr("replicant"), MinRank: &cutoff}))
+		require.NoError(t, db.List(ctx, &ranked, &schema.ObjectListRequest{Query: types.Ptr("replicant"), Cutoff: &cutoff}))
 		assert.Equal(t, []string{list.Body[0].Path}, paths(ranked))
-		assert.Equal(t, uint64(1), ranked.Count, "of the minimum")
+		assert.Equal(t, uint64(1), ranked.Count, "of the cutoff")
 	}
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("replicant"), Order: schema.OrderPath}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr("replicant"), Order: schema.OrderPath}))
 	assert.Equal(t, []string{"films/blade-runner.mp4", "weather.md"}, paths(list))
 	list = schema.ObjectList{}
 	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{}))
@@ -230,10 +231,12 @@ func Test_Objects(t *testing.T) {
 		assert.Nil(t, o.Rank, o.Path)
 	}
 	for name, req := range map[string]schema.ObjectListRequest{
-		"order by rank, of a list":  {Order: schema.OrderRank},
-		"a minimum rank, of a list": {MinRank: types.Ptr(1.0)},
-		"an order which isn't":      {Order: "size"},
-		"an order of a search":      {Query: types.Ptr("rain"), Order: "size"},
+		"order by rank, of a list": {Order: schema.OrderRank},
+		"a cutoff, of a list":      {Cutoff: types.Ptr(1.0)},
+		"an order which isn't":     {Order: "size"},
+		"an order of a search":     {Query: types.Ptr("rain"), Order: "size"},
+		"a cutoff over 1":          {Query: types.Ptr("rain"), Cutoff: types.Ptr(1.5)},
+		"a cutoff under 0":         {Query: types.Ptr("rain"), Cutoff: types.Ptr(-0.1)},
 	} {
 		assert.ErrorIs(t, db.List(ctx, &schema.ObjectList{}, &req), sqlite.ErrBadParameter, name)
 	}
@@ -245,13 +248,13 @@ func Test_Objects(t *testing.T) {
 	}))
 	assert.Equal(t, book.ID, replaced.ID)
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("watched")}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr("watched")}))
 	assert.Empty(t, paths(list), "its old text")
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("weather")}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr("weather")}))
 	assert.Equal(t, []string{"weather.md"}, paths(list), "its path")
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("sunshine")}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr("sunshine")}))
 	assert.Equal(t, []string{"weather.md"}, paths(list))
 
 	// The parts of their paths, of three characters or more, are searched,
@@ -268,7 +271,7 @@ func Test_Objects(t *testing.T) {
 		"films runner": {"films/blade-runner.mp4"},
 	} {
 		list = schema.ObjectList{}
-		require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr(query)}), query)
+		require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr(query)}), query)
 		assert.Equal(t, want, paths(list), query)
 	}
 
@@ -322,7 +325,7 @@ func Test_MarkAndSweep(t *testing.T) {
 	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{}))
 	assert.Equal(t, []string{"changed.txt", "kept.txt", "kept.txt"}, paths(list))
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("gone")}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr("gone")}))
 	assert.Equal(t, []string{"kept.txt"}, paths(list), "the text of what's swept")
 
 	// Sweeping again sweeps nothing, which, with a reader, is not found, and
@@ -334,7 +337,7 @@ func Test_MarkAndSweep(t *testing.T) {
 	require.NoError(t, db.Delete(ctx, &deleted, schema.ObjectID(marked.ID)))
 	assert.Equal(t, "kept.txt", deleted.Path)
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("gone")}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr("gone")}))
 	assert.Empty(t, paths(list))
 
 	// A volume is deleted, with its objects, and their text
@@ -345,7 +348,7 @@ func Test_MarkAndSweep(t *testing.T) {
 	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{}))
 	assert.Equal(t, []string{"changed.txt"}, paths(list))
 	list = schema.ObjectList{}
-	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("other")}))
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr("other")}))
 	assert.Empty(t, paths(list), "the text of a deleted volume's objects")
 }
 
@@ -386,6 +389,6 @@ func Test_MigrateVersion1(t *testing.T) {
 	assert.Equal(t, uint64(1), volumes.Count)
 	var object schema.Object
 	require.NoError(t, conn.Insert(ctx, &object, schema.ObjectMeta{Volume: 1, Path: "Spain/a.txt", Size: 1, Run: 1}))
-	require.NoError(t, conn.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("spain")}))
+	require.NoError(t, conn.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr("spain")}))
 	assert.Equal(t, uint64(1), list.Count)
 }

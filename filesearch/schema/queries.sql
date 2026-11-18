@@ -69,14 +69,18 @@ SELECT id, volume, path, size, modtime, type, kind, title, meta, indexed, run, N
 FROM object ${where} ORDER BY ${order}
 
 -- filesearch.object_search
--- Objects whose text matches, of their rank, which is higher the better
--- they match, of their titles, then their paths, then their metadata, then
--- their content, of a minimum, or not
+-- Objects whose text matches, of their rank, between 0 and 1, which is higher
+-- the better they match, of their titles, then their paths, then their
+-- metadata, then their content, of a minimum, or not. The rank is bm25's
+-- score, which is higher the better, and isn't bounded, as score / (1 + score)
 SELECT * FROM (
     SELECT object.id, volume, object.path, size, modtime, type, kind, object.title, object.meta, indexed, run,
-           -bm25(object_text, 10.0, 5.0, 2.0, 1.0) AS rank
-    FROM object_text JOIN object ON object.id = object_text.rowid
-    WHERE object_text MATCH @match ${and}
+           score / (1.0 + score) AS rank
+    FROM (
+        SELECT rowid, max(-bm25(object_text, 10.0, 5.0, 2.0, 1.0), 0.0) AS score
+        FROM object_text WHERE object_text MATCH @match
+    ) AS matched JOIN object ON object.id = matched.rowid
+    ${where}
 ) ${rank} ORDER BY ${order}
 
 -- filesearch.artwork_get

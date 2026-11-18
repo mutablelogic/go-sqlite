@@ -43,7 +43,7 @@ type Object struct {
 	Meta    map[string]any `json:"meta,omitempty"`
 	Indexed time.Time      `json:"indexed"`        // When it was indexed
 	Run     int64          `json:"run"`            // The run of its volume which last saw it
-	Rank    *float64       `json:"rank,omitempty"` // How well it matches a search, which is higher the better, or nil
+	Rank    *float64       `json:"rank,omitempty"` // How well it matches a search, between 0 and 1, which is higher the better, or nil
 }
 
 // ObjectList is a list of objects, of its request, with the limit which was
@@ -86,7 +86,7 @@ type ObjectListRequest struct {
 	Volumes []int64  `json:"volume,omitempty" help:"Objects of the volumes, or of all of them"`
 	Query   *string  `json:"q,omitempty" help:"Words, which are all in the objects' text"`
 	Order   Order    `json:"order,omitempty" help:"rank, the best first, of a search, or path"`
-	MinRank *float64 `json:"min_rank,omitempty" help:"The lowest rank, of a search"`
+	Cutoff  *float64 `json:"cutoff,omitempty" help:"The lowest rank, of a search, between 0 and 1, which is DefaultCutoff, unless it's set, or 0, for none"`
 }
 
 // Order is the order of a list of objects
@@ -249,7 +249,11 @@ func (r *ObjectListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, err
 	if r.Query != nil {
 		if match := matchQuery(*r.Query); match != "" {
 			bind.Set("match", match)
-			bind.Set("and", and(where))
+			if where != "" {
+				bind.Set("where", "WHERE "+where)
+			} else {
+				bind.Set("where", "")
+			}
 			switch r.Order {
 			case "", OrderRank:
 				bind.Set("order", "rank DESC, volume, path")
@@ -258,11 +262,14 @@ func (r *ObjectListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, err
 			default:
 				return "", sqlite.ErrBadParameter.Withf("order: %q", r.Order)
 			}
-			if r.MinRank != nil {
-				bind.Set("rank", "WHERE rank >= "+bind.Set("min_rank", *r.MinRank))
-			} else {
-				bind.Set("rank", "")
+			cutoff := DefaultCutoff
+			if r.Cutoff != nil {
+				cutoff = *r.Cutoff
 			}
+			if cutoff < 0 || cutoff > 1 {
+				return "", sqlite.ErrBadParameter.Withf("cutoff: %v, which is between 0 and 1", cutoff)
+			}
+			bind.Set("rank", "WHERE rank >= "+bind.Set("cutoff", cutoff))
 			return bind.Query("filesearch.object_search"), nil
 		}
 		// A query without any words matches nothing
@@ -275,8 +282,8 @@ func (r *ObjectListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, err
 		return "", sqlite.ErrBadParameter.With("order by rank is of a search, with a query")
 	case r.Order != "" && r.Order != OrderPath:
 		return "", sqlite.ErrBadParameter.Withf("order: %q", r.Order)
-	case r.MinRank != nil && r.Query == nil:
-		return "", sqlite.ErrBadParameter.With("a minimum rank is of a search, with a query")
+	case r.Cutoff != nil && r.Query == nil:
+		return "", sqlite.ErrBadParameter.With("a cutoff is of a search, with a query")
 	}
 	if where != "" {
 		where = "WHERE " + where
@@ -314,14 +321,6 @@ func relPath(path string) (string, error) {
 		return "", sqlite.ErrBadParameter.Withf("path isn't within a volume: %q", path)
 	}
 	return clean, nil
-}
-
-// and returns the condition, after AND, or nothing
-func and(condition string) string {
-	if condition == "" {
-		return ""
-	}
-	return "AND " + condition
 }
 
 // matchQuery returns the FTS5 query of the words of a query, each of which

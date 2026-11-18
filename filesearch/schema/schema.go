@@ -34,6 +34,10 @@ const (
 
 	// ListLimit is the most objects which are listed, or searched, at once
 	ListLimit = 100
+
+	// DefaultCutoff is the lowest rank of a search, between 0 and 1, unless
+	// it's set, so the objects which match it least aren't returned
+	DefaultCutoff = 0.15
 )
 
 ////////////////////////////////////////////////////////////////////////////////

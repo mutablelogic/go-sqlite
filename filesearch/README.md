@@ -3,7 +3,7 @@
 Indexes folders, of their files' metadata, content and artwork, with [go-metadata](https://github.com/mutablelogic/go-metadata), and searches them, in a SQLite database.
 
 - **Volumes:** a folder which is indexed. Indexing it again marks the files which are as they were, reads those which are new or changed, and sweeps what's gone.
-- **Search:** of the words in files' titles, paths, metadata and content, as prefixes, with SQLite's full-text search. Each file has a rank, which is higher the better it matches, of its title, then its path, then its metadata, then its content.
+- **Search:** of the words in files' titles, paths, metadata and content, as prefixes, with SQLite's full-text search. Each file has a rank, between 0 and 1, which is higher the better it matches, of its title, then its path, then its metadata, then its content, and those under a cutoff, of 0.15 by default, aren't found.
 - **Its own module**, so go-sqlite's dependencies stay small.
 
 ## The command
@@ -17,8 +17,8 @@ make filesearch MEDIA=1          # and audio, video and photos' EXIF, HEIF and R
 
 ```bash
 filesearch index ~/Documents     # Index a folder, of its folders too, with --no-recursive not
-filesearch search tax return     # Search, of all of the words, the best first
-filesearch search --min-rank 2 tax  # Of a rank of 2, or more
+filesearch search tax return     # Search, of all of the words, the best first, of a rank of 0.15 or more
+filesearch search --cutoff 0.5 tax  # Of a rank of 0.5, or more, or 0, for any
 filesearch search --order path tax  # By path, rather than rank
 filesearch search                # List the files
 filesearch volumes               # The folders, with the status of their indexing
@@ -33,7 +33,7 @@ Hidden files and folders, lock files, backups and autosaves, temporary files and
 ```go
 manager, err := filesearch.New(ctx, path, filesearch.WithTracer(tracer))
 volume, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: folder, Recursive: true}, progress)
-list, err := manager.ListObjects(ctx, schema.ObjectListRequest{Query: types.Ptr("tax return"), MinRank: types.Ptr(2.0)})
+list, err := manager.ListObjects(ctx, schema.ObjectListRequest{Query: types.Ptr("tax return"), Cutoff: types.Ptr(0.5)})
 ```
 
 - **Excluded:** `WithExclude(patterns...)` excludes files and folders by regular expressions of their names, as well as `DefaultExclude`, unless `WithoutDefaultExclude()`. What was indexed, and then is excluded, is swept.

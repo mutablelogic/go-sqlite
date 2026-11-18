@@ -37,6 +37,14 @@ type progress struct {
 	fn ProgressFn
 }
 
+// event is what happened to a file, of a batch, which is counted, and said,
+// once the batch is committed: it was indexed, or marked, or it couldn't be
+type event struct {
+	path    string
+	indexed bool
+	err     error
+}
+
 // file is a file which the walk of a volume found
 type file struct {
 	path    string // Within the volume, with / separators
@@ -76,9 +84,13 @@ func (m *Manager) IndexVolume(ctx context.Context, req schema.IndexVolumeRequest
 	)
 	defer func() { endSpan(err) }()
 
-	// The folder, which is a volume's, by its absolute path
+	// The folder, which is a volume's, by its absolute path, of the folder
+	// which a symbolic link is to, as it's walked
 	root, err := filepath.Abs(req.Path)
 	if err != nil {
+		return nil, sqlite.ErrBadParameter.Withf("path: %v", err)
+	}
+	if root, err = filepath.EvalSymlinks(root); err != nil {
 		return nil, sqlite.ErrBadParameter.Withf("path: %v", err)
 	}
 	if info, err := os.Stat(root); err != nil {
@@ -103,23 +115,33 @@ func (m *Manager) IndexVolume(ctx context.Context, req schema.IndexVolumeRequest
 	}
 	p.start(volume)
 
-	// Walk it, and then finish its run, without being cancelled, as indexed,
-	// or failed
-	walkErr := m.walk(ctx, &volume, req.Recursive, p)
+	// Walk it, and then, when it's walked, finish its run, as indexed, and
+	// sweep what it didn't see, in one transaction, so it's indexed only once
+	// it's swept
+	err = m.walk(ctx, &volume, req.Recursive, p)
 	finished := time.Now()
-	if err := m.conn.Update(context.WithoutCancel(ctx), &volume, schema.VolumeID(volume.ID), schema.VolumeFinish{Finished: finished, Error: walkErr}); err != nil {
-		err = errors.Join(walkErr, err)
-		m.endProgress(root, &finished, err)
-		return nil, err
-	}
-	if walkErr != nil {
-		m.endProgress(root, &finished, walkErr)
-		return &volume, walkErr
+	var swept schema.ObjectList
+	if err == nil {
+		err = m.conn.Tx(ctx, func(conn sqlite.Conn) error {
+			swept = schema.ObjectList{}
+			if err := conn.Update(ctx, &volume, schema.VolumeID(volume.ID), schema.VolumeFinish{Finished: finished}); err != nil {
+				return err
+			}
+			if err := conn.Delete(ctx, &swept, schema.ObjectSweep{Volume: volume.ID, Run: volume.Run}); err != nil && !errors.Is(err, sqlite.ErrNotFound) {
+				return err
+			}
+			return nil
+		})
 	}
 
-	// Sweep what it didn't see
-	var swept schema.ObjectList
-	if err := m.conn.Delete(ctx, &swept, schema.ObjectSweep{Volume: volume.ID, Run: volume.Run}); err != nil && !errors.Is(err, sqlite.ErrNotFound) {
+	// Or, when it wasn't, finish its run, without being cancelled, as failed,
+	// with its error
+	if err != nil {
+		if finishErr := m.conn.Update(context.WithoutCancel(ctx), &volume, schema.VolumeID(volume.ID), schema.VolumeFinish{Finished: finished, Error: err}); finishErr != nil {
+			err = errors.Join(err, finishErr)
+			m.endProgress(root, &finished, err)
+			return nil, err
+		}
 		m.endProgress(root, &finished, err)
 		return &volume, err
 	}
@@ -194,20 +216,34 @@ func (m *Manager) endProgress(root string, finished *time.Time, err error) {
 // or marks, its files, a batch at a time
 func (m *Manager) walk(ctx context.Context, volume *schema.Volume, recursive bool, p *progress) error {
 	batch := make([]file, 0, batchSize)
+	// A batch is indexed in a transaction, and then, once it's committed, what
+	// happened to each of its files is counted, and said, so the function isn't
+	// called while the transaction holds the writer, and a batch which is
+	// rolled back isn't counted
 	flush := func() error {
 		if len(batch) == 0 {
 			return nil
 		}
+		var events []event
 		err := m.conn.Bulk(ctx, func(conn sqlite.Conn) error {
+			events = make([]event, 0, len(batch))
 			for _, f := range batch {
-				if err := m.indexFile(ctx, conn, volume, f, p); err != nil {
+				e, err := m.indexFile(ctx, conn, volume, f)
+				if err != nil {
 					return err
 				}
+				events = append(events, e)
 			}
 			return nil
 		})
 		batch = batch[:0]
-		return err
+		if err != nil {
+			return err
+		}
+		for _, e := range events {
+			p.apply(e)
+		}
+		return nil
 	}
 	if err := filepath.WalkDir(volume.Path, func(path string, d fs.DirEntry, err error) error {
 		if err := ctx.Err(); err != nil {
@@ -256,20 +292,18 @@ func (m *Manager) walk(ctx context.Context, volume *schema.Volume, recursive boo
 }
 
 // indexFile marks a file, which is as it was, or indexes it, when it's new,
-// or changed. A file whose path, or metadata, isn't, is an error, of the
-// progress, and isn't indexed.
-func (m *Manager) indexFile(ctx context.Context, conn sqlite.Conn, volume *schema.Volume, f file, p *progress) error {
+// or changed, and returns which. A file whose path, or metadata, isn't, isn't
+// indexed, and is the event's error, and the database's errors are its own.
+func (m *Manager) indexFile(ctx context.Context, conn sqlite.Conn, volume *schema.Volume, f file) (event, error) {
 	var object schema.Object
 	err := conn.Update(ctx, &object, schema.ObjectMark{Volume: volume.ID, Path: f.path, Size: f.size, ModTime: f.modtime, Run: volume.Run}, nil)
 	switch {
 	case err == nil:
-		p.marked()
-		return nil
+		return event{path: f.path}, nil
 	case errors.Is(err, sqlite.ErrBadParameter):
-		p.fail(f.path, err)
-		return nil
+		return event{path: f.path, err: err}, nil
 	case !errors.Is(err, sqlite.ErrNotFound):
-		return err
+		return event{}, err
 	}
 	if err := conn.Insert(ctx, &object, schema.ObjectMeta{
 		Volume:  volume.ID,
@@ -280,13 +314,11 @@ func (m *Manager) indexFile(ctx context.Context, conn sqlite.Conn, volume *schem
 		Title:   title(f.path),
 		Run:     volume.Run,
 	}); errors.Is(err, sqlite.ErrBadParameter) {
-		p.fail(f.path, err)
-		return nil
+		return event{path: f.path, err: err}, nil
 	} else if err != nil {
-		return err
+		return event{}, err
 	}
-	p.indexed()
-	return nil
+	return event{path: f.path, indexed: true}, nil
 }
 
 // relPath returns the path, within the volume, with / separators
@@ -338,20 +370,24 @@ func (p *progress) seen(path string) {
 	p.Current = path
 }
 
-// indexed counts a file which was indexed, and says so
-func (p *progress) indexed() {
+// apply counts what happened to a file, of a batch which was committed: it
+// was indexed, or marked, or it couldn't be, and says so, of the file
+func (p *progress) apply(e event) {
 	p.Lock()
-	p.Indexed++
+	p.Current = e.path
+	switch {
+	case e.err != nil:
+	case e.indexed:
+		p.Indexed++
+	default:
+		p.Marked++
+	}
 	p.Unlock()
-	p.say(nil)
-}
-
-// marked counts a file which was as it was, and was marked, and says so
-func (p *progress) marked() {
-	p.Lock()
-	p.Marked++
-	p.Unlock()
-	p.say(nil)
+	if e.err != nil {
+		p.fail(e.path, e.err)
+	} else {
+		p.say(nil)
+	}
 }
 
 // fail says a file can't be read, of its error

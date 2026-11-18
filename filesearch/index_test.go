@@ -136,7 +136,7 @@ func Test_IndexVolume(t *testing.T) {
 func Test_IndexVolumeErrors(t *testing.T) {
 	ctx := t.Context()
 	manager := test.New(t)
-	root := t.TempDir()
+	root := resolved(t, t.TempDir())
 	write(t, root, map[string]string{"a.txt": "a", "b.txt": "b"})
 
 	// A path which isn't a folder isn't a volume
@@ -173,16 +173,19 @@ func Test_IndexVolumeErrors(t *testing.T) {
 	assert.NotEmpty(t, progress.Current)
 	assert.Equal(t, uint64(1), progress.Indexed)
 
-	// What it's indexing isn't seen, until its batch is committed
+	// The function is called once its batch is committed, so what it's said
+	// is seen
 	list, err := manager.ListObjects(ctx, schema.ObjectListRequest{})
 	require.NoError(t, err)
-	assert.Empty(t, list.Body)
+	assert.Len(t, list.Body, 2)
 	close(finish)
 	require.NoError(t, <-done)
 	assert.Equal(t, schema.StatusIndexed, volume.Status)
 
-	// A run whose context is done fails, and nothing is swept
+	// A run whose context is done, before it's finished, fails, with its
+	// error, and nothing is swept, and the next run sweeps it
 	write(t, root, map[string]string{"c.txt": "c"})
+	require.NoError(t, os.Remove(filepath.Join(root, "b.txt")))
 	cancelled, cancel := context.WithCancel(ctx)
 	var errs []error
 	failed, err := manager.IndexVolume(cancelled, schema.IndexVolumeRequest{Path: root}, func(p schema.Progress, err error) {
@@ -194,7 +197,71 @@ func Test_IndexVolumeErrors(t *testing.T) {
 	assert.Equal(t, schema.StatusFailed, failed.Status)
 	assert.Contains(t, failed.Error, "canceled")
 	assert.ErrorIs(t, errs[len(errs)-1], context.Canceled, "it's said, as it finished")
-	assert.Equal(t, []string{"a.txt", "b.txt"}, objects(t, manager, volume.ID), "nothing is swept, or indexed, after it's cancelled")
+	assert.Equal(t, []string{"a.txt", "b.txt", "c.txt"}, objects(t, manager, volume.ID), "its batch was committed, and nothing is swept")
+	again, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, schema.StatusIndexed, again.Status)
+	assert.Empty(t, again.Error)
+	assert.Equal(t, []string{"a.txt", "c.txt"}, objects(t, manager, volume.ID))
+}
+
+func Test_IndexVolumeProgress(t *testing.T) {
+	ctx := t.Context()
+	root := t.TempDir()
+	write(t, root, map[string]string{"a.txt": "a", "b.txt": "b", "c.txt": "c"})
+
+	// Of a database in memory, which is one connection, the function can
+	// list what's indexed, as it's called once its batch is committed, and
+	// it's said of each file
+	manager, err := filesearch.New(ctx, sqlite.Memory)
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, manager.Close()) })
+	timeout, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	var current []string
+	volume, err := manager.IndexVolume(timeout, schema.IndexVolumeRequest{Path: root}, func(p schema.Progress, err error) {
+		require.NoError(t, err)
+		if p.Finished != nil {
+			return
+		}
+		current = append(current, p.Current)
+		list, err := manager.ListObjects(timeout, schema.ObjectListRequest{})
+		require.NoError(t, err)
+		assert.Len(t, list.Body, 3)
+	})
+	require.NoError(t, err)
+	assert.Equal(t, schema.StatusIndexed, volume.Status)
+	assert.Equal(t, []string{"a.txt", "b.txt", "c.txt"}, current)
+}
+
+func Test_IndexVolumeSymlink(t *testing.T) {
+	ctx := t.Context()
+	manager := test.New(t)
+	root := t.TempDir()
+	write(t, root, map[string]string{"a.txt": "a"})
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(root, link); err != nil {
+		t.Skip("symbolic links:", err)
+	}
+
+	// A volume of a symbolic link is of the folder it's to, which is walked
+	volume, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: link}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, resolved(t, root), volume.Path)
+	assert.Equal(t, []string{"a.txt"}, objects(t, manager, volume.ID))
+	again, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, volume.ID, again.ID, "the same volume")
+	assert.Equal(t, []string{"a.txt"}, objects(t, manager, volume.ID))
+}
+
+// resolved returns the path, of the folder which its symbolic links are to,
+// such as /var, which is /private/var, on macOS
+func resolved(t *testing.T, path string) string {
+	t.Helper()
+	path, err := filepath.EvalSymlinks(path)
+	require.NoError(t, err)
+	return path
 }
 
 func Test_IndexVolumeUnreadable(t *testing.T) {
@@ -250,4 +317,15 @@ func Test_IndexVolumeBatches(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint64(250), progress.Marked)
 	assert.True(t, sort.StringsAreSorted(paths))
+
+	// A batch which is rolled back, as its context is done, isn't counted
+	write(t, root, map[string]string{"files/new.txt": "x"})
+	cancelled, cancel := context.WithCancel(ctx)
+	_, err = manager.IndexVolume(cancelled, schema.IndexVolumeRequest{Path: root, Recursive: true}, func(schema.Progress, error) {
+		cancel()
+	})
+	assert.ErrorIs(t, err, context.Canceled)
+	progress, err = manager.Progress(volume.ID)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(100), progress.Indexed+progress.Marked, "of the first batch, which was committed")
 }

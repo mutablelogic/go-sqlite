@@ -36,7 +36,7 @@ type Commands struct {
 	Volumes      VolumesCmd      `cmd:"" name:"volumes" help:"List the volumes, with the status of their indexing." group:"FILESEARCH"`
 	VolumeDelete VolumeDeleteCmd `cmd:"" name:"volume-delete" help:"Delete a volume, by its id, or path, with what's indexed of it." group:"FILESEARCH"`
 	Info         InfoCmd         `cmd:"" name:"info" help:"Show what's indexed of a file, of its metadata." group:"FILESEARCH"`
-	Cat          CatCmd          `cmd:"" name:"cat" help:"Write a file's content, as Markdown, or its artwork." group:"FILESEARCH"`
+	Cat          CatCmd          `cmd:"" name:"cat" help:"Write a file's content, as Markdown, or, when it has none, its artwork." group:"FILESEARCH"`
 }
 
 // VolumeDeleteCmd deletes a volume
@@ -55,7 +55,7 @@ type InfoCmd struct {
 type CatCmd struct {
 	Flags   `embed:""`
 	Path    string `arg:"" name:"path" help:"The file's path, or the end of it, such as its name, which is of one file"`
-	Artwork bool   `name:"artwork" help:"Its artwork, rather than its content"`
+	Artwork bool   `name:"artwork" help:"Its artwork, rather than its content, which is written when it has no content"`
 }
 
 // IndexCmd indexes a folder, as a volume
@@ -222,8 +222,8 @@ func (cmd *InfoCmd) Run(ctx server.Cmd) error {
 }
 
 // Run writes the file's content, as Markdown, which is formatted, on a
-// terminal, or its artwork, which is drawn, on a terminal, or else is the
-// image's bytes
+// terminal, or, when it has none, or with --artwork, its artwork, which is
+// drawn, on a terminal, or else is the image's bytes
 func (cmd *CatCmd) Run(ctx server.Cmd) error {
 	return cmd.WithManager(ctx, nil, func(manager *filesearch.Manager) error {
 		object, err := manager.GetObject(ctx.Context(), cmd.Path)
@@ -232,39 +232,41 @@ func (cmd *CatCmd) Run(ctx server.Cmd) error {
 		}
 		width := ctx.IsTerm()
 
-		// Its artwork, which is drawn, or written
-		if cmd.Artwork {
-			artwork, err := manager.Artwork(ctx.Context(), object.ID)
-			if errors.Is(err, sqlite.ErrNotFound) {
-				return sqlite.ErrNotFound.Withf("%s has no artwork", object.Path)
-			} else if err != nil {
-				return err
-			}
-			if width <= 0 {
-				_, err := os.Stdout.Write(artwork)
-				return err
-			}
-			img, _, err := image.Decode(bytes.NewReader(artwork))
+		// Its content, as Markdown, which is formatted, or written
+		if !cmd.Artwork {
+			markdown, err := manager.Markdown(ctx.Context(), object.ID)
 			if err != nil {
 				return err
 			}
-			_, err = tui.Image(tui.SetWidth(width)).Write(os.Stdout, img)
-			return err
+			if markdown != "" {
+				if width <= 0 {
+					_, err := fmt.Fprint(os.Stdout, markdown)
+					return err
+				}
+				_, err = tui.MarkdownFormatter(tui.SetWidth(width)).Write(os.Stdout, markdown)
+				return err
+			}
 		}
 
-		// Its content, as Markdown, which is formatted, or written
-		markdown, err := manager.Markdown(ctx.Context(), object.ID)
+		// Or its artwork, which is drawn, or written
+		artwork, err := manager.Artwork(ctx.Context(), object.ID)
+		switch {
+		case errors.Is(err, sqlite.ErrNotFound) && cmd.Artwork:
+			return sqlite.ErrNotFound.Withf("%s has no artwork", object.Path)
+		case errors.Is(err, sqlite.ErrNotFound):
+			return sqlite.ErrNotFound.Withf("%s has no content, or artwork", object.Path)
+		case err != nil:
+			return err
+		}
+		if width <= 0 {
+			_, err := os.Stdout.Write(artwork)
+			return err
+		}
+		img, _, err := image.Decode(bytes.NewReader(artwork))
 		if err != nil {
 			return err
 		}
-		if markdown == "" {
-			return sqlite.ErrNotFound.Withf("%s has no content", object.Path)
-		}
-		if width <= 0 {
-			_, err := fmt.Fprint(os.Stdout, markdown)
-			return err
-		}
-		_, err = tui.MarkdownFormatter(tui.SetWidth(width)).Write(os.Stdout, markdown)
+		_, err = tui.Image(tui.SetWidth(width)).Write(os.Stdout, img)
 		return err
 	})
 }

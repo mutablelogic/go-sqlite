@@ -47,4 +47,4 @@ list, err := manager.ListObjects(ctx, schema.ObjectListRequest{Query: types.Ptr(
 - **Excluded:** `WithExclude(patterns...)` excludes files and folders by regular expressions of their names, as well as `DefaultExclude`, unless `WithoutDefaultExclude()`. What was indexed, and then is excluded, is swept.
 - **`ProgressFn`** is called as each batch of files is committed, with a file's error, when it can't be read, and once it's finished.
 - **`Progress(volume)`** is how far a run has indexed a volume, or how it did.
-- **Handlers:** the program which uses it imports go-metadata's handlers, which read files, of their types, such as `_ "github.com/mutablelogic/go-metadata/text"`. `cmd/filesearch` imports those which are pure Go, and, with the `media` tag, the others.
+- **Handlers:** the program which uses it imports go-metadata's handlers, which read files, of their types, such as `_ "github.com/mutablelogic/go-metadata/text"`. `cmd/filesearch` imports those which are pure Go, and, with the `media` tag, the others. `image/photoshop` reads EXIF with libexif when built with cgo, so it's imported only without cgo, or with `media`.

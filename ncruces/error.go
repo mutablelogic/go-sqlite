@@ -14,8 +14,9 @@ import (
 // PRIVATE METHODS
 
 // error returns SQLite's error as a DatabaseError, of the kinds of error it
-// is, wrapped by the context's error, when it was interrupted as it was done,
-// or the error as it is, when it isn't SQLite's
+// is, wrapped by the context's error, when it was interrupted, or stopped
+// waiting for a lock, as it was done, or the error as it is, when it isn't
+// SQLite's
 func (p *pool) error(ctx context.Context, err error) error {
 	var kind sqlite.Err
 	var dbErr *sqlite.DatabaseError
@@ -33,7 +34,7 @@ func (p *pool) error(ctx context.Context, err error) error {
 	default:
 		return err
 	}
-	if ctxErr := ctx.Err(); ctxErr != nil && errors.Is(err, sqlite3.INTERRUPT) {
+	if ctxErr := ctx.Err(); ctxErr != nil && (errors.Is(err, sqlite3.INTERRUPT) || errors.Is(err, sqlite3.BUSY)) {
 		return fmt.Errorf("%w: %w", ctxErr, err)
 	}
 	return err

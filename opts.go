@@ -104,8 +104,8 @@ func WithMaxReaders(n int) Opt {
 // busy_timeout, which it can change. Its value is a number, a name, or a
 // string in single quotes.
 func WithPragma(name, value string) Opt {
+	name, value = strings.TrimSpace(name), strings.TrimSpace(value)
 	return func(o *Options) error {
-		name, value = strings.TrimSpace(name), strings.TrimSpace(value)
 		if !isIdentifier(name) {
 			return ErrBadParameter.Withf("pragma: %q", name)
 		}

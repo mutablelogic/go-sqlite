@@ -116,6 +116,13 @@ func (s *Queries) Query(key string) string {
 	return ""
 }
 
+// Statement returns the SQL of one statement, without its comments, or the
+// ; which ends it, so it's within another, such as a subquery, or is
+// followed by more, such as a limit.
+func Statement(sql string) string {
+	return strings.TrimRight(strings.TrimSpace(stripComments(sql)), "; \t\r\n")
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 

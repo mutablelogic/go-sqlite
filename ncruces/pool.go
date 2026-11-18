@@ -136,8 +136,12 @@ func (p *poolconn) Close() error {
 // PRIVATE METHODS
 
 // open opens a connection, which reads and writes, creating its file, or only
-// reads, with its pragmas, functions and init functions
+// reads, with its pragmas, functions and init functions, which are
+// interrupted when the context is done
 func (p *pool) open(ctx context.Context, path string, readonly bool, pragmas []sqlite.Pragma) (*sqlite3.Conn, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	flags := sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE
 	if readonly {
 		flags = sqlite3.OPEN_READONLY
@@ -146,9 +150,11 @@ func (p *pool) open(ctx context.Context, path string, readonly bool, pragmas []s
 	if err != nil {
 		return nil, p.error(ctx, err)
 	}
+	db.SetInterrupt(ctx)
 	if err := p.setup(db, pragmas); err != nil {
 		return nil, errors.Join(p.error(ctx, err), db.Close())
 	}
+	db.SetInterrupt(context.Background())
 	return db, nil
 }
 

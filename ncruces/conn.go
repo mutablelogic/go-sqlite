@@ -179,6 +179,10 @@ func (c *conn) List(ctx context.Context, reader sqlite.Reader, sel sqlite.Select
 	if err != nil {
 		return err
 	}
+
+	// It's one statement, without a ; or a comment at its end, which is
+	// within the count, and followed by the offset and limit
+	query = sqlite.Statement(query)
 	return c.do(ctx, false, func(db *sqlite3.Conn) (err error) {
 		// The count and the rows are read in one transaction, unless they're
 		// in one already

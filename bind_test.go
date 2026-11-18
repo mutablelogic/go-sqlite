@@ -58,7 +58,9 @@ func Test_Bind_002(t *testing.T) {
 		In  string
 		Out string
 	}{
-		{In: `$schema`, Out: "schema"},
+		{In: `$schema`, Out: "$schema"},
+		{In: `VALUES ($schema, @schema, :schema)`, Out: "VALUES ($schema, @schema, :schema)"},
+		{In: `${schema} ${schema`, Out: "schema ${schema"},
 		{In: `${'schema'}`, Out: "'schema'"},
 		{In: `${"schema"}`, Out: `"schema"`},
 		{In: `$1`, Out: `$1`},

@@ -11,7 +11,6 @@ import (
 
 	// Packages
 	otel "github.com/mutablelogic/go-client/pkg/otel"
-	types "github.com/mutablelogic/go-server/pkg/types"
 	sqlite "github.com/mutablelogic/go-sqlite"
 	schema "github.com/mutablelogic/go-sqlite/filesearch/schema"
 	ncruces "github.com/mutablelogic/go-sqlite/ncruces"
@@ -84,28 +83,4 @@ func (m *Manager) Close() error {
 // Ping the database
 func (m *Manager) Ping(ctx context.Context) error {
 	return m.pool.Ping(ctx)
-}
-
-// ListObjects lists the objects, of a volume, or all of them, by their
-// paths, or searches them, when there's a query, the best first, with the
-// request, and the limit which was used
-func (m *Manager) ListObjects(ctx context.Context, req schema.ObjectListRequest) (_ *schema.ObjectList, err error) {
-	ctx, endSpan := otel.StartSpan(m.tracer, ctx, "filesearch.ListObjects",
-		attribute.String("arg.req", types.Stringify(req)),
-	)
-	defer func() { endSpan(err) }()
-	// Copy the limit, so the caller's request isn't changed
-	if req.Limit != nil {
-		req.Limit = types.Ptr(*req.Limit)
-	}
-
-	// Selecting sets the limit which is used, on the request, which is
-	// returned with the list, clamped to the objects which there are
-	var list schema.ObjectList
-	if err := m.conn.List(ctx, &list, &req); err != nil {
-		return nil, err
-	}
-	list.ObjectListRequest = req
-	list.OffsetLimit.Clamp(list.Count)
-	return &list, nil
 }

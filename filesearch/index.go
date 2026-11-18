@@ -115,10 +115,22 @@ func (m *Manager) IndexVolume(ctx context.Context, req schema.IndexVolumeRequest
 	}
 	p.start(volume)
 
+	// Count its files, which is quicker than reading them, so how far it's
+	// indexed is known, and say so
+	total, err := m.count(ctx, volume.Path, req.Recursive)
+	if err == nil {
+		p.Lock()
+		p.Total = total
+		p.Unlock()
+		p.say(nil)
+	}
+
 	// Walk it, and then, when it's walked, finish its run, as indexed, and
 	// sweep what it didn't see, in one transaction, so it's indexed only once
 	// it's swept
-	err = m.walk(ctx, &volume, req.Recursive, p)
+	if err == nil {
+		err = m.walk(ctx, &volume, req.Recursive, p)
+	}
 	finished := time.Now()
 	var swept schema.ObjectList
 	if err == nil {
@@ -210,6 +222,31 @@ func (m *Manager) endProgress(root string, finished *time.Time, err error) {
 	p.Current = ""
 	p.Unlock()
 	p.say(err)
+}
+
+// count returns the files of a volume, of its folders, when it's recursive,
+// which aren't excluded, and are regular, without reading them
+func (m *Manager) count(ctx context.Context, root string, recursive bool) (uint64, error) {
+	var total uint64
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if path == root {
+			return err
+		}
+		if err != nil || m.excluded(filepath.Base(path)) || (d.IsDir() && !recursive) {
+			if d != nil && d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if d.Type().IsRegular() {
+			total++
+		}
+		return nil
+	})
+	return total, err
 }
 
 // walk walks the volume, of its folders, when it's recursive, and indexes,

@@ -3,6 +3,8 @@
 package cmd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -52,22 +54,23 @@ type VolumesCmd struct {
 ///////////////////////////////////////////////////////////////////////////////
 // COMMANDS
 
-// Run indexes the folder, and says the files which couldn't be read, and
-// what was indexed, marked and swept, once it's finished
+// Run indexes the folder, with its progress, on a terminal, and says the
+// files which couldn't be read, and then what was indexed, marked and
+// swept, once it's finished
 func (cmd *IndexCmd) Run(ctx server.Cmd) error {
 	return cmd.WithManager(ctx, nil, func(manager *filesearch.Manager) error {
 		start := time.Now()
-		var errs uint64
-		volume, err := manager.IndexVolume(ctx.Context(), schema.IndexVolumeRequest{Path: cmd.Path, Recursive: cmd.Recursive}, func(p schema.Progress, err error) {
-			if err != nil && p.Finished == nil {
-				errs++
-				fmt.Fprintln(os.Stderr, "Error:", err)
-			}
-		})
+		progress := newIndexing(ctx.IsTerm())
+		volume, err := manager.IndexVolume(ctx.Context(), schema.IndexVolumeRequest{Path: cmd.Path, Recursive: cmd.Recursive}, progress.Progress)
+		progress.Close()
 		if volume != nil {
-			if progress, err := manager.Progress(volume.ID); err == nil {
+			status := string(volume.Status)
+			if errors.Is(err, context.Canceled) {
+				status = "interrupted"
+			}
+			if p, err := manager.Progress(volume.ID); err == nil {
 				fmt.Printf("%s: %s, of %d files: %d indexed, %d marked, %d swept, %d which couldn't be read, in %v\n",
-					volume.Path, volume.Status, progress.Files, progress.Indexed, progress.Marked, progress.Swept, errs, time.Since(start).Round(time.Millisecond))
+					volume.Path, status, p.Total, p.Indexed, p.Marked, p.Swept, progress.Errors(), time.Since(start).Round(time.Millisecond))
 			}
 		}
 		return err

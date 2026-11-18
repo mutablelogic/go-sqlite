@@ -64,12 +64,14 @@ func Test_IndexVolume(t *testing.T) {
 	assert.Equal(t, schema.StatusIndexed, volume.Status)
 	assert.Equal(t, int64(1), volume.Run)
 	assert.Equal(t, []string{"a.txt", "notes/b.md", "photos/c.jpeg"}, objects(t, manager, volume.ID))
-	if assert.Len(t, said, 4, "three files, and finished") {
-		assert.Equal(t, uint64(3), said[0].Files, "the files of a batch are walked, and then indexed")
-		assert.Equal(t, uint64(1), said[0].Indexed)
-		assert.Nil(t, said[0].Finished)
-		assert.NotNil(t, said[3].Finished)
-		assert.Equal(t, uint64(3), said[3].Indexed)
+	if assert.Len(t, said, 5, "counted, three files, and finished") {
+		assert.Equal(t, uint64(3), said[0].Total, "counted, before it's walked")
+		assert.Zero(t, said[0].Files)
+		assert.Equal(t, uint64(3), said[1].Files, "the files of a batch are walked, and then indexed")
+		assert.Equal(t, uint64(1), said[1].Indexed)
+		assert.Nil(t, said[1].Finished)
+		assert.NotNil(t, said[4].Finished)
+		assert.Equal(t, uint64(3), said[4].Indexed)
 	}
 	list, err := manager.ListObjects(ctx, schema.ObjectListRequest{Query: types.Ptr("c")})
 	require.NoError(t, err)
@@ -155,6 +157,9 @@ func Test_IndexVolumeErrors(t *testing.T) {
 	go func() {
 		var err error
 		volume, err = manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root}, func(p schema.Progress, err error) {
+			if p.Indexed+p.Marked == 0 {
+				return
+			}
 			once.Do(func() {
 				indexing = p.Volume
 				close(walking)
@@ -221,7 +226,7 @@ func Test_IndexVolumeProgress(t *testing.T) {
 	var current []string
 	volume, err := manager.IndexVolume(timeout, schema.IndexVolumeRequest{Path: root}, func(p schema.Progress, err error) {
 		require.NoError(t, err)
-		if p.Finished != nil {
+		if p.Finished != nil || p.Current == "" {
 			return
 		}
 		current = append(current, p.Current)
@@ -321,7 +326,10 @@ func Test_IndexVolumeBatches(t *testing.T) {
 	// A batch which is rolled back, as its context is done, isn't counted
 	write(t, root, map[string]string{"files/new.txt": "x"})
 	cancelled, cancel := context.WithCancel(ctx)
-	_, err = manager.IndexVolume(cancelled, schema.IndexVolumeRequest{Path: root, Recursive: true}, func(schema.Progress, error) {
+	_, err = manager.IndexVolume(cancelled, schema.IndexVolumeRequest{Path: root, Recursive: true}, func(p schema.Progress, err error) {
+		if p.Indexed+p.Marked == 0 {
+			return
+		}
 		cancel()
 	})
 	assert.ErrorIs(t, err, context.Canceled)

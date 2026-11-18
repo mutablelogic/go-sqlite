@@ -15,6 +15,7 @@ type Progress struct {
 	Run     int64     `json:"run"`               // The run which is indexing it
 	Started time.Time `json:"started"`           // When the run started
 	Current string    `json:"current,omitempty"` // The file which is being indexed, within the volume
+	Total   uint64    `json:"total"`             // The files of the volume, which are counted before it's walked
 	Files   uint64    `json:"files"`             // The files which were seen
 	Indexed uint64    `json:"indexed"`           // Of which were new, or changed, and were indexed
 	Marked  uint64    `json:"marked"`            // Of which were as they were, and were marked

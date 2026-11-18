@@ -353,3 +353,59 @@ func Test_IndexVolumeBatches(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint64(100), progress.Indexed+progress.Marked, "of the first batch, which was committed")
 }
+
+func Test_IndexVolumeSuperseded(t *testing.T) {
+	ctx := t.Context()
+	root := t.TempDir()
+	write(t, root, map[string]string{"a.txt": "a", "b.txt": "b"})
+	path := test.Path(t)
+	a, err := filesearch.New(ctx, path)
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, a.Close()) })
+	b, err := filesearch.New(ctx, path)
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, b.Close()) })
+
+	// A volume, which is indexed
+	volume, err := a.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root}, nil)
+	require.NoError(t, err)
+
+	// A run, of one manager, as of a process, which pauses once its files are
+	// marked, and then another's, which pauses as it starts
+	pause := func(m *filesearch.Manager) (chan struct{}, chan struct{}, chan error) {
+		paused, resume, done := make(chan struct{}), make(chan struct{}), make(chan error, 1)
+		var once sync.Once
+		go func() {
+			_, err := m.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root}, func(p schema.Progress, _ error) {
+				if m == a && p.Marked == 0 {
+					return
+				}
+				once.Do(func() {
+					close(paused)
+					<-resume
+				})
+			})
+			done <- err
+		}()
+		<-paused
+		return paused, resume, done
+	}
+	_, resumeA, doneA := pause(a)
+	_, resumeB, doneB := pause(b)
+
+	// The first, which is overtaken, doesn't finish the volume, or sweep its
+	// files, which the second hasn't marked yet, and says so
+	close(resumeA)
+	assert.ErrorIs(t, <-doneA, sqlite.ErrConflict)
+	assert.Equal(t, []string{"a.txt", "b.txt"}, objects(t, b, volume.ID), "nothing is swept")
+
+	// The second finishes it
+	close(resumeB)
+	require.NoError(t, <-doneB)
+	volumes, err := b.ListVolumes(ctx, schema.VolumeListRequest{})
+	require.NoError(t, err)
+	require.Len(t, volumes.Body, 1)
+	assert.Equal(t, schema.StatusIndexed, volumes.Body[0].Status)
+	assert.Equal(t, volume.Run+2, volumes.Body[0].Run)
+	assert.Equal(t, []string{"a.txt", "b.txt"}, objects(t, b, volume.ID))
+}

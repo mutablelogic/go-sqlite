@@ -85,7 +85,7 @@ func (flags Flags) WithManager(ctx server.Cmd, srv *servercmd.RunServer, fn func
 // PRIVATE METHODS
 
 // path returns the path of the database, which is in the user's cache
-// folder, which is created, when --db isn't set
+// folder, which is created, and only the user can read, when --db isn't set
 func (flags Flags) path() (string, error) {
 	if flags.DB != "" {
 		return flags.DB, nil
@@ -94,8 +94,13 @@ func (flags Flags) path() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Its folder is the user's alone, as the database has what's read of
+	// their files
 	folder := filepath.Join(cache, "filesearch")
-	if err := os.MkdirAll(folder, 0o755); err != nil {
+	if err := os.MkdirAll(folder, 0o700); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(folder, 0o700); err != nil {
 		return "", err
 	}
 	return filepath.Join(folder, DefaultName), nil

@@ -17,9 +17,11 @@ WHERE id = @id
 RETURNING id, path, status, run, started, finished, error, (SELECT COUNT(*) FROM object WHERE object.volume = volume.id) AS objects;
 
 -- filesearch.volume_finish
--- Its run finishes, which indexed it, or failed, with its error
+-- Its run finishes, which indexed it, or failed, with its error, when it's
+-- still its run, and not one which started after it, such as of another
+-- process, which finishes it
 UPDATE volume SET status = @status, finished = @finished, error = @error
-WHERE id = @id AND status = 'indexing'
+WHERE id = @id AND run = @run AND status = 'indexing'
 RETURNING id, path, status, run, started, finished, error, (SELECT COUNT(*) FROM object WHERE object.volume = volume.id) AS objects;
 
 -- filesearch.volume_delete

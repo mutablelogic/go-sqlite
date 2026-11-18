@@ -80,15 +80,21 @@ func Test_Volumes(t *testing.T) {
 	assert.Equal(t, int64(1), media.Run)
 	assert.Equal(t, started, *media.Started)
 	assert.Nil(t, media.Finished)
-	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Finished: started.Add(time.Minute)}))
+	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Run: media.Run, Finished: started.Add(time.Minute)}))
 	assert.Equal(t, schema.StatusIndexed, media.Status)
 	assert.Equal(t, started.Add(time.Minute), *media.Finished)
-	assert.ErrorIs(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Finished: started}), sqlite.ErrNotFound, "it isn't indexing")
+	assert.ErrorIs(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Run: media.Run, Finished: started}), sqlite.ErrNotFound, "it isn't indexing")
 	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeStart{Started: started}))
 	assert.Equal(t, int64(2), media.Run)
-	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Finished: started, Error: errors.New("disk")}))
+	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Run: media.Run, Finished: started, Error: errors.New("disk")}))
 	assert.Equal(t, schema.StatusFailed, media.Status)
 	assert.Equal(t, "disk", media.Error)
+
+	// A run which isn't its latest doesn't finish it, as another started
+	// after it
+	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeStart{Started: started}))
+	assert.ErrorIs(t, db.Update(ctx, &schema.Volume{}, schema.VolumeID(media.ID), schema.VolumeFinish{Run: media.Run - 1, Finished: started}), sqlite.ErrNotFound)
+	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Run: media.Run, Finished: started}))
 	assert.ErrorIs(t, db.Update(ctx, &media, schema.VolumeID(media.ID), nil), sqlite.ErrBadParameter)
 
 	// Get and list them
@@ -194,9 +200,12 @@ func Test_Objects(t *testing.T) {
 	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Volumes: []int64{999}}))
 	assert.Empty(t, paths(list))
 
-	// A query without any words matches nothing, and without a query, they're
-	// listed
+	// A query without any words matches nothing, of any order, and without a
+	// query, they're listed
 	for _, query := range []string{"", "  "} {
+		list = schema.ObjectList{}
+		require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr(query), Order: schema.OrderRank}))
+		assert.Empty(t, paths(list), "%q", query)
 		list = schema.ObjectList{}
 		require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr(query)}))
 		assert.Empty(t, paths(list), "%q", query)
@@ -296,7 +305,7 @@ func Test_MarkAndSweep(t *testing.T) {
 		require.NoError(t, db.Insert(ctx, &schema.Object{}, schema.ObjectMeta{Volume: media.ID, Path: path, Size: 1, ModTime: modtime, Title: "gone", Run: media.Run}))
 	}
 	require.NoError(t, db.Insert(ctx, &schema.Object{}, schema.ObjectMeta{Volume: other.ID, Path: "kept.txt", Size: 1, ModTime: modtime, Title: "other", Run: other.Run}))
-	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Finished: time.Now()}))
+	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Run: media.Run, Finished: time.Now()}))
 
 	// Its next run marks what's as it was, and indexes what's changed
 	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeStart{Started: time.Now()}))
@@ -316,7 +325,7 @@ func Test_MarkAndSweep(t *testing.T) {
 	// Once it's indexed, what it didn't see, of its volume, is swept, with its
 	// text, and not another volume's, and not of a run which isn't its latest,
 	// or of another volume's run
-	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Finished: time.Now()}))
+	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Run: media.Run, Finished: time.Now()}))
 	assert.ErrorIs(t, db.Delete(ctx, &swept, schema.ObjectSweep{Volume: media.ID, Run: media.Run + 1}), sqlite.ErrNotFound)
 	assert.ErrorIs(t, db.Delete(ctx, &swept, schema.ObjectSweep{Volume: other.ID, Run: media.Run}), sqlite.ErrNotFound)
 	require.NoError(t, db.Delete(ctx, &swept, schema.ObjectSweep{Volume: media.ID, Run: media.Run}))

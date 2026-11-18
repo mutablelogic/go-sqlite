@@ -2,6 +2,7 @@ package schema
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	// Packages
@@ -58,7 +59,7 @@ func (o Object) Cell(col int) tui.CellText {
 		if o.Rank == nil {
 			return ""
 		}
-		return fmt.Sprintf("%.2f", *o.Rank)
+		return strconv.FormatFloat(*o.Rank, 'g', 3, 64)
 	}
 	return ""
 }

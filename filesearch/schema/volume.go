@@ -14,20 +14,22 @@ import (
 type Status string
 
 // VolumeMeta is a folder which is indexed, by its absolute path, which is
-// added, or is the one of it already
+// added, or is the one of it already, and its folders, when it's recursive
 type VolumeMeta struct {
-	Path string `json:"path"`
+	Path      string `json:"path"`
+	Recursive bool   `json:"recursive"`
 }
 
 // Volume is a folder which is indexed, with the status of its indexing
 type Volume struct {
-	ID       int64      `json:"id"`
-	Path     string     `json:"path"`
-	Status   Status     `json:"status"`
-	Run      int64      `json:"run"`                // The run, which marks the objects it sees, or 0
-	Started  *time.Time `json:"started,omitempty"`  // When the run started
-	Finished *time.Time `json:"finished,omitempty"` // When it finished, or nil while it's indexing
-	Error    string     `json:"error,omitempty"`    // Why it failed
+	ID        int64      `json:"id"`
+	Path      string     `json:"path"`
+	Recursive bool       `json:"recursive"` // Its folders are indexed, as well as its files
+	Status    Status     `json:"status"`
+	Run       int64      `json:"run"`                // The run, which marks the objects it sees, or 0
+	Started   *time.Time `json:"started,omitempty"`  // When the run started
+	Finished  *time.Time `json:"finished,omitempty"` // When it finished, or nil while it's indexing
+	Error     string     `json:"error,omitempty"`    // Why it failed
 }
 
 // VolumeList is a list of volumes, and their count
@@ -76,6 +78,7 @@ func (v VolumeMeta) Insert(bind *sqlite.Bind) (string, error) {
 		return "", err
 	}
 	bind.Set("path", path)
+	bind.Set("recursive", v.Recursive)
 	return bind.Query("filesearch.volume_insert"), nil
 }
 
@@ -121,7 +124,7 @@ func (f VolumeFinish) Update(bind *sqlite.Bind) error {
 // Scan reads a volume
 func (v *Volume) Scan(row sqlite.Row) error {
 	var err *string
-	if e := row.Scan(&v.ID, &v.Path, &v.Status, &v.Run, &v.Started, &v.Finished, &err); e != nil {
+	if e := row.Scan(&v.ID, &v.Path, &v.Recursive, &v.Status, &v.Run, &v.Started, &v.Finished, &err); e != nil {
 		return e
 	}
 	v.Error = value(err)

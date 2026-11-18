@@ -5,6 +5,7 @@
 CREATE TABLE IF NOT EXISTS volume (
     id        INTEGER PRIMARY KEY,
     path      TEXT NOT NULL UNIQUE CHECK (path <> ''),  -- absolute, with / separators
+    recursive BOOLEAN NOT NULL DEFAULT TRUE,             -- its folders are indexed, as well as its files
     status    TEXT NOT NULL DEFAULT 'new'
               CHECK (status IN ('new', 'indexing', 'indexed', 'failed')),
     run       INTEGER NOT NULL DEFAULT 0,               -- the run, which is 0 until it's first indexed

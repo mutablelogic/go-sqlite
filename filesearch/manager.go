@@ -7,9 +7,11 @@ package filesearch
 import (
 	"context"
 	"errors"
+	"sync"
 
 	// Packages
 	otel "github.com/mutablelogic/go-client/pkg/otel"
+	types "github.com/mutablelogic/go-server/pkg/types"
 	sqlite "github.com/mutablelogic/go-sqlite"
 	schema "github.com/mutablelogic/go-sqlite/filesearch/schema"
 	ncruces "github.com/mutablelogic/go-sqlite/ncruces"
@@ -27,6 +29,10 @@ type Manager struct {
 	opt
 	pool sqlite.PoolConn
 	conn sqlite.Conn // The pool's connection, with the schema's queries
+
+	// The progress of the volumes which are indexing, or were, by their paths
+	sync.Mutex
+	progress map[string]*progress
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,7 +42,7 @@ type Manager struct {
 // it doesn't exist, or sqlite.Memory, and creates its schema, when it
 // hasn't it.
 func New(ctx context.Context, path string, opts ...Opt) (_ *Manager, err error) {
-	self := new(Manager)
+	self := &Manager{progress: make(map[string]*progress)}
 	if err := self.opt.apply(opts); err != nil {
 		return nil, err
 	}
@@ -78,4 +84,18 @@ func (m *Manager) Close() error {
 // Ping the database
 func (m *Manager) Ping(ctx context.Context) error {
 	return m.pool.Ping(ctx)
+}
+
+// ListObjects lists the objects, of a volume, or all of them, by their
+// paths, or searches them, when there's a query, the best first
+func (m *Manager) ListObjects(ctx context.Context, req schema.ObjectListRequest) (_ *schema.ObjectList, err error) {
+	ctx, endSpan := otel.StartSpan(m.tracer, ctx, "filesearch.ListObjects",
+		attribute.String("arg.req", types.Stringify(req)),
+	)
+	defer func() { endSpan(err) }()
+	var list schema.ObjectList
+	if err := m.conn.List(ctx, &list, req); err != nil {
+		return nil, err
+	}
+	return &list, nil
 }

@@ -292,6 +292,16 @@ func (m *Manager) walk(ctx context.Context, volume *schema.Volume, recursive boo
 		}
 		rel := relPath(volume.Path, path)
 
+		// What's excluded, of its name, but for the volume's folder, isn't
+		// indexed, nor a folder's files, and isn't an error when it can't be
+		// read, such as a hidden folder of the system's
+		if path != volume.Path && m.excluded(filepath.Base(path)) {
+			if d != nil && d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
+
 		// A file, or a folder, which can't be read, is said, and isn't indexed,
 		// unless it's the volume's, which fails its run
 		if err != nil {

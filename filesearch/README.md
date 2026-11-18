@@ -24,6 +24,8 @@ filesearch volumes               # The folders, with the status of their indexin
 
 The database is `filesearch.db`, in the user's cache folder, or `--db`.
 
+Hidden files and folders, lock files, backups and autosaves, temporary files and partial downloads, the files of Windows and of file systems, and dependencies' folders aren't indexed, unless `--no-default-exclude`. `--exclude` excludes others, by a regular expression of their names, such as `--exclude '\.bak$'`.
+
 ## The package
 
 ```go
@@ -32,6 +34,7 @@ volume, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: folder, 
 list, err := manager.ListObjects(ctx, schema.ObjectListRequest{Query: types.Ptr("tax return")})
 ```
 
+- **Excluded:** `WithExclude(patterns...)` excludes files and folders by regular expressions of their names, as well as `DefaultExclude`, unless `WithoutDefaultExclude()`. What was indexed, and then is excluded, is swept.
 - **`ProgressFn`** is called as each batch of files is committed, with a file's error, when it can't be read, and once it's finished.
 - **`Progress(volume)`** is how far a run has indexed a volume, or how it did.
 - **Handlers:** the program which uses it imports go-metadata's handlers, which read files, of their types, such as `_ "github.com/mutablelogic/go-metadata/text"`. `cmd/filesearch` imports those which are pure Go, and, with the `media` tag, the others.

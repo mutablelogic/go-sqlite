@@ -23,6 +23,10 @@ import (
 type Flags struct {
 	DB      string `name:"db" help:"The database, which is created when it doesn't exist, or :memory: (default: filesearch.db, in the user's cache folder)"`
 	Readers int    `name:"readers" help:"The most connections which read the database at once, such as to search it" default:"4"`
+
+	// The names of files and folders which aren't indexed
+	Exclude        []string `name:"exclude" help:"Regular expressions, of the names of files and folders which aren't indexed, such as '\\.bak$'"`
+	DefaultExclude bool     `name:"default-exclude" help:"Don't index hidden files and folders, lock files, backups, temporary files, and the files of systems, and dependencies" default:"true" negatable:""`
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -47,7 +51,14 @@ func (flags Flags) WithManager(ctx server.Cmd, srv *servercmd.RunServer, fn func
 	if err != nil {
 		return err
 	}
-	opts = append([]filesearch.Opt{filesearch.WithTracer(ctx.Tracer()), filesearch.WithMaxReaders(flags.Readers)}, opts...)
+	opts = append([]filesearch.Opt{
+		filesearch.WithTracer(ctx.Tracer()),
+		filesearch.WithMaxReaders(flags.Readers),
+		filesearch.WithExclude(flags.Exclude...),
+	}, opts...)
+	if !flags.DefaultExclude {
+		opts = append(opts, filesearch.WithoutDefaultExclude())
+	}
 	manager, err := filesearch.New(ctx.Context(), path, opts...)
 	if err != nil {
 		return err

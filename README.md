@@ -584,6 +584,8 @@ mytable.get
 
 ## Changes
 
+Consumers often need to know when data changes, without polling for it. For example, a web page can update as soon as a row is added. Or a server can stream changes to its clients, or refresh a cache.
+
 `sqlite.WithBroadcaster` publishes each row which is inserted, updated or deleted, once it's committed. It works with go-server's [broadcaster](https://github.com/mutablelogic/go-server/tree/main/broadcaster), or anything with a non-blocking `Publish(schema.Change) int`:
 
 ```go

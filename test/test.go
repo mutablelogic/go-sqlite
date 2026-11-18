@@ -327,6 +327,17 @@ func testCRUD(t *testing.T, db sqlite.Conn) {
 	assert.ErrorIs(t, db.Get(ctx, &got, userSelector{ID: a.ID}), sqlite.ErrNotFound)
 	assert.ErrorIs(t, db.Delete(ctx, &deleted, userSelector{ID: a.ID}), sqlite.ErrNotFound)
 
+	// A get is of the first row, of several
+	require.NoError(t, db.Insert(ctx, &user{}, userMeta{Name: "c"}))
+	require.NoError(t, db.Insert(ctx, &user{}, userMeta{Name: "d"}))
+	require.NoError(t, db.Get(ctx, &got, query{"SELECT id, name, email FROM users ORDER BY name"}))
+	assert.Equal(t, "c", got.Name)
+
+	// An @ in a string, an identifier or a comment isn't an argument
+	var at string
+	require.NoError(t, db.With("v", "x").Get(ctx, &column{&at}, query{"SELECT 'a@example.com' AS \"@b\" /* @c */ -- @d\n"}))
+	assert.Equal(t, "a@example.com", at)
+
 	// A value with a $ in it, and a quote, is kept as it is
 	var b user
 	require.NoError(t, db.Insert(ctx, &b, userMeta{Name: "it's a$b"}))
@@ -457,6 +468,26 @@ func testTx(t *testing.T, db sqlite.Conn) {
 		require.NoError(t, conn.Insert(cancelled, &user{}, userMeta{Name: "k"}))
 		cancel()
 		return conn.Insert(cancelled, &user{}, userMeta{Name: "l"})
+	}))
+	assert.Equal(t, uint64(4), count(t, db))
+
+	// As is a transaction whose function cancels its context, and returns
+	// nil, and a savepoint's
+	cancelled, cancel = context.WithCancel(ctx)
+	assert.ErrorIs(t, db.Tx(cancelled, func(conn sqlite.Conn) error {
+		require.NoError(t, conn.Insert(cancelled, &user{}, userMeta{Name: "k"}))
+		cancel()
+		return nil
+	}), context.Canceled)
+	assert.Equal(t, uint64(4), count(t, db))
+	require.NoError(t, db.Tx(ctx, func(conn sqlite.Conn) error {
+		cancelled, cancel := context.WithCancel(ctx)
+		assert.ErrorIs(t, conn.Tx(cancelled, func(conn sqlite.Conn) error {
+			require.NoError(t, conn.Insert(cancelled, &user{}, userMeta{Name: "k"}))
+			cancel()
+			return nil
+		}), context.Canceled)
+		return nil
 	}))
 	assert.Equal(t, uint64(4), count(t, db))
 
@@ -659,3 +690,10 @@ func (v *value) Scan(row sqlite.Row) error                     { return row.Scan
 type column []any
 
 func (c *column) Scan(row sqlite.Row) error { return row.Scan((*c)...) }
+
+// query is a selector of a query
+type query struct {
+	sql string
+}
+
+func (q query) Select(*sqlite.Bind, sqlite.Op) (string, error) { return q.sql, nil }

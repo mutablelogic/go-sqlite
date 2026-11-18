@@ -37,6 +37,16 @@ var (
 // @key arguments bound, and scans their rows into the reader, which is
 // ErrNotFound without any
 func execute(db *sqlite3.Conn, bind *sqlite.Bind, query string, reader sqlite.Reader) error {
+	return executeRows(db, bind, query, reader, false)
+}
+
+// executeOne executes the query's statements, as execute does, and scans the
+// first row into the reader, without reading the others
+func executeOne(db *sqlite3.Conn, bind *sqlite.Bind, query string, reader sqlite.Reader) error {
+	return executeRows(db, bind, query, reader, true)
+}
+
+func executeRows(db *sqlite3.Conn, bind *sqlite.Bind, query string, reader sqlite.Reader, one bool) error {
 	query, vars := bind.Expand(query)
 	scanned := false
 	for strings.TrimSpace(query) != "" {
@@ -49,7 +59,7 @@ func execute(db *sqlite3.Conn, bind *sqlite.Bind, query string, reader sqlite.Re
 			// A comment, or a ;
 			continue
 		}
-		if err := step(stmt, vars, reader, &scanned); err != nil {
+		if err := step(stmt, vars, reader, one, &scanned); err != nil {
 			return err
 		}
 	}
@@ -60,7 +70,7 @@ func execute(db *sqlite3.Conn, bind *sqlite.Bind, query string, reader sqlite.Re
 }
 
 // step binds the statement's arguments, and scans its rows into the reader
-func step(stmt *sqlite3.Stmt, vars map[string]any, reader sqlite.Reader, scanned *bool) error {
+func step(stmt *sqlite3.Stmt, vars map[string]any, reader sqlite.Reader, one bool, scanned *bool) error {
 	defer stmt.Close()
 	for i := 1; i <= stmt.BindCount(); i++ {
 		name := stmt.BindName(i)
@@ -73,13 +83,17 @@ func step(stmt *sqlite3.Stmt, vars map[string]any, reader sqlite.Reader, scanned
 		}
 	}
 	for stmt.Step() {
-		if reader == nil {
+		if reader == nil || (one && *scanned) {
 			continue
 		}
 		if err := reader.Scan(row{stmt}); err != nil {
 			return err
 		}
 		*scanned = true
+		if one {
+			// The statement is done, without reading its other rows
+			return nil
+		}
 	}
 	return stmt.Err()
 }

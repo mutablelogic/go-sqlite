@@ -82,6 +82,12 @@ func (c *conn) Tx(ctx context.Context, fn func(sqlite.Conn) error) error {
 	if err := fn(&conn{pool: c.pool, tx: &tx{db: db}, bind: c.bind.Copy()}); err != nil {
 		return c.pool.error(ctx, err)
 	}
+
+	// A transaction whose context is done is rolled back, rather than
+	// committed, though the function returned nil
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	db.SetInterrupt(ctx)
 	if err := txn.Commit(); err != nil {
 		return c.pool.error(ctx, err)
@@ -149,8 +155,8 @@ func (c *conn) Delete(ctx context.Context, reader sqlite.Reader, sel sqlite.Sele
 	})
 }
 
-// Perform a get, binding parameters with the selector and scanning a single
-// row into the reader
+// Perform a get, binding parameters with the selector and scanning its first
+// row into the reader, and not the others
 func (c *conn) Get(ctx context.Context, reader sqlite.Reader, sel sqlite.Selector) error {
 	bind := c.bind.Copy()
 	query, err := sel.Select(bind, sqlite.Get)
@@ -158,7 +164,7 @@ func (c *conn) Get(ctx context.Context, reader sqlite.Reader, sel sqlite.Selecto
 		return err
 	}
 	return c.do(ctx, false, func(db *sqlite3.Conn) error {
-		return execute(db, bind, query, reader)
+		return executeOne(db, bind, query, reader)
 	})
 }
 
@@ -260,6 +266,11 @@ func (c *conn) savepoint(ctx context.Context, fn func(sqlite.Conn) error) error 
 		}
 	}()
 	err := fn(&conn{pool: c.pool, tx: c.tx, depth: c.depth + 1, bind: c.bind.Copy()})
+	if err == nil {
+		// A savepoint whose context is done is rolled back to, rather than
+		// released, though the function returned nil
+		err = ctx.Err()
+	}
 	if err != nil {
 		released = true
 		return errors.Join(c.pool.error(ctx, err), rollback())

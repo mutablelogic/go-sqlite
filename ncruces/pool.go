@@ -76,7 +76,7 @@ func Open(ctx context.Context, path string, opts ...sqlite.Opt) (sqlite.PoolConn
 	if !memory {
 		pragmas = append(pragmas, sqlite.Pragma{Name: "journal_mode", Value: "WAL"}, sqlite.Pragma{Name: "synchronous", Value: "NORMAL"})
 	}
-	if p.writer, err = p.open(ctx, path, append(pragmas, o.Pragmas...)); err != nil {
+	if p.writer, err = p.open(ctx, path, false, append(pragmas, o.Pragmas...)); err != nil {
 		return nil, err
 	}
 	p.write <- struct{}{}
@@ -86,7 +86,7 @@ func Open(ctx context.Context, path string, opts ...sqlite.Opt) (sqlite.PoolConn
 		p.readers = make(chan *sqlite3.Conn, o.Readers)
 		pragmas := []sqlite.Pragma{{Name: "busy_timeout", Value: sqlite.DefaultBusyTimeout}, {Name: "query_only", Value: "ON"}}
 		for range o.Readers {
-			reader, err := p.open(ctx, path, append(pragmas, o.Pragmas...))
+			reader, err := p.open(ctx, path, true, append(pragmas, o.Pragmas...))
 			if err != nil {
 				return nil, errors.Join(err, p.Close())
 			}
@@ -135,9 +135,14 @@ func (p *poolconn) Close() error {
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 
-// open opens a connection, with its pragmas, functions and init functions
-func (p *pool) open(ctx context.Context, path string, pragmas []sqlite.Pragma) (*sqlite3.Conn, error) {
-	db, err := sqlite3.Open(path)
+// open opens a connection, which reads and writes, creating its file, or only
+// reads, with its pragmas, functions and init functions
+func (p *pool) open(ctx context.Context, path string, readonly bool, pragmas []sqlite.Pragma) (*sqlite3.Conn, error) {
+	flags := sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE
+	if readonly {
+		flags = sqlite3.OPEN_READONLY
+	}
+	db, err := sqlite3.OpenFlags(path, flags)
 	if err != nil {
 		return nil, p.error(ctx, err)
 	}

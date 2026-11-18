@@ -29,7 +29,21 @@ It uses the [ncruces](../ncruces) implementation, which is pure Go.
 - **Rank** is from 0 to 1, higher for better matches. Results under 0.15 are hidden, unless `--cutoff` is set.
 - **Filters:** by volume, and by type, such as `video`, `pdf` or `video/mp4`.
 
+## Install
+
+```bash
+go install github.com/mutablelogic/go-sqlite/filesearch/cmd/filesearch@latest
+```
+
+This builds the pure Go handlers: documents, email, text and images. For audio, video, and photos' EXIF, HEIF and RAW, add cgo and the `media` tag:
+
+```bash
+CGO_ENABLED=1 go install -tags media github.com/mutablelogic/go-sqlite/filesearch/cmd/filesearch@latest
+```
+
 ## Build
+
+From a clone of the repo:
 
 ```bash
 make filesearch           # build/filesearch: documents, email, text and images, pure Go

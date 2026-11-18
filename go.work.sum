@@ -74,6 +74,7 @@ github.com/modelcontextprotocol/go-sdk v1.8.0/go.mod h1:dL7u98E/zjJTGzEq+j30jQ8K
 github.com/msvitok77/goembed v0.3.5/go.mod h1:ycBNmh+53HrsZPQfWOJHYXbu7vLwb1QYdJISOyKlnnc=
 github.com/mutablelogic/go-auth v0.0.14/go.mod h1:LVy12hxaci0i+zCEtmu35GJctvJHylsNHvkRjpjs7Lc=
 github.com/mutablelogic/go-llm v0.4.5/go.mod h1:J1DetK4aP+JstDM5Z3b4H+HKRFKMRjCBcsdml+tYKvI=
+github.com/mutablelogic/go-sqlite v1.0.51/go.mod h1:TyD9O8S+wxOAOWUF3MiOh7tjQmngLhUojvVmrAe1k30=
 github.com/ncruces/sort v1.0.3/go.mod h1:yD/qToXSDwliVMWAdN02/6+58XrEKBcN0Uyr+KeahFM=
 github.com/ncruces/wasm2go v0.4.20/go.mod h1:hRP9QM9bslvwCsS8PTP364oviN6+l9L0VjSSZABYOn4=
 github.com/ncruces/wbt v1.0.0/go.mod h1:DtF92amvMxH69EmBFUSFWRDAlo6hOEfoNQnClxj9C/c=

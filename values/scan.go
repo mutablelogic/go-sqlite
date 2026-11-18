@@ -40,12 +40,12 @@ var (
 //   - a []byte, or an array of bytes, such as a [16]byte, of its length
 //   - a slice, an array, a map or a struct, of its JSON
 func Scan(v Value, dest any) error {
-	if scanner, ok := dest.(sql.Scanner); ok {
-		return scanner.Scan(Any(v))
-	}
 	rv := reflect.ValueOf(dest)
 	if rv.Kind() != reflect.Pointer || rv.IsNil() {
-		return fmt.Errorf("%T isn't a pointer", dest)
+		return fmt.Errorf("%T isn't a pointer, which isn't nil", dest)
+	}
+	if scanner, ok := dest.(sql.Scanner); ok {
+		return scanner.Scan(Any(v))
 	}
 	return set(v, rv.Elem())
 }
@@ -106,12 +106,7 @@ func set(v Value, dest reflect.Value) error {
 	// A blob, into an array of bytes of its length, such as the standard
 	// library's uuid.UUID, which only unmarshals text
 	if _, ok := dest.Addr().Interface().(encoding.BinaryUnmarshaler); !ok && typ == Blob && isBytes(dest.Type(), reflect.Array) {
-		data := v.Blob()
-		if len(data) != dest.Len() {
-			return fmt.Errorf("a %s of %d bytes isn't a %s", typ, len(data), dest.Type())
-		}
-		reflect.Copy(dest, reflect.ValueOf(data))
-		return nil
+		return setBytes(dest, v.Blob(), typ)
 	}
 
 	// Text, binary or JSON, which unmarshals itself
@@ -158,24 +153,37 @@ func set(v Value, dest reflect.Value) error {
 		dest.SetString(v.Text())
 	case reflect.Slice:
 		if dest.Type().Elem().Kind() == reflect.Uint8 {
-			dest.Set(reflect.ValueOf(v.Blob()).Convert(dest.Type()))
-			return nil
+			return setBytes(dest, v.Blob(), typ)
 		}
 		return scanJSON(v, typ, dest)
 	case reflect.Array:
 		if dest.Type().Elem().Kind() == reflect.Uint8 {
-			data := v.Blob()
-			if typ != Blob || len(data) != dest.Len() {
-				return fmt.Errorf("a %s of %d bytes isn't a %s", typ, len(data), dest.Type())
+			if typ != Blob {
+				return fmt.Errorf("a %s isn't a %s", typ, dest.Type())
 			}
-			reflect.Copy(dest, reflect.ValueOf(data))
-			return nil
+			return setBytes(dest, v.Blob(), typ)
 		}
 		return scanJSON(v, typ, dest)
 	case reflect.Map, reflect.Struct:
 		return scanJSON(v, typ, dest)
 	default:
 		return fmt.Errorf("%s can't be scanned into", dest.Type())
+	}
+	return nil
+}
+
+// setBytes sets a slice, or an array, of the same length, of bytes, or a
+// named type of byte, such as a uint8, to the data
+func setBytes(dest reflect.Value, data []byte, typ Type) error {
+	if dest.Kind() == reflect.Array {
+		if len(data) != dest.Len() {
+			return fmt.Errorf("a %s of %d bytes isn't a %s", typ, len(data), dest.Type())
+		}
+	} else {
+		dest.Set(reflect.MakeSlice(dest.Type(), len(data), len(data)))
+	}
+	for i, b := range data {
+		dest.Index(i).SetUint(uint64(b))
 	}
 	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/netip"
 	"strconv"
 	"testing"
@@ -74,6 +75,7 @@ func (s *setter) SetBlob(b []byte) error   { s.typ, s.value = values.Blob, b; re
 
 type name string
 type id int32
+type octet uint8
 
 // valuer is a driver.Valuer, of its value, or an error
 type valuer struct {
@@ -128,6 +130,8 @@ func Test_Set(t *testing.T) {
 			A int `json:"a"`
 		}{1}, values.Text, `{"a":1}`},
 		{[3]byte{1, 2, 3}, values.Blob, []byte{1, 2, 3}},
+		{[2]octet{1, 2}, values.Blob, []byte{1, 2}},
+		{[]octet{1, 2}, values.Blob, []byte{1, 2}},
 	} {
 		var s setter
 		require.NoError(t, values.Set(&s, test.value), "%#v", test.value)
@@ -240,6 +244,12 @@ func Test_Time(t *testing.T) {
 	assert.Equal(t, time.Date(2026, 11, 18, 0, 0, 0, 0, time.UTC), got)
 	_, err = values.Time(null())
 	assert.Error(t, err)
+
+	// A Julian day which isn't one, or is past the year 9999
+	for _, f := range []float64{1e300, math.Inf(1), math.NaN(), -1e300} {
+		_, err := values.Time(float(f))
+		assert.Error(t, err, f)
+	}
 }
 
 func Test_Any(t *testing.T) {
@@ -342,6 +352,18 @@ func Test_ScanComposites(t *testing.T) {
 	assert.Equal(t, [3]byte{1, 2, 3}, bytes3)
 	assert.Error(t, values.Scan(blob([]byte{1, 2}), &bytes3))
 	assert.Error(t, values.Scan(text("abc"), &bytes3))
+
+	// Arrays and slices of a named type of byte
+	var octets [2]octet
+	require.NoError(t, values.Scan(blob([]byte{1, 2}), &octets))
+	assert.Equal(t, [2]octet{1, 2}, octets)
+	var octetSlice []octet
+	require.NoError(t, values.Scan(blob([]byte{1, 2}), &octetSlice))
+	assert.Equal(t, []octet{1, 2}, octetSlice)
+	assert.Error(t, values.Scan(blob([]byte{1}), &octets))
+
+	// A nil scanner isn't a destination
+	assert.Error(t, values.Scan(text("x"), (*sql.NullString)(nil)))
 
 	// JSON which isn't, and which isn't text
 	assert.Error(t, values.Scan(text(`not json`), &strs))

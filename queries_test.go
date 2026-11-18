@@ -109,3 +109,21 @@ func Test_stripComments(t *testing.T) {
 		assert.Equal(t, test.want, stripComments(test.sql), test.sql)
 	}
 }
+
+func Test_Statement(t *testing.T) {
+	for _, test := range []struct {
+		sql, want string
+	}{
+		{"SELECT 1", "SELECT 1"},
+		{"SELECT 1;", "SELECT 1"},
+		{"SELECT 1 ; ;\n", "SELECT 1"},
+		{"SELECT 1; -- the one", "SELECT 1"},
+		{"SELECT ';' /* ; */ FROM t;", "SELECT ';' /* ; */ FROM t"},
+		{"SELECT 1; /* explanation */", "SELECT 1"},
+		{"SELECT 1 /* a */ ; /* b */ ;", "SELECT 1"},
+		{"SELECT '; /* x */' AS [a;]", "SELECT '; /* x */' AS [a;]"},
+		{"SELECT `a;` ;", "SELECT `a;`"},
+	} {
+		assert.Equal(t, test.want, Statement(test.sql), test.sql)
+	}
+}

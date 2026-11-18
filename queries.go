@@ -116,6 +116,56 @@ func (s *Queries) Query(key string) string {
 	return ""
 }
 
+// Statement returns the SQL of one statement, without its comments, or the
+// ; which ends it, so it's within another, such as a subquery, or is
+// followed by more, such as a limit.
+func Statement(sql string) string {
+	sql = stripComments(sql)
+	return sql[:statementEnd(sql)]
+}
+
+// statementEnd returns the end of the SQL, without the ;s, spaces and block
+// comments after its last token, such as "; /* note */", outside of its
+// strings, quoted identifiers and block comments
+func statementEnd(sql string) int {
+	var quote byte // the quote which closes what's open: ', ", ` or ], or 0
+	block := false // whether a block comment is open
+	end := 0
+	for i := 0; i < len(sql); i++ {
+		c := sql[i]
+		switch {
+		case block:
+			if c == '*' && i+1 < len(sql) && sql[i+1] == '/' {
+				i++
+				block = false
+			}
+		case quote != 0:
+			if c == quote {
+				if quote != ']' && i+1 < len(sql) && sql[i+1] == quote {
+					i++
+				} else {
+					quote = 0
+				}
+			}
+			end = i + 1
+		case c == '/' && i+1 < len(sql) && sql[i+1] == '*':
+			i++
+			block = true
+		case c == '\'' || c == '"' || c == '`':
+			quote = c
+			end = i + 1
+		case c == '[':
+			quote = ']'
+			end = i + 1
+		case c == ';' || c == ' ' || c == '\t' || c == '\r' || c == '\n':
+			// Not a token
+		default:
+			end = i + 1
+		}
+	}
+	return end
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
 

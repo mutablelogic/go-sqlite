@@ -3,6 +3,7 @@ package sqlite
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	// Packages
 	httpresponse "github.com/mutablelogic/go-server/pkg/httpresponse"
@@ -13,6 +14,13 @@ import (
 
 // Err is a kind of error, which SQLite's errors are mapped to
 type Err int
+
+// DatabaseError is an implementation's error, which is ErrDatabase, and the kinds of
+// error it is, such as ErrConflict and ErrUniqueViolation, with errors.Is
+type DatabaseError struct {
+	err   error
+	kinds []Err
+}
 
 /////////////////////////////////////////////////////////////////////
 // GLOBALS
@@ -80,6 +88,35 @@ func (e Err) With(a ...any) error {
 // matched with errors.Is and errors.As.
 func (e Err) Withf(format string, a ...any) error {
 	return fmt.Errorf("%w: %w", e, fmt.Errorf(format, a...))
+}
+
+// NewDatabaseError returns an implementation's error, such as SQLite's,
+// which is ErrDatabase, and the kinds of error it is, such as ErrConflict
+// and ErrUniqueViolation
+func NewDatabaseError(err error, kinds ...Err) error {
+	if err == nil {
+		return nil
+	}
+	return &DatabaseError{err: err, kinds: append([]Err{ErrDatabase}, kinds...)}
+}
+
+// Error returns the error's message
+func (e *DatabaseError) Error() string {
+	return e.err.Error()
+}
+
+// Unwrap returns the implementation's error
+func (e *DatabaseError) Unwrap() error {
+	return e.err
+}
+
+// Is returns true when the error is of the kind, or the implementation's
+// error is
+func (e *DatabaseError) Is(target error) bool {
+	if kind, ok := target.(Err); ok && slices.Contains(e.kinds, kind) {
+		return true
+	}
+	return errors.Is(e.err, target)
 }
 
 // HTTPError returns the error as an HTTP error, of its status.

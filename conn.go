@@ -1,6 +1,7 @@
 // Package sqlite is a SQLite client, of the same shape as go-pg's: queries
 // are bound to a connection, and objects are read and written by the
-// Reader, Writer and Selector interfaces.
+// Reader, Writer and Selector interfaces. An implementation, such as
+// package ncruces, opens a database as a PoolConn.
 package sqlite
 
 import (
@@ -63,7 +64,7 @@ type Conn interface {
 // Op represents a database operation type.
 type Op uint
 
-// Row is a row of a query's results, such as a *sql.Row or *sql.Rows.
+// Row is a row of a query's results, which is scanned into values.
 type Row interface {
 	Scan(...any) error
 }

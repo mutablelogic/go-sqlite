@@ -19,6 +19,13 @@ type VolumeMeta struct {
 	Path string `json:"path"`
 }
 
+// IndexVolumeRequest indexes a volume, of a folder, and its folders, when
+// it's recursive
+type IndexVolumeRequest struct {
+	Path      string `json:"path"`
+	Recursive bool   `json:"recursive,omitempty"`
+}
+
 // Volume is a folder which is indexed, with the status of its indexing
 type Volume struct {
 	ID       int64      `json:"id"`
@@ -30,8 +37,10 @@ type Volume struct {
 	Error    string     `json:"error,omitempty"`    // Why it failed
 }
 
-// VolumeList is a list of volumes, and their count
+// VolumeList is a list of volumes, of its request, with the limit which was
+// used, and their count
 type VolumeList struct {
+	VolumeListRequest
 	Count uint64   `json:"count"`
 	Body  []Volume `json:"body,omitempty"`
 }
@@ -168,7 +177,7 @@ func (id VolumeID) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
 }
 
 // Select the volumes, by their paths
-func (r VolumeListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
+func (r *VolumeListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
 	if op != sqlite.List {
 		return "", sqlite.ErrNotImplemented.Withf("volumes: %v", op)
 	}

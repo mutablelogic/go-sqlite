@@ -7,6 +7,7 @@ package filesearch
 import (
 	"context"
 	"errors"
+	"sync"
 
 	// Packages
 	otel "github.com/mutablelogic/go-client/pkg/otel"
@@ -27,6 +28,10 @@ type Manager struct {
 	opt
 	pool sqlite.PoolConn
 	conn sqlite.Conn // The pool's connection, with the schema's queries
+
+	// The progress of the volumes which are indexing, or were, by their paths
+	sync.Mutex
+	progress map[string]*progress
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,7 +41,7 @@ type Manager struct {
 // it doesn't exist, or sqlite.Memory, and creates its schema, when it
 // hasn't it.
 func New(ctx context.Context, path string, opts ...Opt) (_ *Manager, err error) {
-	self := new(Manager)
+	self := &Manager{progress: make(map[string]*progress)}
 	if err := self.opt.apply(opts); err != nil {
 		return nil, err
 	}

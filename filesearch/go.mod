@@ -7,6 +7,7 @@ replace github.com/mutablelogic/go-sqlite => ../
 
 require (
 	github.com/mutablelogic/go-client v1.4.13
+	github.com/mutablelogic/go-server v1.8.16
 	github.com/mutablelogic/go-sqlite v1.0.51
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/otel v1.47.0
@@ -21,7 +22,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.32.0 // indirect
-	github.com/mutablelogic/go-server v1.8.16 // indirect
 	github.com/ncruces/go-sqlite3 v0.37.0 // indirect
 	github.com/ncruces/go-sqlite3-wasm/v6 v6.5.35401 // indirect
 	github.com/ncruces/julianday v1.0.0 // indirect

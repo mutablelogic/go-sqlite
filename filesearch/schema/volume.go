@@ -54,6 +54,9 @@ type VolumeListRequest struct {
 // VolumeID selects a volume, by its id, to get, start, finish or delete it
 type VolumeID int64
 
+// VolumePath selects a volume, by its absolute path, to get it
+type VolumePath string
+
 // VolumeStart starts its next run, which is indexing it, with Update
 type VolumeStart struct {
 	Started time.Time
@@ -184,4 +187,17 @@ func (r *VolumeListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, err
 	}
 	r.OffsetLimit.Bind(bind, ListLimit)
 	return bind.Query("filesearch.volume_list"), nil
+}
+
+// Select a volume, by its path
+func (p VolumePath) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
+	if op != sqlite.Get {
+		return "", sqlite.ErrNotImplemented.Withf("volume path: %v", op)
+	}
+	path, err := absPath(string(p))
+	if err != nil {
+		return "", err
+	}
+	bind.Set("path", path)
+	return bind.Query("filesearch.volume_path"), nil
 }

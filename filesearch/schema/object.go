@@ -113,6 +113,11 @@ var orders = map[Order]string{
 	OrderTitle: "title IS NULL, title COLLATE NOCASE, volume, path",
 }
 
+// ObjectPath selects the objects of a path, to list them: of their
+// volume's path, and their own, or their own, or the end of it, after a /,
+// such as a file's name
+type ObjectPath string
+
 // Artwork is an object's image, which is read on its own
 type Artwork []byte
 
@@ -326,6 +331,25 @@ func (r *ObjectListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, err
 	bind.Set("where", where)
 	bind.Set("order", sql)
 	return bind.Query("filesearch.object_list"), nil
+}
+
+// Select the objects of a path, of at most ListLimit, which are of their
+// volumes and paths
+func (p ObjectPath) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
+	if op != sqlite.List {
+		return "", sqlite.ErrNotImplemented.Withf("object path: %v", op)
+	}
+	path := strings.Trim(filepath.ToSlash(filepath.Clean(string(p))), "/")
+	if string(p) == "" || path == "." || path == "" {
+		return "", sqlite.ErrBadParameter.With("path is empty")
+	}
+	if filepath.IsAbs(string(p)) {
+		path = filepath.ToSlash(filepath.Clean(string(p)))
+	}
+	limit := uint64(ListLimit)
+	(&sqlite.OffsetLimit{Limit: &limit}).Bind(bind, ListLimit)
+	bind.Set("path", path)
+	return bind.Query("filesearch.object_path"), nil
 }
 
 // Select an object's artwork, by its id

@@ -85,3 +85,17 @@ SELECT * FROM (
 
 -- filesearch.artwork_get
 SELECT artwork FROM object WHERE id = @id AND artwork IS NOT NULL;
+
+-- filesearch.object_path
+-- Objects of a path: of their volume's path, and their own, or their own,
+-- or the end of it, after a /
+SELECT object.id, object.volume, object.path, size, modtime, type, kind, title, meta, indexed, object.run, NULL AS rank
+FROM object JOIN volume ON volume.id = object.volume
+WHERE object.path = @path
+   OR substr(object.path, -length(@path) - 1) = '/' || @path
+   OR volume.path || '/' || object.path = @path
+ORDER BY object.volume, object.path
+
+-- filesearch.volume_path
+SELECT id, path, status, run, started, finished, error, (SELECT COUNT(*) FROM object WHERE object.volume = volume.id) AS objects
+FROM volume WHERE path = @path;

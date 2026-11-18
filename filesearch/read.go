@@ -182,3 +182,32 @@ func stringList(v any) []string {
 	}
 	return nil
 }
+
+// readMarkdown reads a file's content, as Markdown, all of it, of its
+// content type, which is detected, when it's empty
+func (m *Manager) readMarkdown(ctx context.Context, path, contentType string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	opts := []metadata.Option{
+		metadata.WithTracer(m.tracer),
+		metadata.WithNamespace(metadata.MarkdownNamespace),
+		metadata.WithRange("0:"),
+	}
+	if contentType != "" {
+		opts = append(opts, metadata.WithContentType(contentType))
+	}
+	_, entries, err := metadata.Extract(ctx, f, opts...)
+	if err != nil && !errors.Is(err, metadata.ErrNotImplemented) {
+		return "", err
+	}
+	var text strings.Builder
+	for _, entry := range entries {
+		if entry.NS() == metadata.MarkdownNamespace && entry.Key() == "body" {
+			text.WriteString(entry.Value())
+		}
+	}
+	return text.String(), nil
+}

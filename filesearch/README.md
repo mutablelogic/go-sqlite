@@ -24,10 +24,14 @@ filesearch search                # List the files, the newest first
 filesearch search --order size   # The largest first, or by path, or title
 filesearch search --type video   # Of a kind, or the start, or end, of a content type, such as video, or pdf
 filesearch search --type video/mp4 rain  # Of a content type
-filesearch volumes               # The folders, with the status of their indexing
+filesearch volumes               # The folders, with the status of their indexing, and their files
+filesearch volume-delete 1       # Delete a volume, by its id, or path, with what's indexed of it
+filesearch info report.pdf       # What's indexed of a file, of its path, or the end of it, such as its name
+filesearch cat report.pdf        # Its content, as Markdown, which is formatted on a terminal
+filesearch cat --artwork photo.jpg > thumbnail.jpg  # Its artwork, which is drawn on a terminal
 ```
 
-The database is `filesearch.db`, in the user's cache folder, or `--db`.
+The database is `filesearch.db`, in the user's cache folder, or `--db`. A file is of its full path, its path within its volume, or the end of it, after a `/`, such as its name, which is an error when it's of more than one file.
 
 Hidden files and folders, lock files, backups and autosaves, temporary files and partial downloads, the files of Windows and of file systems, and dependencies' folders aren't indexed, unless `--no-default-exclude`. `--exclude` excludes others, by a regular expression of their names, such as `--exclude '\.bak$'`.
 

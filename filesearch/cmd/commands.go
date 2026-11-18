@@ -128,18 +128,32 @@ func (cmd *IndexCmd) index(ctx server.Cmd, manager *filesearch.Manager, path str
 	progress.Close()
 	if volume != nil {
 		if p, perr := manager.Progress(volume.ID); perr == nil {
-			status := string(volume.Status)
-			if errors.Is(err, context.Canceled) {
-				status = "interrupted"
-			}
-			if p.Reindex {
-				status += ", all of its files again"
-			}
-			fmt.Printf("%s: %s, of %d files: %d indexed, %d marked, %d swept, %d which couldn't be read, in %v\n",
-				volume.Path, status, p.Total, p.Indexed, p.Marked, p.Swept, progress.Errors(), time.Since(start).Round(time.Millisecond))
+			fmt.Printf("%s: %s\n", volume.Path, indexSummary(volume.Status, err, p, progress.Errors(), time.Since(start)))
 		}
 	}
 	return err
+}
+
+// indexSummary returns how a run did, such as "3507/3507 files indexed in
+// 39.1s", with the files which were marked, swept and couldn't be read, when
+// there are some, and its status, when it didn't finish
+func indexSummary(status schema.Status, err error, p schema.Progress, errs uint64, elapsed time.Duration) string {
+	parts := []string{fmt.Sprintf("%d/%d files indexed in %v", p.Indexed, p.Total, elapsed.Round(time.Millisecond))}
+	if errors.Is(err, context.Canceled) {
+		parts[0] = "interrupted, " + parts[0]
+	} else if status != schema.StatusIndexed {
+		parts[0] = string(status) + ", " + parts[0]
+	}
+	if p.Marked > 0 {
+		parts = append(parts, fmt.Sprintf("%d marked", p.Marked))
+	}
+	if p.Swept > 0 {
+		parts = append(parts, fmt.Sprintf("%d swept", p.Swept))
+	}
+	if errs > 0 {
+		parts = append(parts, fmt.Sprintf("%d which couldn't be read", errs))
+	}
+	return strings.Join(parts, ", ")
 }
 
 // volumePaths returns the paths of all of the volumes, a page at a time

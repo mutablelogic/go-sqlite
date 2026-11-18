@@ -61,7 +61,7 @@ const (
 // marks each file which is as it was, of its size and when it was
 // modified, and indexes those which are new, or changed. Once it's indexed,
 // the objects which the run didn't see are swept. A file which can't be
-// read is counted, as an error, of its progress, and isn't indexed.
+// read isn't indexed, and its error is said to the function.
 //
 // The function, when it isn't nil, is called with its progress, and the
 // errors of files which can't be read, and when it's finished.
@@ -354,14 +354,9 @@ func (p *progress) marked() {
 	p.say(nil)
 }
 
-// fail counts a file, which can't be read, of its error, and says so
+// fail says a file can't be read, of its error
 func (p *progress) fail(path string, err error) {
-	err = fmt.Errorf("%s: %w", path, err)
-	p.Lock()
-	p.Errors++
-	p.Error = err.Error()
-	p.Unlock()
-	p.say(err)
+	p.say(fmt.Errorf("%s: %w", path, err))
 }
 
 // say calls the function, when there is one, with the progress, and the

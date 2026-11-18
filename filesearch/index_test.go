@@ -187,8 +187,8 @@ func Test_IndexVolumeUnreadable(t *testing.T) {
 	require.NoError(t, os.Chmod(locked, 0o000))
 	t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
 
-	// A folder which can't be read is an error, of its progress, which is
-	// said, and the others are indexed
+	// A folder which can't be read is an error, which is said, and the others
+	// are indexed
 	var errs []error
 	volume, err := manager.IndexVolume(ctx, schema.VolumeMeta{Path: root, Recursive: true}, func(p schema.Progress, err error) {
 		if err != nil {
@@ -198,12 +198,9 @@ func Test_IndexVolumeUnreadable(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, schema.StatusIndexed, volume.Status)
 	assert.Equal(t, []string{"a.txt"}, objects(t, manager, volume.ID))
-	progress, err := manager.Progress(volume.ID)
-	require.NoError(t, err)
-	assert.Equal(t, uint64(1), progress.Errors)
-	assert.Contains(t, progress.Error, "locked")
 	if assert.Len(t, errs, 1) {
 		assert.ErrorIs(t, errs[0], os.ErrPermission)
+		assert.ErrorContains(t, errs[0], "locked")
 	}
 }
 

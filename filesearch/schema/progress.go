@@ -18,8 +18,6 @@ type Progress struct {
 	Files   uint64    `json:"files"`             // The files which were seen
 	Indexed uint64    `json:"indexed"`           // Of which were new, or changed, and were indexed
 	Marked  uint64    `json:"marked"`            // Of which were as they were, and were marked
-	Errors  uint64    `json:"errors"`            // Of which couldn't be read
-	Error   string    `json:"error,omitempty"`   // The last error
 	Swept   uint64    `json:"swept"`             // The objects which weren't seen, which were swept, once it's indexed
 
 	// When it finished, or nil while it's indexing

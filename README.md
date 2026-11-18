@@ -61,7 +61,7 @@ func (obj MyObject) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
 }
 ```
 
-* **What runs is what you read.** Queries can be reviewed, and tested in the `sqlite3` shell, as they are.
+* **What runs is what you read.** Queries can be reviewed as they are, and tested in the `sqlite3` shell, with `.parameter set @key value` for their arguments, once their `${key}` substitutions are replaced.
 * **All of SQLite:** full-text search, JSON, window functions, common table expressions, `RETURNING` and `UPSERT`, with nothing to wait for or work around.
 * **Queries in files:** keep them in `.sql` files, by name, as [saved queries](#saved-queries), with `${key}` substitutions for names, such as a schema.
 * **Thin types:** a `Selector` binds and returns SQL, a `Reader` scans a row, and a `Writer` binds values. Nothing else needs to know about the database.

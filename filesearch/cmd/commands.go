@@ -63,6 +63,7 @@ type IndexCmd struct {
 	Flags     `embed:""`
 	Path      string `arg:"" name:"folder" help:"The folder, which is a volume" type:"existingdir"`
 	Recursive bool   `name:"recursive" help:"Index the folder's folders, as well as its files" default:"true" negatable:""`
+	Reindex   bool   `name:"reindex" help:"Index all of the files again, rather than those which are new, or changed, such as when they're read differently"`
 }
 
 // SearchCmd searches the files which are indexed
@@ -94,12 +95,15 @@ func (cmd *IndexCmd) Run(ctx server.Cmd) error {
 	return cmd.WithManager(ctx, nil, func(manager *filesearch.Manager) error {
 		start := time.Now()
 		progress := newIndexing(ctx.IsTerm())
-		volume, err := manager.IndexVolume(ctx.Context(), schema.IndexVolumeRequest{Path: cmd.Path, Recursive: cmd.Recursive}, progress.Progress)
+		volume, err := manager.IndexVolume(ctx.Context(), schema.IndexVolumeRequest{Path: cmd.Path, Recursive: cmd.Recursive, Reindex: cmd.Reindex}, progress.Progress)
 		progress.Close()
 		if volume != nil {
 			status := string(volume.Status)
 			if errors.Is(err, context.Canceled) {
 				status = "interrupted"
+			}
+			if p, err := manager.Progress(volume.ID); err == nil && p.Reindex {
+				status += ", all of its files again"
 			}
 			if p, err := manager.Progress(volume.ID); err == nil {
 				fmt.Printf("%s: %s, of %d files: %d indexed, %d marked, %d swept, %d which couldn't be read, in %v\n",

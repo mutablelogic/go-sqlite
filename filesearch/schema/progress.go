@@ -14,6 +14,7 @@ type Progress struct {
 	Path    string    `json:"path"`              // The volume's path
 	Run     int64     `json:"run"`               // The run which is indexing it
 	Started time.Time `json:"started"`           // When the run started
+	Reindex bool      `json:"reindex,omitempty"` // All of its files are indexed again, rather than those which are new, or changed
 	Current string    `json:"current,omitempty"` // The file which is being indexed, within the volume
 	Total   uint64    `json:"total"`             // The files of the volume, which are counted before it's walked
 	Files   uint64    `json:"files"`             // The files which were seen

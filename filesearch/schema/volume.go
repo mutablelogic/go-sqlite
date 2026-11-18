@@ -20,10 +20,12 @@ type VolumeMeta struct {
 }
 
 // IndexVolumeRequest indexes a volume, of a folder, and its folders, when
-// it's recursive
+// it's recursive, of the files which are new, or changed, or all of them,
+// when they're reindexed
 type IndexVolumeRequest struct {
 	Path      string `json:"path"`
 	Recursive bool   `json:"recursive,omitempty"`
+	Reindex   bool   `json:"reindex,omitempty"`
 }
 
 // Volume is a folder which is indexed, with the status of its indexing
@@ -35,6 +37,7 @@ type Volume struct {
 	Started  *time.Time `json:"started,omitempty"`  // When the run started
 	Finished *time.Time `json:"finished,omitempty"` // When it finished, or nil while it's indexing
 	Error    string     `json:"error,omitempty"`    // Why it failed
+	Reader   string     `json:"reader,omitempty"`   // What read it, of the last run which indexed it
 	Objects  uint64     `json:"objects"`            // The objects which are indexed
 }
 
@@ -69,6 +72,7 @@ type VolumeFinish struct {
 	Run      int64
 	Finished time.Time
 	Error    error
+	Reader   string // What read it, which is kept when it's indexed
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -121,6 +125,7 @@ func (f VolumeFinish) Update(bind *sqlite.Bind) error {
 	bind.Set("op", "finish")
 	bind.Set("run", f.Run)
 	bind.Set("finished", f.Finished.UTC())
+	bind.Set("reader", nullString(f.Reader))
 	if f.Error != nil {
 		bind.Set("status", StatusFailed)
 		bind.Set("error", f.Error.Error())
@@ -136,11 +141,11 @@ func (f VolumeFinish) Update(bind *sqlite.Bind) error {
 
 // Scan reads a volume
 func (v *Volume) Scan(row sqlite.Row) error {
-	var err *string
-	if e := row.Scan(&v.ID, &v.Path, &v.Status, &v.Run, &v.Started, &v.Finished, &err, &v.Objects); e != nil {
+	var err, reader *string
+	if e := row.Scan(&v.ID, &v.Path, &v.Status, &v.Run, &v.Started, &v.Finished, &err, &reader, &v.Objects); e != nil {
 		return e
 	}
-	v.Error = value(err)
+	v.Error, v.Reader = value(err), value(reader)
 	return nil
 }
 

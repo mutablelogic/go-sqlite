@@ -26,7 +26,7 @@ var Queries string
 
 const (
 	// Version is the version of the schema, of the database's user_version
-	Version = 2
+	Version = 3
 
 	// MinPathLength is the fewest characters of a part of a path, a folder
 	// or a name, which is searched
@@ -68,6 +68,14 @@ func Create(ctx context.Context, conn sqlite.Conn) error {
 				if err := conn.With(sqlite.TraceSpanNameArg, "filesearch.migrate_2").Exec(ctx, sql); err != nil {
 					return err
 				}
+			}
+		}
+
+		// Version 1's and 2's volumes have what read them, as version 3's do,
+		// which is NULL, until they're indexed again
+		if version == 1 || version == 2 {
+			if err := conn.With(sqlite.TraceSpanNameArg, "filesearch.migrate_3").Exec(ctx, `ALTER TABLE volume ADD COLUMN reader TEXT`); err != nil {
+				return err
 			}
 		}
 

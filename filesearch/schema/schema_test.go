@@ -373,6 +373,7 @@ func Test_MigrateVersion1(t *testing.T) {
 	for _, sql := range []string{
 		`DROP TABLE object_text`,
 		`CREATE VIRTUAL TABLE object_text USING fts5(title, meta, text, content = '', contentless_delete = 1)`,
+		`ALTER TABLE volume DROP COLUMN reader`,
 		`INSERT INTO volume (path) VALUES ('/media')`,
 		`INSERT INTO object (volume, path, size, modtime, indexed, run) VALUES (1, 'a.txt', 1, '2026-11-18T12:00:00Z', '2026-11-18T12:00:00Z', 1)`,
 	} {
@@ -396,6 +397,7 @@ func Test_MigrateVersion1(t *testing.T) {
 	var volumes schema.VolumeList
 	require.NoError(t, conn.List(ctx, &volumes, &schema.VolumeListRequest{}))
 	assert.Equal(t, uint64(1), volumes.Count)
+	assert.Empty(t, volumes.Body[0].Reader, "which is added, as NULL")
 	var object schema.Object
 	require.NoError(t, conn.Insert(ctx, &object, schema.ObjectMeta{Volume: 1, Path: "Spain/a.txt", Size: 1, Run: 1}))
 	require.NoError(t, conn.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr("spain")}))

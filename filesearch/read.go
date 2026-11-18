@@ -65,7 +65,7 @@ func (m *Manager) readFile(ctx context.Context, path string) (*read, error) {
 	defer f.Close()
 
 	// Its metadata, of the namespaces which aren't requested on their own
-	contentType, entries, err := metadata.Extract(ctx, f, metadata.WithTracer(m.tracer))
+	contentType, entries, err := metadata.Extract(ctx, f, m.extractOpts()...)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -101,13 +101,12 @@ func (m *Manager) readFile(ctx context.Context, path string) (*read, error) {
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}
-	_, entries, err = metadata.Extract(ctx, f,
-		metadata.WithTracer(m.tracer),
+	_, entries, err = metadata.Extract(ctx, f, append(m.extractOpts(),
 		metadata.WithContentType(contentType),
 		metadata.WithNamespace(namespaces...),
 		metadata.WithRange(fmt.Sprintf("0:%d", MaxText)),
 		metadata.WithMaxImageDimension(ArtworkSize),
-	)
+	)...)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -123,6 +122,16 @@ func (m *Manager) readFile(ctx context.Context, path string) (*read, error) {
 	}
 	result.text = text.String()
 	return result, nil
+}
+
+// extractOpts returns the options of go-metadata, of each file which is
+// read: the tracer, and the TMDB client, when there is one
+func (m *Manager) extractOpts() []metadata.Option {
+	opts := []metadata.Option{metadata.WithTracer(m.tracer)}
+	if m.tmdb != nil {
+		opts = append(opts, metadata.WithTMDB(m.tmdb))
+	}
+	return opts
 }
 
 // addError adds an error of go-metadata, of a handler, which isn't the
@@ -191,11 +200,10 @@ func (m *Manager) readMarkdown(ctx context.Context, path, contentType string) (s
 		return "", err
 	}
 	defer f.Close()
-	opts := []metadata.Option{
-		metadata.WithTracer(m.tracer),
+	opts := append(m.extractOpts(),
 		metadata.WithNamespace(metadata.MarkdownNamespace),
 		metadata.WithRange("0:"),
-	}
+	)
 	if contentType != "" {
 		opts = append(opts, metadata.WithContentType(contentType))
 	}

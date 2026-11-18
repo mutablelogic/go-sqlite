@@ -26,7 +26,7 @@ const (
 // LIFECYCLE
 
 func main() {
-	if err := servercmd.Main(CLI{}, description, version.Version()); errors.Is(err, context.Canceled) {
+	if err := servercmd.Main(CLI{}, description, version.Version(), servercmd.WithoutHTTP()); errors.Is(err, context.Canceled) {
 		// Interrupted, such as with CTRL+C, which the command said
 		os.Exit(exitInterrupted)
 	} else if err != nil {

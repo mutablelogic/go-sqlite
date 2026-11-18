@@ -433,3 +433,63 @@ func Test_Orders(t *testing.T) {
 		assert.Equal(t, want, paths(list), "search, order %q", order)
 	}
 }
+
+func Test_Types(t *testing.T) {
+	ctx := t.Context()
+	db := open(t)
+	media := volume(t, db, "/media")
+	day := time.Date(2026, 11, 18, 12, 0, 0, 0, time.UTC)
+
+	// Objects of kinds, and content types
+	for _, o := range []schema.ObjectMeta{
+		{Path: "film.mp4", Type: "video/mp4", Kind: "movie", Text: "common"},
+		{Path: "clip.webm", Type: "video/webm", Text: "common"},
+		{Path: "song.mp3", Type: "audio/mpeg", Kind: "song", Text: "common"},
+		{Path: "report.pdf", Type: "application/pdf", Kind: "document", Text: "common"},
+		{Path: "data.json", Type: "application/json", Kind: "data", Text: "common"},
+		{Path: "notes.md", Type: "text/markdown", Kind: "document", Text: "common"},
+		{Path: "unknown"},
+	} {
+		o.Volume, o.Run, o.Size, o.ModTime = media.ID, media.Run, 1, day
+		require.NoError(t, db.Insert(ctx, &schema.Object{}, o))
+	}
+
+	// A type is a kind, or the start, or end, of a content type, or, with a
+	// /, a content type, of any case, and any of them
+	for name, types := range map[string][]string{
+		"video":                {"video"},
+		"Video":                {"Video"},
+		"movie":                {"movie"},
+		"pdf":                  {"pdf"},
+		"json":                 {"json"},
+		"document":             {"document"},
+		"video/mp4":            {"video/mp4"},
+		"VIDEO/MP4":            {"VIDEO/MP4"},
+		"audio, or video/webm": {"audio", "video/webm"},
+		"mp":                   {"mp"},
+		"application":          {"application"},
+	} {
+		var list schema.ObjectList
+		require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Types: types, Order: schema.OrderPath}), name)
+		want := map[string][]string{
+			"video":                {"clip.webm", "film.mp4"},
+			"Video":                {"clip.webm", "film.mp4"},
+			"movie":                {"film.mp4"},
+			"pdf":                  {"report.pdf"},
+			"json":                 {"data.json"},
+			"document":             {"notes.md", "report.pdf"},
+			"video/mp4":            {"film.mp4"},
+			"VIDEO/MP4":            {"film.mp4"},
+			"audio, or video/webm": {"clip.webm", "song.mp3"},
+			"mp":                   nil,
+			"application":          {"data.json", "report.pdf"},
+		}[name]
+		assert.Equal(t, want, paths(list), name)
+	}
+
+	// Of a search, too, and an empty type is a bad parameter
+	var list schema.ObjectList
+	require.NoError(t, db.List(ctx, &list, &schema.ObjectListRequest{Query: types.Ptr("common"), Cutoff: types.Ptr(0.0), Types: []string{"video"}, Order: schema.OrderPath}))
+	assert.Equal(t, []string{"clip.webm", "film.mp4"}, paths(list))
+	assert.ErrorIs(t, db.List(ctx, &list, &schema.ObjectListRequest{Types: []string{" "}}), sqlite.ErrBadParameter)
+}

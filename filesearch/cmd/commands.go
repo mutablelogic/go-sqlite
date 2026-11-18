@@ -40,7 +40,8 @@ type SearchCmd struct {
 	Flags  `embed:""`
 	Words  []string `arg:"" name:"words" help:"Words, which are all in the files' text, as prefixes" optional:""`
 	Volume []int64  `name:"volume" help:"The volumes to search, or all of them"`
-	Order  string   `name:"order" help:"rank, the best first, of a search, which is its default, or path" enum:",rank,path" default:""`
+	Type   []string `name:"type" help:"Files of any of the types: a kind, or the start, or end, of a content type, such as video, or pdf, or, with a /, a content type, such as video/mp4"`
+	Order  string   `name:"order" help:"rank, the best first, which is a search's default, date, the newest first, which is a list's, path, size, the largest first, or title" enum:",rank,date,path,size,title" default:""`
 	Cutoff float64  `name:"cutoff" help:"The lowest rank, of a search, between 0 and 1, which is higher the better a file matches, or 0, for none" default:"0.15"`
 	Offset uint64   `name:"offset" help:"The offset of the first file"`
 	Limit  *uint64  `name:"limit" help:"The most files, which is at most 100"`
@@ -85,6 +86,7 @@ func (cmd *SearchCmd) Run(ctx server.Cmd) error {
 		req := schema.ObjectListRequest{
 			OffsetLimit: sqlite.OffsetLimit{Offset: cmd.Offset, Limit: cmd.Limit},
 			Volumes:     cmd.Volume,
+			Types:       cmd.Type,
 			Order:       schema.Order(cmd.Order),
 		}
 		if len(cmd.Words) > 0 {

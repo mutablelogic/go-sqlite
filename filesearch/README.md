@@ -22,6 +22,8 @@ filesearch search --cutoff 0.5 tax  # Of a rank of 0.5, or more, or 0, for any
 filesearch search --order date tax  # The newest first, rather than the best
 filesearch search                # List the files, the newest first
 filesearch search --order size   # The largest first, or by path, or title
+filesearch search --type video   # Of a kind, or the start, or end, of a content type, such as video, or pdf
+filesearch search --type video/mp4 rain  # Of a content type
 filesearch volumes               # The folders, with the status of their indexing
 ```
 

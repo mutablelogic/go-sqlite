@@ -84,6 +84,7 @@ type ObjectSweep struct {
 type ObjectListRequest struct {
 	sqlite.OffsetLimit
 	Volumes []int64  `json:"volume,omitempty" help:"Objects of the volumes, or of all of them"`
+	Types   []string `json:"type,omitempty" help:"Objects of any of the types: a kind, or the start, or end, of a content type, such as video, or pdf, or, with a /, a content type, such as video/mp4"`
 	Query   *string  `json:"q,omitempty" help:"Words, which are all in the objects' text"`
 	Order   Order    `json:"order,omitempty" help:"rank, the best first, which is a search's default, date, the newest first, which is a list's, path, size, the largest first, or title"`
 	Cutoff  *float64 `json:"cutoff,omitempty" help:"The lowest rank, of a search, between 0 and 1, which is DefaultCutoff, unless it's set, or 0, for none"`
@@ -252,11 +253,24 @@ func (r *ObjectListRequest) Select(bind *sqlite.Bind, op sqlite.Op) (string, err
 	}
 	r.OffsetLimit.Bind(bind, ListLimit)
 
-	// Of the volumes, which are a JSON array, or all of them
-	var where string
+	// Of the volumes, and the types, which are JSON arrays, or all of them
+	var conditions []string
 	if len(r.Volumes) > 0 {
-		where = "volume IN (SELECT value FROM json_each(" + bind.Set("volumes", r.Volumes) + "))"
+		conditions = append(conditions, "volume IN (SELECT value FROM json_each("+bind.Set("volumes", r.Volumes)+"))")
 	}
+	if len(r.Types) > 0 {
+		types := make([]string, 0, len(r.Types))
+		for _, t := range r.Types {
+			if t = strings.ToLower(strings.TrimSpace(t)); t != "" {
+				types = append(types, t)
+			}
+		}
+		if len(types) == 0 {
+			return "", sqlite.ErrBadParameter.With("type is empty")
+		}
+		conditions = append(conditions, typeCondition(bind.Set("types", types)))
+	}
+	where := strings.Join(conditions, " AND ")
 
 	// Searched, of the words of the query, of their rank, or path, and a
 	// minimum rank, or not
@@ -353,6 +367,20 @@ func matchQuery(query string) string {
 		words[i] = `"` + strings.ReplaceAll(word, `"`, `""`) + `"*`
 	}
 	return strings.Join(words, " ")
+}
+
+// typeCondition returns the condition of the objects which are of any of
+// the types, of the argument, which is a JSON array of them, in lower case:
+// of a content type, with a /, or else of a kind, or the start, or end, of
+// a content type, such as video, of video/mp4, or pdf, of application/pdf
+func typeCondition(types string) string {
+	// The object's columns are qualified, as json_each has a type column
+	return `EXISTS (SELECT 1 FROM json_each(` + types + `) AS t WHERE CASE
+		WHEN instr(t.value, '/') > 0 THEN lower(object.type) = t.value
+		ELSE lower(object.kind) = t.value
+			OR substr(lower(object.type), 1, length(t.value) + 1) = t.value || '/'
+			OR substr(lower(object.type), -length(t.value) - 1) = '/' || t.value
+	END)`
 }
 
 // pathText returns the text of a path, which is searched: its parts, which

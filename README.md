@@ -512,16 +512,72 @@ Errors are of these kinds, with `errors.Is`:
 * `sqlite.ErrNotAvailable` - The database is busy, locked, or closed.
 * `sqlite.ErrDatabase` - Any of SQLite's errors.
 
-When a query is interrupted, or stops waiting for a lock, as its context is done, the error is also the context's, such as `context.DeadlineExceeded`. `sqlite.HTTPError` returns an error as an HTTP error, of its status.
+When a query is interrupted, or stops waiting for a lock, as its context is done, the error is also the context's, such as `context.DeadlineExceeded`.
+
+For example, of an insert:
+
+```go
+ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+defer cancel()
+
+switch err := db.Insert(ctx, &obj, obj); {
+case err == nil:
+  // Inserted
+case errors.Is(err, sqlite.ErrUniqueViolation):
+  // A row with the same unique value exists
+case errors.Is(err, sqlite.ErrBadParameter):
+  // Invalid data, such as a NULL in a NOT NULL column
+case errors.Is(err, context.DeadlineExceeded):
+  // Timed out, such as waiting for another transaction
+case errors.Is(err, sqlite.ErrDatabase):
+  // Any other of SQLite's errors
+default:
+  // Not SQLite's, such as the Writer's
+}
+```
+
+`sqlite.HTTPError` returns an error as an HTTP error, of its status: not found is 404, a bad parameter 400, a conflict 409, not available 503, and others 500. With go-server's `httpresponse`:
+
+```go
+func (h *Handler) Get(w http.ResponseWriter, r *http.Request, id int64) error {
+  var obj MyObject
+  if err := h.db.Get(r.Context(), &obj, MyObject{Id: id}); err != nil {
+    return httpresponse.Error(w, sqlite.HTTPError(err))
+  }
+  return httpresponse.JSON(w, http.StatusOK, 2, obj)
+}
+```
 
 ## Tracing
 
 `sqlite.WithTracer` sets an OpenTelemetry tracer, of a span for each query:
 
+```go
+import (
+  otel "go.opentelemetry.io/otel"
+)
+
+db, err := ncruces.Open(ctx, path,
+  sqlite.WithTracer(otel.Tracer("myapp")),
+)
+```
+
+A span's parent is the operation's context, so a query is within the span of the request which made it.
+
+
 * **Named** by the query's name, of `bind.Query`, such as `mytable.get`, or `sqlite.query`.
 * **Transactions:** `sqlite.transaction`, `sqlite.commit` and `sqlite.rollback`, of savepoints too. Opening the database is `sqlite.open`.
 * **Attributes:** `db.system`, `db.statement`, and the arguments it bound, as `arg.` and their names.
 * **Errors** are the span's, except not found.
+
+For example, a `Get` of a saved query, `mytable.get`, which binds `@id`, is a span:
+
+```text
+mytable.get
+  db.system     sqlite
+  db.statement  SELECT id, name FROM "mytable" WHERE id = @id
+  arg.id        1
+```
 
 ## Implementations
 

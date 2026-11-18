@@ -37,3 +37,17 @@ func (m *Manager) ListObjects(ctx context.Context, req schema.ObjectListRequest)
 	list.OffsetLimit.Clamp(list.Count)
 	return &list, nil
 }
+
+// Artwork returns an object's artwork, such as a thumbnail or a cover, by
+// its id, which is ErrNotFound when it hasn't any
+func (m *Manager) Artwork(ctx context.Context, id int64) (_ []byte, err error) {
+	ctx, endSpan := otel.StartSpan(m.tracer, ctx, "filesearch.Artwork",
+		attribute.Int64("arg.id", id),
+	)
+	defer func() { endSpan(err) }()
+	var artwork schema.Artwork
+	if err := m.conn.Get(ctx, &artwork, schema.ArtworkID(id)); err != nil {
+		return nil, err
+	}
+	return artwork, nil
+}

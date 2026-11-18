@@ -216,28 +216,69 @@ func (m *Manager) endProgress(root string, finished *time.Time, err error) {
 // or marks, its files, a batch at a time
 func (m *Manager) walk(ctx context.Context, volume *schema.Volume, recursive bool, p *progress) error {
 	batch := make([]file, 0, batchSize)
-	// A batch is indexed in a transaction, and then, once it's committed, what
-	// happened to each of its files is counted, and said, so the function isn't
-	// called while the transaction holds the writer, and a batch which is
-	// rolled back isn't counted
+	// A batch is marked, of the files which are as they were, in a
+	// transaction, and then those which are new, or changed, are read, outside
+	// of one, as reading them is slow, and then they're indexed, in another.
+	// Once each is committed, what happened to its files is counted, and said,
+	// so the function isn't called while a transaction holds the writer, and
+	// a transaction which is rolled back isn't counted.
 	flush := func() error {
 		if len(batch) == 0 {
 			return nil
 		}
+		defer func() { batch = batch[:0] }()
+
+		// Mark what's as it was
 		var events []event
-		err := m.conn.Bulk(ctx, func(conn sqlite.Conn) error {
-			events = make([]event, 0, len(batch))
+		var changed []file
+		if err := m.conn.Bulk(ctx, func(conn sqlite.Conn) error {
+			events, changed = make([]event, 0, len(batch)), nil
 			for _, f := range batch {
-				e, err := m.indexFile(ctx, conn, volume, f)
+				e, err := markFile(ctx, conn, volume, f)
+				switch {
+				case errors.Is(err, sqlite.ErrNotFound):
+					changed = append(changed, f)
+				case err != nil:
+					return err
+				default:
+					events = append(events, e)
+				}
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+		for _, e := range events {
+			p.apply(e)
+		}
+
+		// Read what's new, or changed. A file which can't be read is said, and
+		// isn't indexed.
+		objects := make([]schema.ObjectMeta, 0, len(changed))
+		for _, f := range changed {
+			object, err := m.objectMeta(ctx, volume, f)
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if err != nil {
+				p.apply(event{path: f.path, err: err})
+				continue
+			}
+			objects = append(objects, object)
+		}
+
+		// Index it
+		if err := m.conn.Bulk(ctx, func(conn sqlite.Conn) error {
+			events = make([]event, 0, len(objects))
+			for _, object := range objects {
+				e, err := indexObject(ctx, conn, object)
 				if err != nil {
 					return err
 				}
 				events = append(events, e)
 			}
 			return nil
-		})
-		batch = batch[:0]
-		if err != nil {
+		}); err != nil {
 			return err
 		}
 		for _, e := range events {
@@ -291,10 +332,10 @@ func (m *Manager) walk(ctx context.Context, volume *schema.Volume, recursive boo
 	return flush()
 }
 
-// indexFile marks a file, which is as it was, or indexes it, when it's new,
-// or changed, and returns which. A file whose path, or metadata, isn't, isn't
-// indexed, and is the event's error, and the database's errors are its own.
-func (m *Manager) indexFile(ctx context.Context, conn sqlite.Conn, volume *schema.Volume, f file) (event, error) {
+// markFile marks a file, which is as it was, which is ErrNotFound when it's
+// new, or changed. A file whose path isn't is the event's error, and the
+// database's errors are its own.
+func markFile(ctx context.Context, conn sqlite.Conn, volume *schema.Volume, f file) (event, error) {
 	var object schema.Object
 	err := conn.Update(ctx, &object, schema.ObjectMark{Volume: volume.ID, Path: f.path, Size: f.size, ModTime: f.modtime, Run: volume.Run}, nil)
 	switch {
@@ -302,23 +343,53 @@ func (m *Manager) indexFile(ctx context.Context, conn sqlite.Conn, volume *schem
 		return event{path: f.path}, nil
 	case errors.Is(err, sqlite.ErrBadParameter):
 		return event{path: f.path, err: err}, nil
-	case !errors.Is(err, sqlite.ErrNotFound):
-		return event{}, err
 	}
-	if err := conn.Insert(ctx, &object, schema.ObjectMeta{
+	return event{}, err
+}
+
+// objectMeta returns what's indexed of a file, which is read, of its
+// metadata, content and artwork, with its content type, of its extension,
+// and its title, of its name, when they aren't read
+func (m *Manager) objectMeta(ctx context.Context, volume *schema.Volume, f file) (schema.ObjectMeta, error) {
+	read, err := m.readFile(ctx, filepath.Join(volume.Path, filepath.FromSlash(f.path)))
+	if err != nil {
+		return schema.ObjectMeta{}, err
+	}
+	object := schema.ObjectMeta{
 		Volume:  volume.ID,
 		Path:    f.path,
 		Size:    f.size,
 		ModTime: f.modtime,
-		Type:    contentType(f.path),
-		Title:   title(f.path),
+		Type:    read.contentType,
+		Kind:    read.kind,
+		Title:   read.title,
+		Meta:    read.meta,
+		Text:    read.text,
+		Artwork: read.artwork,
 		Run:     volume.Run,
-	}); errors.Is(err, sqlite.ErrBadParameter) {
-		return event{path: f.path, err: err}, nil
+	}
+	if mediatype, _, err := mime.ParseMediaType(object.Type); err == nil {
+		object.Type = mediatype
+	} else {
+		object.Type = contentType(f.path)
+	}
+	if object.Title == "" {
+		object.Title = title(f.path)
+	}
+	return object, nil
+}
+
+// indexObject indexes a file, which replaces what it was, and returns that
+// it was. An object which isn't is the event's error, and the database's
+// errors are its own.
+func indexObject(ctx context.Context, conn sqlite.Conn, meta schema.ObjectMeta) (event, error) {
+	var object schema.Object
+	if err := conn.Insert(ctx, &object, meta); errors.Is(err, sqlite.ErrBadParameter) {
+		return event{path: meta.Path, err: err}, nil
 	} else if err != nil {
 		return event{}, err
 	}
-	return event{path: f.path, indexed: true}, nil
+	return event{path: meta.Path, indexed: true}, nil
 }
 
 // relPath returns the path, within the volume, with / separators

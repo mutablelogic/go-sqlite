@@ -47,13 +47,16 @@ type row struct {
 // with their arguments bound, of the vars, which are set in args, when it
 // isn't nil, and scans their rows, or the first, into the reader, which is
 // ErrNotFound without any. They're reused, of the cache, when it isn't nil,
-// and the query is one statement, or else prepared, and closed.
-func executeRows(db *sqlite3.Conn, cache statements, query string, vars map[string]any, reader sqlite.Reader, one bool, args map[string]any) (err error) {
+// and the query is one statement, or else prepared, and closed. The changes,
+// when they aren't nil, forget the rows of a savepoint which is rolled back
+// to.
+func executeRows(db *sqlite3.Conn, cache statements, changes *changes, query string, vars map[string]any, reader sqlite.Reader, one bool, args map[string]any) (err error) {
 	// A query of several statements is executed in a savepoint, so all of
 	// them are, or, when one fails, or it can't be released, or a reader
 	// panics, none are. A query whose first statement controls a transaction,
 	// such as BEGIN, controls its own, and isn't.
 	var savepoint, done bool
+	var mark int
 	defer func() {
 		if !savepoint {
 			return
@@ -65,7 +68,11 @@ func executeRows(db *sqlite3.Conn, cache statements, query string, vars map[stri
 		}
 		old := db.SetInterrupt(context.Background())
 		defer db.SetInterrupt(old)
-		err = errors.Join(err, db.Exec("ROLLBACK TO "+multiSavepoint), db.Exec("RELEASE "+multiSavepoint))
+		// The rows are forgotten before it's released, which commits it,
+		// when it isn't in a transaction
+		rollbackErr := db.Exec("ROLLBACK TO " + multiSavepoint)
+		changes.rollbackTo(mark)
+		err = errors.Join(err, rollbackErr, db.Exec("RELEASE "+multiSavepoint))
 	}()
 
 	scanned, first := false, true
@@ -87,6 +94,7 @@ func executeRows(db *sqlite3.Conn, cache statements, query string, vars map[stri
 			text, several := query[:len(query)-len(tail)], hasStatement(tail)
 			switch {
 			case first && several && !controlsTransaction(text):
+				mark = changes.savepoint()
 				if err := db.Exec("SAVEPOINT " + multiSavepoint); err != nil {
 					_ = stmt.Close()
 					return err

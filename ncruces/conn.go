@@ -24,10 +24,12 @@ type conn struct {
 	bind  *sqlite.Bind
 }
 
-// tx is a transaction, on the writer, which one goroutine uses at a time
+// tx is a transaction, on the writer, which one goroutine uses at a time,
+// and, of a bulk operation, its prepared statements
 type tx struct {
 	sync.Mutex
-	db *sqlite3.Conn
+	db    *sqlite3.Conn
+	stmts statements
 }
 
 // Ensure interfaces are satisfied
@@ -54,6 +56,20 @@ func (c *conn) WithQueries(queries ...*sqlite.Queries) sqlite.Conn {
 // back when the function returns an error, or panics. Within a transaction,
 // it's a savepoint, which is released, or rolled back to.
 func (c *conn) Tx(ctx context.Context, fn func(sqlite.Conn) error) error {
+	return c.begin(ctx, fn, false)
+}
+
+// Perform a bulk operation within a function, in a transaction, as Tx does,
+// whose statements are prepared once, and reused, such as an insert of many
+// rows. Within a transaction, it's a savepoint, whose statements are reused
+// when the transaction's are.
+func (c *conn) Bulk(ctx context.Context, fn func(sqlite.Conn) error) error {
+	return c.begin(ctx, fn, true)
+}
+
+// begin performs a transaction, or a savepoint, within one, whose statements
+// are reused, of a bulk operation
+func (c *conn) begin(ctx context.Context, fn func(sqlite.Conn) error, bulk bool) error {
 	if c.tx != nil {
 		return c.savepoint(ctx, fn)
 	}
@@ -79,7 +95,12 @@ func (c *conn) Tx(ctx context.Context, fn func(sqlite.Conn) error) error {
 			_ = txn.Rollback()
 		}
 	}()
-	if err := fn(&conn{pool: c.pool, tx: &tx{db: db}, bind: c.bind.Copy()}); err != nil {
+	t := &tx{db: db}
+	if bulk {
+		t.stmts = statements{}
+		defer t.stmts.close()
+	}
+	if err := fn(&conn{pool: c.pool, tx: t, bind: c.bind.Copy()}); err != nil {
 		return c.pool.error(ctx, err)
 	}
 
@@ -96,16 +117,11 @@ func (c *conn) Tx(ctx context.Context, fn func(sqlite.Conn) error) error {
 	return nil
 }
 
-// Perform a bulk operation within a function, in a transaction
-func (c *conn) Bulk(ctx context.Context, fn func(sqlite.Conn) error) error {
-	return c.Tx(ctx, fn)
-}
-
 // Execute a query, on the writer
 func (c *conn) Exec(ctx context.Context, query string) error {
 	bind := c.bind.Copy()
 	return c.do(ctx, true, func(db *sqlite3.Conn) error {
-		return execute(db, bind, query, nil)
+		return execute(db, c.cache(), bind, query, nil)
 	})
 }
 
@@ -118,7 +134,7 @@ func (c *conn) Insert(ctx context.Context, reader sqlite.Reader, writer sqlite.W
 		return err
 	}
 	return c.do(ctx, true, func(db *sqlite3.Conn) error {
-		return execute(db, bind, query, reader)
+		return execute(db, c.cache(), bind, query, reader)
 	})
 }
 
@@ -138,7 +154,7 @@ func (c *conn) Update(ctx context.Context, reader sqlite.Reader, sel sqlite.Sele
 		return err
 	}
 	return c.do(ctx, true, func(db *sqlite3.Conn) error {
-		return execute(db, bind, query, reader)
+		return execute(db, c.cache(), bind, query, reader)
 	})
 }
 
@@ -151,7 +167,7 @@ func (c *conn) Delete(ctx context.Context, reader sqlite.Reader, sel sqlite.Sele
 		return err
 	}
 	return c.do(ctx, true, func(db *sqlite3.Conn) error {
-		return execute(db, bind, query, reader)
+		return execute(db, c.cache(), bind, query, reader)
 	})
 }
 
@@ -164,7 +180,7 @@ func (c *conn) Get(ctx context.Context, reader sqlite.Reader, sel sqlite.Selecto
 		return err
 	}
 	return c.do(ctx, false, func(db *sqlite3.Conn) error {
-		return executeOne(db, bind, query, reader)
+		return executeOne(db, c.cache(), bind, query, reader)
 	})
 }
 
@@ -201,13 +217,13 @@ func (c *conn) List(ctx context.Context, reader sqlite.Reader, sel sqlite.Select
 
 		// Count the rows, of all of the query
 		if counter, ok := reader.(sqlite.ListReader); ok {
-			if err := execute(db, bind, `SELECT COUNT(*) FROM (`+query+`)`, readerFunc(counter.ScanCount)); err != nil {
+			if err := execute(db, c.cache(), bind, `SELECT COUNT(*) FROM (`+query+`)`, readerFunc(counter.ScanCount)); err != nil {
 				return err
 			}
 		}
 
 		// Read the rows, of the offset and limit
-		if err := execute(db, bind, query+` ${offsetlimit}`, reader); !errors.Is(err, sqlite.ErrNotFound) {
+		if err := execute(db, c.cache(), bind, query+` ${offsetlimit}`, reader); !errors.Is(err, sqlite.ErrNotFound) {
 			return err
 		}
 		return nil
@@ -284,6 +300,15 @@ func (c *conn) savepoint(ctx context.Context, fn func(sqlite.Conn) error) error 
 	}
 	released = true
 	return nil
+}
+
+// cache returns the transaction's prepared statements, of a bulk operation,
+// or nil
+func (c *conn) cache() statements {
+	if c.tx == nil {
+		return nil
+	}
+	return c.tx.stmts
 }
 
 // readerFunc is a function which scans a row

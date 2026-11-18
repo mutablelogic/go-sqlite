@@ -42,6 +42,7 @@ err := db.Tx(ctx, func(conn sqlite.Conn) error {
 - **Rolled back** when the function returns an error, or panics.
 - **Nested:** a transaction within one is a savepoint.
 - **Use its `conn`:** the pool's writer waits for the transaction to end. Reads on the pool don't wait.
+- **Bulk:** `Bulk` is a transaction which prepares each statement once, and reuses it, such as for many inserts. It's about twice as fast.
 
 ## Schema versions
 

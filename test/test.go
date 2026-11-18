@@ -106,6 +106,7 @@ func Run(t *testing.T, fn OpenFunc) {
 			t.Run("Types", func(t *testing.T) { testTypes(t, open(t, fn, kind)) })
 			t.Run("Errors", func(t *testing.T) { testErrors(t, open(t, fn, kind)) })
 			t.Run("Tx", func(t *testing.T) { testTx(t, open(t, fn, kind)) })
+			t.Run("Bulk", func(t *testing.T) { testBulk(t, open(t, fn, kind)) })
 			t.Run("Version", func(t *testing.T) { testVersion(t, open(t, fn, kind)) })
 			t.Run("Concurrent", func(t *testing.T) { testConcurrent(t, open(t, fn, kind)) })
 		})
@@ -558,6 +559,95 @@ func testTx(t *testing.T, db sqlite.Conn) {
 	assert.Equal(t, uint64(4), count(t, db))
 }
 
+func testBulk(t *testing.T, db sqlite.Conn) {
+	ctx := t.Context()
+	failed := errors.New("failed")
+
+	// Many inserts, of the same query, with their own arguments, and reads,
+	// of the first row, and lists, within it, of what's written
+	var ids []int64
+	require.NoError(t, db.Bulk(ctx, func(conn sqlite.Conn) error {
+		for i := range 500 {
+			var u user
+			if err := conn.Insert(ctx, &u, userMeta{Name: fmt.Sprint("user", i)}); err != nil {
+				return err
+			}
+			ids = append(ids, u.ID)
+		}
+		for i, id := range ids[:50] {
+			var got user
+			if err := conn.Get(ctx, &got, userSelector{ID: id}); err != nil {
+				return err
+			}
+			assert.Equal(t, fmt.Sprint("user", i), got.Name)
+			if err := conn.Get(ctx, &got, query{"SELECT id, name, email FROM users ORDER BY id DESC"}); err != nil {
+				return err
+			}
+			assert.Equal(t, "user499", got.Name)
+		}
+		assert.Equal(t, uint64(500), count(t, conn))
+		return nil
+	}))
+	assert.Equal(t, uint64(500), count(t, db))
+
+	// Queries which differ by a substitution, more than are reused
+	require.NoError(t, db.Bulk(ctx, func(conn sqlite.Conn) error {
+		for i := range 100 {
+			if err := conn.With("name", fmt.Sprint("sub", i)).Exec(ctx, `INSERT INTO users (name) VALUES (${'name'})`); err != nil {
+				return err
+			}
+		}
+		return nil
+	}))
+	assert.Equal(t, uint64(600), count(t, db))
+
+	// An error rolls all of it back, and a savepoint, within it, rolls back
+	// its own
+	assert.ErrorIs(t, db.Bulk(ctx, func(conn sqlite.Conn) error {
+		for range 10 {
+			if err := conn.Insert(ctx, &user{}, userMeta{Name: "x"}); err != nil {
+				return err
+			}
+		}
+		return failed
+	}), failed)
+	assert.Equal(t, uint64(600), count(t, db))
+	require.NoError(t, db.Bulk(ctx, func(conn sqlite.Conn) error {
+		require.NoError(t, conn.Insert(ctx, &user{}, userMeta{Name: "kept"}))
+		assert.ErrorIs(t, conn.Bulk(ctx, func(conn sqlite.Conn) error {
+			require.NoError(t, conn.Insert(ctx, &user{}, userMeta{Name: "lost"}))
+			return failed
+		}), failed)
+		return conn.Insert(ctx, &user{}, userMeta{Name: "kept"})
+	}))
+	assert.Equal(t, uint64(602), count(t, db))
+
+	// A reader which panics, within it, is recovered from, and its statement
+	// is reused, and outside it, the database is used again
+	panics := readerFunc(func(sqlite.Row) error { panic("scan") })
+	require.NoError(t, db.Bulk(ctx, func(conn sqlite.Conn) error {
+		for range 2 {
+			assert.Panics(t, func() { _ = conn.Get(ctx, panics, userSelector{ID: ids[0]}) })
+		}
+		var got user
+		require.NoError(t, conn.Get(ctx, &got, userSelector{ID: ids[0]}))
+		assert.Equal(t, "user0", got.Name)
+		return nil
+	}))
+	assert.Panics(t, func() { _ = db.Get(ctx, panics, userSelector{ID: ids[0]}) })
+	assert.Equal(t, uint64(602), count(t, db))
+
+	// A constraint error, of a reused statement, is returned, and it's
+	// reused again
+	email := "a@example.com"
+	require.NoError(t, db.Bulk(ctx, func(conn sqlite.Conn) error {
+		require.NoError(t, conn.Insert(ctx, &user{}, userMeta{Name: "a", Email: &email}))
+		assert.ErrorIs(t, conn.Insert(ctx, &user{}, userMeta{Name: "b", Email: &email}), sqlite.ErrUniqueViolation)
+		return conn.Insert(ctx, &user{}, userMeta{Name: "c"})
+	}))
+	assert.Equal(t, uint64(604), count(t, db))
+}
+
 func testVersion(t *testing.T, db sqlite.Conn) {
 	ctx := t.Context()
 
@@ -785,3 +875,8 @@ type query struct {
 }
 
 func (q query) Select(*sqlite.Bind, sqlite.Op) (string, error) { return q.sql, nil }
+
+// readerFunc is a function which scans a row
+type readerFunc func(sqlite.Row) error
+
+func (fn readerFunc) Scan(row sqlite.Row) error { return fn(row) }

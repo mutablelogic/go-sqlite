@@ -1,6 +1,7 @@
 package ncruces
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -12,6 +13,20 @@ import (
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
+
+// statements are a bulk transaction's prepared statements, by their SQL,
+// with its ${key} replaced, which are reused, rather than prepared again
+type statements map[string]*sqlite3.Stmt
+
+////////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+
+const (
+	// maxStatements is the most statements a bulk transaction reuses, as a
+	// query whose ${key} differs, such as of a value, rather than an @key
+	// argument, is another statement; others are prepared, and closed
+	maxStatements = 64
+)
 
 // row is a statement's row, which is scanned into values
 type row struct {
@@ -27,30 +42,44 @@ type row struct {
 // execute executes the query's statements, with its ${key} replaced, and its
 // @key arguments bound, and scans their rows into the reader, which is
 // ErrNotFound without any
-func execute(db *sqlite3.Conn, bind *sqlite.Bind, query string, reader sqlite.Reader) error {
-	return executeRows(db, bind, query, reader, false)
+func execute(db *sqlite3.Conn, cache statements, bind *sqlite.Bind, query string, reader sqlite.Reader) error {
+	return executeRows(db, cache, bind, query, reader, false)
 }
 
 // executeOne executes the query's statements, as execute does, and scans the
 // first row into the reader, without reading the others
-func executeOne(db *sqlite3.Conn, bind *sqlite.Bind, query string, reader sqlite.Reader) error {
-	return executeRows(db, bind, query, reader, true)
+func executeOne(db *sqlite3.Conn, cache statements, bind *sqlite.Bind, query string, reader sqlite.Reader) error {
+	return executeRows(db, cache, bind, query, reader, true)
 }
 
-func executeRows(db *sqlite3.Conn, bind *sqlite.Bind, query string, reader sqlite.Reader, one bool) error {
+// executeRows executes the query's statements, which are reused, of the
+// cache, when it isn't nil, and the query is one statement, or else
+// prepared, and closed
+func executeRows(db *sqlite3.Conn, cache statements, bind *sqlite.Bind, query string, reader sqlite.Reader, one bool) error {
 	query, vars := bind.Expand(query)
 	scanned := false
 	for strings.TrimSpace(query) != "" {
-		stmt, tail, err := db.Prepare(query)
-		if err != nil {
-			return err
+		stmt, cached := cache[query]
+		if cached {
+			query = ""
+		} else {
+			var tail string
+			var err error
+			if stmt, tail, err = db.Prepare(query); err != nil {
+				return err
+			}
+			if stmt == nil {
+				// A comment, or a ;
+				query = tail
+				continue
+			}
+			if cache != nil && len(cache) < maxStatements && strings.TrimSpace(tail) == "" {
+				cache[query] = stmt
+				cached = true
+			}
+			query = tail
 		}
-		query = tail
-		if stmt == nil {
-			// A comment, or a ;
-			continue
-		}
-		if err := step(stmt, vars, reader, one, &scanned); err != nil {
+		if err := run(stmt, cached, vars, reader, one, &scanned); err != nil {
 			return err
 		}
 	}
@@ -60,9 +89,23 @@ func executeRows(db *sqlite3.Conn, bind *sqlite.Bind, query string, reader sqlit
 	return nil
 }
 
+// run steps the statement, and then resets it, when it's cached, so it
+// doesn't read, or lock, until it's reused, or closes it, even when it
+// panics, such as when it's scanned
+func run(stmt *sqlite3.Stmt, cached bool, vars map[string]any, reader sqlite.Reader, one bool, scanned *bool) (err error) {
+	defer func() {
+		if cached {
+			_ = stmt.Reset()
+			err = errors.Join(err, stmt.ClearBindings())
+		} else {
+			_ = stmt.Close()
+		}
+	}()
+	return step(stmt, vars, reader, one, scanned)
+}
+
 // step binds the statement's arguments, and scans its rows into the reader
 func step(stmt *sqlite3.Stmt, vars map[string]any, reader sqlite.Reader, one bool, scanned *bool) error {
-	defer stmt.Close()
 	for i := 1; i <= stmt.BindCount(); i++ {
 		name := stmt.BindName(i)
 		if name == "" {
@@ -104,4 +147,17 @@ func (r row) Scan(dest ...any) error {
 		}
 	}
 	return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// STATEMENTS
+
+// close closes the statements
+func (s statements) close() error {
+	var result error
+	for query, stmt := range s {
+		result = errors.Join(result, stmt.Close())
+		delete(s, query)
+	}
+	return result
 }

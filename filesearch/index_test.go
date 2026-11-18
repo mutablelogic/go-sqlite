@@ -409,3 +409,55 @@ func Test_IndexVolumeSuperseded(t *testing.T) {
 	assert.Equal(t, volume.Run+2, volumes.Body[0].Run)
 	assert.Equal(t, []string{"a.txt", "b.txt"}, objects(t, b, volume.ID))
 }
+
+func Test_IndexVolumeReader(t *testing.T) {
+	ctx := t.Context()
+	root := t.TempDir()
+	write(t, root, map[string]string{"a.txt": "a", "b.txt": "b"})
+	path := test.Path(t)
+
+	// index indexes the volume, with a manager of a reader, of a context,
+	// and returns its progress
+	index := func(ctx context.Context, reader string) (schema.Progress, error) {
+		manager, err := filesearch.New(t.Context(), path, filesearch.WithReader(reader))
+		require.NoError(t, err)
+		defer manager.Close()
+		volume, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root}, nil)
+		if volume == nil {
+			return schema.Progress{}, err
+		}
+		progress, perr := manager.Progress(volume.ID)
+		require.NoError(t, perr)
+		return progress, err
+	}
+
+	// Of the same reader, what's as it was is marked
+	progress, err := index(ctx, "reader 1")
+	require.NoError(t, err)
+	assert.Equal(t, uint64(2), progress.Indexed)
+	progress, err = index(ctx, "reader 1")
+	require.NoError(t, err)
+	assert.False(t, progress.Reindex)
+	assert.Equal(t, uint64(2), progress.Marked)
+
+	// Of another, all of it is indexed again
+	progress, err = index(ctx, "reader 2")
+	require.NoError(t, err)
+	assert.True(t, progress.Reindex)
+	assert.Equal(t, uint64(2), progress.Indexed)
+	assert.Zero(t, progress.Marked)
+
+	// A run which doesn't finish, of another, keeps the reader which indexed
+	// it, so the next indexes all of it again
+	cancelled, cancel := context.WithCancel(ctx)
+	cancel()
+	_, err = index(cancelled, "reader 3")
+	assert.ErrorIs(t, err, context.Canceled)
+	progress, err = index(ctx, "reader 3")
+	require.NoError(t, err)
+	assert.True(t, progress.Reindex)
+	assert.Equal(t, uint64(2), progress.Indexed)
+	progress, err = index(ctx, "reader 3")
+	require.NoError(t, err)
+	assert.Equal(t, uint64(2), progress.Marked)
+}

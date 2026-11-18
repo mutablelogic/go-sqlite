@@ -9,6 +9,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
+	"runtime/debug"
+	"strings"
 
 	// Packages
 	tmdb "github.com/mutablelogic/go-metadata/pkg/tmdb"
@@ -36,7 +39,15 @@ type Flags struct {
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 
+// pseudoVersion matches a version of a commit, rather than a release
+var pseudoVersion = regexp.MustCompile(`-(?:[0-9A-Za-z.]+\.)?\d{14}-[0-9a-f]{12}$`)
+
 const (
+	// The modules of filesearch and go-metadata, of whose versions what reads
+	// files is
+	filesearchModule = "github.com/mutablelogic/go-sqlite/filesearch"
+	metadataModule   = "github.com/mutablelogic/go-metadata"
+
 	// DefaultName is the name of the database, in the user's cache folder,
 	// when it isn't set
 	DefaultName = "filesearch.db"
@@ -56,6 +67,7 @@ func (flags Flags) WithManager(ctx server.Cmd, srv *servercmd.RunServer, fn func
 		return err
 	}
 	opts = append([]filesearch.Opt{
+		filesearch.WithReader(flags.reader()),
 		filesearch.WithTracer(ctx.Tracer()),
 		filesearch.WithMaxReaders(flags.Readers),
 		filesearch.WithExclude(flags.Exclude...),
@@ -83,6 +95,46 @@ func (flags Flags) WithManager(ctx server.Cmd, srv *servercmd.RunServer, fn func
 
 ///////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+// reader returns what reads files, of the versions of filesearch and
+// go-metadata, the program's build tags, such as media, of the handlers it
+// imports, and whether videos are looked up on TMDB, so a volume which
+// another read is indexed again. A commit of a build which isn't released
+// isn't part of it, so building it again doesn't index everything again.
+func (flags Flags) reader() string {
+	parts := []string{"filesearch"}
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if info.Main.Path == filesearchModule {
+			parts = append(parts, release(info.Main.Version))
+		}
+		for _, dep := range info.Deps {
+			switch dep.Path {
+			case filesearchModule:
+				parts = append(parts, release(dep.Version))
+			case metadataModule:
+				parts = append(parts, "go-metadata "+release(dep.Version))
+			}
+		}
+		for _, setting := range info.Settings {
+			if setting.Key == "-tags" && setting.Value != "" {
+				parts = append(parts, "tags "+setting.Value)
+			}
+		}
+	}
+	if flags.TMDBKey != "" {
+		parts = append(parts, "tmdb")
+	}
+	return strings.Join(parts, " ")
+}
+
+// release returns a module's version, or "devel" when it's built from a
+// commit which isn't released, such as v0.0.0-20261118123708-ead0a2da1cc5+dirty
+func release(version string) string {
+	if version == "" || version == "(devel)" || pseudoVersion.MatchString(version) || strings.Contains(version, "+") {
+		return "devel"
+	}
+	return version
+}
 
 // path returns the path of the database, which is in the user's cache
 // folder, which is created, and only the user can read, when --db isn't set

@@ -102,6 +102,9 @@ func (cmd *IndexCmd) Run(ctx server.Cmd) error {
 			if errors.Is(err, context.Canceled) {
 				status = "interrupted"
 			}
+			if p, err := manager.Progress(volume.ID); err == nil && p.Reindex {
+				status += ", all of its files again"
+			}
 			if p, err := manager.Progress(volume.ID); err == nil {
 				fmt.Printf("%s: %s, of %d files: %d indexed, %d marked, %d swept, %d which couldn't be read, in %v\n",
 					volume.Path, status, p.Total, p.Indexed, p.Marked, p.Swept, progress.Errors(), time.Since(start).Round(time.Millisecond))

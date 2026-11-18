@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS volume (
     run       INTEGER NOT NULL DEFAULT 0,               -- the run, which is 0 until it's first indexed
     started   TEXT,                                     -- when the run started, in UTC, of RFC 3339
     finished  TEXT,                                     -- when it finished, or NULL while it's indexing
-    error     TEXT                                      -- why it failed, or NULL
+    error     TEXT,                                     -- why it failed, or NULL
+    reader    TEXT                                      -- what read it, of the last run which indexed it, or NULL
 );
 
 -- filesearch.object

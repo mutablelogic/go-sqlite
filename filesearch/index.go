@@ -114,7 +114,10 @@ func (m *Manager) IndexVolume(ctx context.Context, req schema.IndexVolumeRequest
 		m.endProgress(root, nil, nil)
 		return nil, err
 	}
-	p.start(volume)
+	// All of its files are indexed again, when it's reindexed, or another
+	// reader indexed it last, or none did
+	reindex := req.Reindex || (m.reader != "" && volume.Reader != m.reader)
+	p.start(volume, reindex)
 
 	// Count its files, which is quicker than reading them, so how far it's
 	// indexed is known, and say so
@@ -130,7 +133,7 @@ func (m *Manager) IndexVolume(ctx context.Context, req schema.IndexVolumeRequest
 	// sweep what it didn't see, in one transaction, so it's indexed only once
 	// it's swept
 	if err == nil {
-		err = m.walk(ctx, &volume, req.Recursive, req.Reindex, p)
+		err = m.walk(ctx, &volume, req.Recursive, reindex, p)
 	}
 	finished, run := time.Now(), volume.Run
 	superseded := sqlite.ErrConflict.Withf("%s is indexed by another run, which started after this one", root)
@@ -138,7 +141,7 @@ func (m *Manager) IndexVolume(ctx context.Context, req schema.IndexVolumeRequest
 	if err == nil {
 		err = m.conn.Tx(ctx, func(conn sqlite.Conn) error {
 			swept = schema.ObjectList{}
-			if err := conn.Update(ctx, &volume, schema.VolumeID(volume.ID), schema.VolumeFinish{Run: run, Finished: finished}); errors.Is(err, sqlite.ErrNotFound) {
+			if err := conn.Update(ctx, &volume, schema.VolumeID(volume.ID), schema.VolumeFinish{Run: run, Finished: finished, Reader: m.reader}); errors.Is(err, sqlite.ErrNotFound) {
 				return superseded
 			} else if err != nil {
 				return err
@@ -484,11 +487,12 @@ func title(path string) string {
 ////////////////////////////////////////////////////////////////////////////////
 // PROGRESS
 
-// start starts the progress of the volume's run
-func (p *progress) start(volume schema.Volume) {
+// start starts the progress of the volume's run, which indexes all of its
+// files again, or not
+func (p *progress) start(volume schema.Volume, reindex bool) {
 	p.Lock()
 	defer p.Unlock()
-	p.Volume, p.Run = volume.ID, volume.Run
+	p.Volume, p.Run, p.Reindex = volume.ID, volume.Run, reindex
 	if volume.Started != nil {
 		p.Started = *volume.Started
 	}

@@ -22,6 +22,7 @@ type opt struct {
 	exclude        []*regexp.Regexp // Of the names of files and folders, which aren't indexed
 	defaultExclude bool             // DefaultExclude, as well
 	tmdb           *tmdb.Client     // Of the movies and episodes on TMDB which videos are, or nil
+	reader         string           // What reads files, of which a volume which another read is indexed again
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,6 +113,18 @@ func WithExclude(patterns ...string) Opt {
 func WithTMDB(client *tmdb.Client) Opt {
 	return func(o *opt) error {
 		o.tmdb = client
+		return nil
+	}
+}
+
+// WithReader sets what reads files, as a fingerprint, such as of the
+// versions of filesearch and go-metadata, and the handlers which a program
+// imports. A volume whose last complete run was of another reader, or of
+// none, has all of its files indexed again, as they can be read differently,
+// rather than those which are new, or changed.
+func WithReader(fingerprint string) Opt {
+	return func(o *opt) error {
+		o.reader = fingerprint
 		return nil
 	}
 }

@@ -60,9 +60,9 @@ unit-test: go-dep
 	@echo Unit Tests
 	@CGO_ENABLED=1 ${GO} test -race ./...
 
-# Coverage is of the packages, other than the tests which drivers pass,
-# which test the root package, as well as the driver
-COVER_PKG = $(shell GOWORK=off ${GO} list ./... | grep -v /sqlitetest | paste -sd, -)
+# Coverage is of the packages, other than the tests which implementations pass,
+# which test the root package, as well as the implementation
+COVER_PKG = $(shell GOWORK=off ${GO} list ./... | grep -v /test$$ | paste -sd, -)
 
 .PHONY: coverage-test
 coverage-test: go-dep mkdir

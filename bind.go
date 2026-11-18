@@ -87,8 +87,9 @@ func (bind *Bind) Copy(pairs ...any) *Bind {
 	return &Bind{vars: varsCopy}
 }
 
-// Return a new bind object with one or more sets of queries
-func (bind *Bind) withQueries(queries ...*Queries) *Bind {
+// WithQueries returns a copy of the bind object, with the queries of each
+// set, by their keys, which Query returns
+func (bind *Bind) WithQueries(queries ...*Queries) *Bind {
 	if len(queries) == 0 {
 		return bind
 	}
@@ -216,6 +217,13 @@ func (bind *Bind) Query(name string) string {
 	bind.Set(TraceSpanNameArg, name)
 	sql, _ := bind.Get(name).(string)
 	return sql
+}
+
+// Expand returns the query with its ${key} substitutions replaced, and the
+// vars, of one copy, which its @key arguments are bound to
+func (bind *Bind) Expand(query string) (string, map[string]any) {
+	vars := bind.snapshot()
+	return replace(query, vars), vars
 }
 
 // Replace returns a query string with ${subtitution} replaced by the values:

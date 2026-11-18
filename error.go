@@ -1,7 +1,6 @@
 package sqlite
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"slices"
@@ -16,7 +15,7 @@ import (
 // Err is a kind of error, which SQLite's errors are mapped to
 type Err int
 
-// DatabaseError is a driver's error, which is ErrDatabase, and the kinds of
+// DatabaseError is an implementation's error, which is ErrDatabase, and the kinds of
 // error it is, such as ErrConflict and ErrUniqueViolation, with errors.Is
 type DatabaseError struct {
 	err   error
@@ -91,9 +90,9 @@ func (e Err) Withf(format string, a ...any) error {
 	return fmt.Errorf("%w: %w", e, fmt.Errorf(format, a...))
 }
 
-// NewDatabaseError returns the driver's error, which is ErrDatabase, and the
-// kinds of error it is, such as ErrConflict and ErrUniqueViolation, for a
-// Driver to return from its Error method
+// NewDatabaseError returns an implementation's error, such as SQLite's,
+// which is ErrDatabase, and the kinds of error it is, such as ErrConflict
+// and ErrUniqueViolation
 func NewDatabaseError(err error, kinds ...Err) error {
 	if err == nil {
 		return nil
@@ -101,17 +100,18 @@ func NewDatabaseError(err error, kinds ...Err) error {
 	return &DatabaseError{err: err, kinds: append([]Err{ErrDatabase}, kinds...)}
 }
 
-// Error returns the driver's error's message
+// Error returns the error's message
 func (e *DatabaseError) Error() string {
 	return e.err.Error()
 }
 
-// Unwrap returns the driver's error
+// Unwrap returns the implementation's error
 func (e *DatabaseError) Unwrap() error {
 	return e.err
 }
 
-// Is returns true when the error is of the kind, or the driver's error is
+// Is returns true when the error is of the kind, or the implementation's
+// error is
 func (e *DatabaseError) Is(target error) bool {
 	if kind, ok := target.(Err); ok && slices.Contains(e.kinds, kind) {
 		return true
@@ -137,23 +137,4 @@ func HTTPError(err error) error {
 	default:
 		return httpresponse.ErrInternalError.With(err.Error())
 	}
-}
-
-/////////////////////////////////////////////////////////////////////
-// PRIVATE METHODS
-
-// normalize returns the error as one of the package's: no rows is
-// ErrNotFound, and the driver's errors are DatabaseErrors
-func normalize(driver Driver, err error) error {
-	var dbErr *DatabaseError
-	var kind Err
-	switch {
-	case err == nil:
-		return nil
-	case errors.As(err, &kind), errors.As(err, &dbErr):
-		return err
-	case errors.Is(err, sql.ErrNoRows):
-		return ErrNotFound
-	}
-	return driver.Error(err)
 }

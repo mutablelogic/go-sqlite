@@ -1,14 +1,17 @@
-// Package sqlitetest is the tests which a Driver passes, so a driver can be
-// replaced by another, which behaves the same.
-package sqlitetest
+// Package test is the tests which an implementation, such as package
+// ncruces, passes, so it can be replaced by another, which behaves the same.
+package test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	// Packages
 	sqlite "github.com/mutablelogic/go-sqlite"
@@ -18,6 +21,10 @@ import (
 
 ////////////////////////////////////////////////////////////////////////////////
 // TYPES
+
+// OpenFunc opens a database, of a path, or sqlite.Memory, such as
+// ncruces.Open
+type OpenFunc func(ctx context.Context, path string, opts ...sqlite.Opt) (sqlite.PoolConn, error)
 
 // user is a row of the users table
 type user struct {
@@ -74,55 +81,220 @@ DELETE FROM ${"table"} WHERE id = @id RETURNING id, name, email;
 
 -- users.list
 SELECT id, name, email FROM ${"table"} ORDER BY id
+
+-- types.create
+CREATE TABLE IF NOT EXISTS types (
+	id INTEGER PRIMARY KEY, i INTEGER, f REAL, t TEXT, b BLOB, ts TEXT, ok INTEGER, n TEXT
+);
 `
 
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
-// Run runs the tests of the driver, on databases in memory, and in files,
-// in a temporary folder.
-func Run(t *testing.T, driver sqlite.Driver) {
-	t.Run("Open", func(t *testing.T) { testOpen(t, driver) })
+// Run runs the tests of the implementation, which opens databases, in
+// memory, and in files, in a temporary folder.
+func Run(t *testing.T, fn OpenFunc) {
+	t.Run("Open", func(t *testing.T) { testOpen(t, fn) })
+	t.Run("Close", func(t *testing.T) { testClose(t, fn) })
+	t.Run("Functions", func(t *testing.T) { testFunctions(t, fn) })
 	for _, kind := range []string{"Memory", "File"} {
 		t.Run(kind, func(t *testing.T) {
-			t.Run("CRUD", func(t *testing.T) { testCRUD(t, open(t, driver, kind)) })
-			t.Run("List", func(t *testing.T) { testList(t, open(t, driver, kind)) })
-			t.Run("Errors", func(t *testing.T) { testErrors(t, open(t, driver, kind)) })
-			t.Run("Tx", func(t *testing.T) { testTx(t, open(t, driver, kind)) })
-			t.Run("Version", func(t *testing.T) { testVersion(t, open(t, driver, kind)) })
-			t.Run("Concurrent", func(t *testing.T) { testConcurrent(t, open(t, driver, kind)) })
+			t.Run("CRUD", func(t *testing.T) { testCRUD(t, open(t, fn, kind)) })
+			t.Run("List", func(t *testing.T) { testList(t, open(t, fn, kind)) })
+			t.Run("Types", func(t *testing.T) { testTypes(t, open(t, fn, kind)) })
+			t.Run("Errors", func(t *testing.T) { testErrors(t, open(t, fn, kind)) })
+			t.Run("Tx", func(t *testing.T) { testTx(t, open(t, fn, kind)) })
+			t.Run("Version", func(t *testing.T) { testVersion(t, open(t, fn, kind)) })
+			t.Run("Concurrent", func(t *testing.T) { testConcurrent(t, open(t, fn, kind)) })
 		})
 	}
-	t.Run("Readers", func(t *testing.T) { testReaders(t, driver) })
+	t.Run("Readers", func(t *testing.T) { testReaders(t, fn) })
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // TESTS
 
-func testOpen(t *testing.T, driver sqlite.Driver) {
+func testOpen(t *testing.T, fn OpenFunc) {
 	ctx := t.Context()
 
-	// A driver and a path are needed, and options are checked
-	_, err := sqlite.Open(ctx, sqlite.Memory, nil)
+	// A path is needed, and options are checked
+	_, err := fn(ctx, " ")
 	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
-	_, err = sqlite.Open(ctx, " ", driver)
+	_, err = fn(ctx, sqlite.Memory, sqlite.WithMaxReaders(0))
 	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
-	_, err = sqlite.Open(ctx, sqlite.Memory, driver, sqlite.WithMaxReaders(0))
+	_, err = fn(ctx, sqlite.Memory, sqlite.WithPragma("a; DROP", "1"))
 	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
-	_, err = sqlite.Open(ctx, sqlite.Memory, driver, sqlite.WithPragma("a; DROP", "1"))
+	_, err = fn(ctx, sqlite.Memory, sqlite.WithPragma("cache_size", "1; DROP TABLE users"))
+	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
+	_, err = fn(ctx, sqlite.Memory, sqlite.WithFunction("f", 1, true, nil))
+	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
+	_, err = fn(ctx, sqlite.Memory, sqlite.WithDriverOption("another's"))
 	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
 
 	// A folder which doesn't exist can't be opened
-	_, err = sqlite.Open(ctx, filepath.Join(t.TempDir(), "missing", "test.db"), driver)
+	_, err = fn(ctx, filepath.Join(t.TempDir(), "missing", "test.db"))
 	assert.Error(t, err)
 
 	// A path with characters which are a URI's, such as ? and #, is its name
 	path := filepath.Join(t.TempDir(), "a b?c#d%20.db")
-	db, err := sqlite.Open(ctx, path, driver, sqlite.WithPragma("cache_size", "-4000"))
+	db, err := fn(ctx, path, sqlite.WithPragma("cache_size", "-4000"))
 	require.NoError(t, err)
 	assert.NoError(t, db.Ping(ctx))
 	assert.NoError(t, db.Close())
 	assert.FileExists(t, path)
+}
+
+func testClose(t *testing.T, fn OpenFunc) {
+	ctx := t.Context()
+	db, err := fn(ctx, filepath.Join(t.TempDir(), "test.db"))
+	require.NoError(t, err)
+
+	// Once it's closed, it's not available, and it's closed once
+	require.NoError(t, db.Close())
+	assert.NoError(t, db.Close())
+	assert.ErrorIs(t, db.Exec(ctx, "SELECT 1"), sqlite.ErrNotAvailable)
+	assert.ErrorIs(t, db.Get(ctx, &value{}, value{query: "SELECT 1"}), sqlite.ErrNotAvailable)
+	assert.ErrorIs(t, db.Ping(ctx), sqlite.ErrNotAvailable)
+}
+
+func testFunctions(t *testing.T, fn OpenFunc) {
+	ctx := t.Context()
+	failed := errors.New("failed")
+
+	// Functions, of each connection, the readers' too, whose arguments are
+	// int64, float64, string, []byte or nil, and which return a result, or
+	// an error
+	db, err := fn(ctx, filepath.Join(t.TempDir(), "test.db"),
+		sqlite.WithFunction("double", 1, true, func(args ...any) (any, error) {
+			if n, ok := args[0].(int64); ok {
+				return n * 2, nil
+			}
+			return nil, failed
+		}),
+		sqlite.WithFunction("result", 1, true, func(args ...any) (any, error) {
+			text := "text"
+			switch args[0] {
+			case "bool":
+				return true, nil
+			case "uint":
+				return uint8(7), nil
+			case "float":
+				return float32(2.5), nil
+			case "bytes":
+				return []byte{1}, nil
+			case "ptr":
+				return &text, nil
+			case "nilptr":
+				return (*string)(nil), nil
+			case "valuer":
+				return sql.NullInt64{Int64: 3, Valid: true}, nil
+			case "time":
+				return time.Date(2026, 11, 18, 12, 30, 0, 0, time.UTC), nil
+			case "large":
+				return uint64(1 << 63), nil
+			case "slice":
+				return []string{"a"}, nil
+			}
+			return nil, nil
+		}),
+		sqlite.WithFunction("kind", -1, true, func(args ...any) (any, error) {
+			kinds := make([]string, 0, len(args))
+			for _, arg := range args {
+				kinds = append(kinds, fmt.Sprintf("%T", arg))
+			}
+			return strings.Join(kinds, ","), nil
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, db.Close()) })
+	for _, conn := range []sqlite.Conn{db, txConn(t, db)} {
+		v := &value{query: "SELECT double(21)"}
+		require.NoError(t, conn.Get(ctx, v, v))
+		assert.Equal(t, int64(42), v.value)
+	}
+	var kinds string
+	require.NoError(t, db.Get(ctx, &column{&kinds}, value{query: "SELECT kind(1, 1.5, 'a', x'00', NULL)"}))
+	assert.Equal(t, "int64,float64,string,[]uint8,<nil>", kinds)
+
+	// Results are of their kinds, and pointers, which are NULL when they're
+	// nil, and driver.Valuers
+	for _, test := range []struct {
+		kind string
+		want any
+	}{
+		{"bool", int64(1)}, {"uint", int64(7)}, {"float", 2.5}, {"bytes", []byte{1}},
+		{"ptr", "text"}, {"nilptr", nil}, {"nil", nil}, {"valuer", int64(3)},
+		{"time", "2026-11-18T12:30:00Z"},
+	} {
+		var got any
+		require.NoError(t, db.With("kind", test.kind).Get(ctx, &column{&got}, value{query: "SELECT result(@kind)"}), test.kind)
+		assert.Equal(t, test.want, got, test.kind)
+	}
+	for _, kind := range []string{"large", "slice"} {
+		assert.ErrorIs(t, db.With("kind", kind).Get(ctx, &column{new(any)}, value{query: "SELECT result(@kind)"}), sqlite.ErrDatabase, kind)
+	}
+
+	// Its error is the query's
+	err = db.Get(ctx, &value{}, value{query: "SELECT double('a')"})
+	assert.ErrorIs(t, err, sqlite.ErrDatabase)
+	assert.ErrorContains(t, err, "failed")
+}
+
+func testTypes(t *testing.T, db sqlite.Conn) {
+	ctx := t.Context()
+	type name string
+	when := time.Date(2026, 11, 18, 12, 30, 0, 123, time.UTC)
+
+	// Values are bound, of their kinds, and pointers, which are NULL when
+	// they're nil, and driver.Valuers
+	var email *string
+	conn := db.With("i", int8(-7), "f", float32(1.5), "t", name("text"), "b", []byte{0, 1}, "ts", when, "ok", true, "n", email, "s", sql.NullString{})
+	require.NoError(t, conn.Exec(ctx, `INSERT INTO types (id, i, f, t, b, ts, ok, n) VALUES (1, @i, @f, @t, @b, @ts, @ok, @n)`))
+	require.NoError(t, conn.Exec(ctx, `INSERT INTO types (id, i, f, t, b, ts, ok, n) VALUES (2, 300, 2.5, '42', NULL, 'not a time', 0, @s)`))
+
+	// And scanned into theirs
+	var (
+		i   int8
+		u   uint16
+		f   float32
+		s   name
+		b   []byte
+		ts  time.Time
+		ok  bool
+		n   *string
+		any any
+		ns  sql.NullString
+	)
+	require.NoError(t, db.Get(ctx, &column{&i, &u, &f, &s, &b, &ts, &ok, &n, &any, &ns}, value{query: `SELECT i, -i, f, t, b, ts, ok, n, f, n FROM types WHERE id = 1`}))
+	assert.Equal(t, int8(-7), i)
+	assert.Equal(t, uint16(7), u)
+	assert.Equal(t, float32(1.5), f)
+	assert.Equal(t, name("text"), s)
+	assert.Equal(t, []byte{0, 1}, b)
+	assert.True(t, when.Equal(ts), ts)
+	assert.True(t, ok)
+	assert.Nil(t, n)
+	assert.Equal(t, 1.5, any)
+	assert.False(t, ns.Valid)
+
+	// Text which is a number is an integer, and NULL is a nil []byte
+	var count int64
+	require.NoError(t, db.Get(ctx, &column{&count, &b}, value{query: `SELECT t, b FROM types WHERE id = 2`}))
+	assert.Equal(t, int64(42), count)
+	assert.Nil(t, b)
+
+	// A value which doesn't fit, NULL, which isn't a pointer, text which
+	// isn't a time, and the wrong number of values, are errors
+	assert.Error(t, db.Get(ctx, &column{&i}, value{query: `SELECT i FROM types WHERE id = 2`}))
+	assert.Error(t, db.Get(ctx, &column{&u}, value{query: `SELECT -1`}))
+	assert.Error(t, db.Get(ctx, &column{&s}, value{query: `SELECT NULL`}))
+	assert.Error(t, db.Get(ctx, &column{&ts}, value{query: `SELECT ts FROM types WHERE id = 2`}))
+	assert.Error(t, db.Get(ctx, &column{&i, &u}, value{query: `SELECT 1`}))
+	assert.Error(t, db.Get(ctx, &column{i}, value{query: `SELECT 1`}))
+
+	// A value which can't be bound is a bad parameter
+	assert.ErrorIs(t, db.With("v", []string{"a"}).Exec(ctx, `SELECT @v`), sqlite.ErrBadParameter)
+	assert.ErrorIs(t, db.With("v", uint64(1<<63)).Exec(ctx, `SELECT @v`), sqlite.ErrBadParameter)
 }
 
 func testCRUD(t *testing.T, db sqlite.Conn) {
@@ -335,9 +507,9 @@ func testConcurrent(t *testing.T, db sqlite.Conn) {
 	assert.Equal(t, uint64(80), count(t, db))
 }
 
-func testReaders(t *testing.T, driver sqlite.Driver) {
+func testReaders(t *testing.T, fn OpenFunc) {
 	ctx := t.Context()
-	db := open(t, driver, "File")
+	db := open(t, fn, "File")
 
 	// A read, while a transaction writes, doesn't wait for it, and sees what
 	// was committed before it
@@ -361,7 +533,7 @@ func testReaders(t *testing.T, driver sqlite.Driver) {
 
 // open returns a database, in memory, or in a file, with the tables, and
 // the queries bound, which is closed when the test ends
-func open(t *testing.T, driver sqlite.Driver, kind string) sqlite.Conn {
+func open(t *testing.T, fn OpenFunc, kind string) sqlite.Conn {
 	t.Helper()
 	path := sqlite.Memory
 	if kind == "File" {
@@ -369,14 +541,35 @@ func open(t *testing.T, driver sqlite.Driver, kind string) sqlite.Conn {
 	}
 	q, err := sqlite.NewQueries(strings.NewReader(queries))
 	require.NoError(t, err)
-	db, err := sqlite.Open(t.Context(), path, driver, sqlite.WithBind("table", "users"))
+	db, err := fn(t.Context(), path, sqlite.WithBind("table", "users"))
 	require.NoError(t, err)
 	t.Cleanup(func() { assert.NoError(t, db.Close()) })
 	conn := db.WithQueries(q)
-	for _, key := range []string{"users.create", "posts.create"} {
+	for _, key := range []string{"users.create", "posts.create", "types.create"} {
 		require.NoError(t, conn.Exec(t.Context(), q.Query(key)))
 	}
 	return conn
+}
+
+// txConn returns a transaction's connection, which is rolled back when the
+// test ends
+func txConn(t *testing.T, db sqlite.Conn) sqlite.Conn {
+	t.Helper()
+	conn := make(chan sqlite.Conn)
+	end := make(chan struct{})
+	done := make(chan error)
+	go func() {
+		done <- db.Tx(context.Background(), func(tx sqlite.Conn) error {
+			conn <- tx
+			<-end
+			return errors.New("rolled back")
+		})
+	}()
+	t.Cleanup(func() {
+		close(end)
+		<-done
+	})
+	return <-conn
 }
 
 // count returns the number of users
@@ -452,3 +645,17 @@ type writeSelector struct{}
 func (writeSelector) Select(*sqlite.Bind, sqlite.Op) (string, error) {
 	return `INSERT INTO users (name) VALUES ('x') RETURNING id, name, email`, nil
 }
+
+// value is a query's one integer
+type value struct {
+	query string
+	value int64
+}
+
+func (v value) Select(*sqlite.Bind, sqlite.Op) (string, error) { return v.query, nil }
+func (v *value) Scan(row sqlite.Row) error                     { return row.Scan(&v.value) }
+
+// column scans a row into its values
+type column []any
+
+func (c *column) Scan(row sqlite.Row) error { return row.Scan((*c)...) }

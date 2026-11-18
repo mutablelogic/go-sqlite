@@ -199,18 +199,31 @@ func isBytes(t reflect.Type, kind reflect.Kind) bool {
 // both, or JSON into a json.Unmarshaler, and returns true, or false when it
 // doesn't unmarshal itself
 func unmarshal(v Value, typ Type, ptr any) (bool, error) {
-	text, isText := ptr.(encoding.TextUnmarshaler)
-	binary, isBinary := ptr.(encoding.BinaryUnmarshaler)
+	_, isText := ptr.(encoding.TextUnmarshaler)
+	_, isBinary := ptr.(encoding.BinaryUnmarshaler)
+	_, isJSON := ptr.(json.Unmarshaler)
+	if !isText && !isBinary && !isJSON {
+		return false, nil
+	}
+
+	// It's unmarshaled into a value of its type, which is empty, and then
+	// replaces it, so it's of the value alone, rather than merged into what
+	// it was, such as of a map
+	fresh := reflect.New(reflect.TypeOf(ptr).Elem())
+	var err error
 	switch {
 	case isText && (typ != Blob || !isBinary):
-		return true, text.UnmarshalText(v.Blob())
+		err = fresh.Interface().(encoding.TextUnmarshaler).UnmarshalText(v.Blob())
 	case isBinary:
-		return true, binary.UnmarshalBinary(v.Blob())
+		err = fresh.Interface().(encoding.BinaryUnmarshaler).UnmarshalBinary(v.Blob())
+	default:
+		err = fresh.Interface().(json.Unmarshaler).UnmarshalJSON(v.Blob())
 	}
-	if unmarshaler, ok := ptr.(json.Unmarshaler); ok {
-		return true, unmarshaler.UnmarshalJSON(v.Blob())
+	if err != nil {
+		return true, err
 	}
-	return false, nil
+	reflect.ValueOf(ptr).Elem().Set(fresh.Elem())
+	return true, nil
 }
 
 // scanJSON unmarshals the value, which is JSON text, into a slice, an array,

@@ -589,6 +589,29 @@ func testStatements(t *testing.T, db sqlite.Conn) {
 	})
 	assert.Equal(t, uint64(2), count(t, db))
 
+	// Or none, when they can't be released, such as of a deferred foreign
+	// key, and the connection is used again
+	require.NoError(t, db.Exec(ctx, `CREATE TABLE IF NOT EXISTS deferred (user INTEGER REFERENCES users (id) DEFERRABLE INITIALLY DEFERRED)`))
+	err = db.Exec(ctx, `INSERT INTO users (name) VALUES ('d'); INSERT INTO deferred (user) VALUES (999)`)
+	assert.ErrorIs(t, err, sqlite.ErrForeignKeyViolation)
+	assert.Equal(t, uint64(2), count(t, db))
+	require.NoError(t, db.Exec(ctx, `INSERT INTO users (name) VALUES ('d')`))
+	require.NoError(t, db.Exec(ctx, `DELETE FROM users WHERE name = 'd'`))
+	assert.Equal(t, uint64(2), count(t, db))
+
+	// A query which controls its own transaction isn't in a savepoint, and
+	// one which controls it after its first statement is a bad parameter, of
+	// which nothing is committed
+	require.NoError(t, db.Exec(ctx, `BEGIN; INSERT INTO users (name) VALUES ('x'); ROLLBACK`))
+	assert.Equal(t, uint64(2), count(t, db))
+	err = db.Exec(ctx, `INSERT INTO users (name) VALUES ('y'); COMMIT; INSERT INTO users (name) VALUES ('z')`)
+	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
+	assert.Equal(t, uint64(2), count(t, db))
+
+	// A statement with comments, or ;s, after it is one statement, which
+	// isn't in a savepoint, such as VACUUM, which can't be
+	require.NoError(t, db.Exec(ctx, "VACUUM; -- cleanup\n;; /* done */"))
+
 	// Within a transaction, the query's statements are rolled back, and the
 	// transaction goes on
 	require.NoError(t, db.Tx(ctx, func(conn sqlite.Conn) error {

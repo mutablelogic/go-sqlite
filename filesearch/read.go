@@ -54,8 +54,8 @@ const (
 // imported: its metadata, and then, when its hints are to, its content, as
 // Markdown, and its artwork, so a file which has neither isn't read twice.
 // A file which no handler reads has its content type, and its title, of its
-// name, and a handler's error is in its metadata, as metadata:note, so
-// neither is an error. Only a file which can't be opened, or a context
+// name, and a handler's errors, of either, are in its metadata, as
+// filesearch:error, so neither is an error. Only a file which can't be opened, or a context
 // which is done, is.
 func (m *Manager) readFile(ctx context.Context, path string) (*read, error) {
 	f, err := os.Open(path)
@@ -85,9 +85,7 @@ func (m *Manager) readFile(ctx context.Context, path string) (*read, error) {
 			addMeta(result.meta, key, entry)
 		}
 	}
-	if err != nil && !errors.Is(err, metadata.ErrNotImplemented) {
-		result.meta[errorKey] = err.Error()
-	}
+	result.addError(err)
 
 	// Its content, as Markdown, and its artwork, when it has them
 	var namespaces []string
@@ -103,7 +101,7 @@ func (m *Manager) readFile(ctx context.Context, path string) (*read, error) {
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}
-	_, entries, _ = metadata.Extract(ctx, f,
+	_, entries, err = metadata.Extract(ctx, f,
 		metadata.WithTracer(m.tracer),
 		metadata.WithContentType(contentType),
 		metadata.WithNamespace(namespaces...),
@@ -113,6 +111,7 @@ func (m *Manager) readFile(ctx context.Context, path string) (*read, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	result.addError(err)
 	var text strings.Builder
 	for _, entry := range entries {
 		switch {
@@ -124,6 +123,23 @@ func (m *Manager) readFile(ctx context.Context, path string) (*read, error) {
 	}
 	result.text = text.String()
 	return result, nil
+}
+
+// addError adds an error of go-metadata, of a handler, which isn't the
+// file's, to its metadata, as filesearch:error, which is a list, when there
+// are more than one. A file which no handler reads isn't an error.
+func (r *read) addError(err error) {
+	if err == nil || errors.Is(err, metadata.ErrNotImplemented) {
+		return
+	}
+	switch existing := r.meta[errorKey].(type) {
+	case nil:
+		r.meta[errorKey] = err.Error()
+	case string:
+		r.meta[errorKey] = []any{existing, err.Error()}
+	case []any:
+		r.meta[errorKey] = append(existing, err.Error())
+	}
 }
 
 // addMeta adds a value of metadata, of its key, which is a list of the

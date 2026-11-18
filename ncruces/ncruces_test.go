@@ -1,6 +1,7 @@
 package ncruces_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -46,4 +47,41 @@ func Test_WithInit(t *testing.T) {
 	failed := errors.New("failed")
 	_, err = ncruces.Open(ctx, sqlite.Memory, ncruces.WithInit(func(*sqlite3.Conn) error { return failed }))
 	assert.ErrorIs(t, err, failed)
+}
+
+// row is inserted, and ignored
+type row struct{ name string }
+
+func (r row) Insert(bind *sqlite.Bind) (string, error) {
+	bind.Set("name", r.name)
+	return `INSERT INTO t (name) VALUES (@name)`, nil
+}
+func (row) Update(*sqlite.Bind) error { return nil }
+
+func Benchmark_Insert(b *testing.B) {
+	ctx := b.Context()
+	db, err := ncruces.Open(ctx, b.TempDir()+"/test.db")
+	require.NoError(b, err)
+	b.Cleanup(func() { _ = db.Close() })
+	require.NoError(b, db.Exec(ctx, `CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT)`))
+
+	// 1000 rows, in a transaction, and in a bulk operation, which reuses its
+	// statement
+	for _, bench := range []struct {
+		name string
+		fn   func(context.Context, func(sqlite.Conn) error) error
+	}{{"Tx", db.Tx}, {"Bulk", db.Bulk}} {
+		b.Run(bench.name, func(b *testing.B) {
+			for b.Loop() {
+				require.NoError(b, bench.fn(ctx, func(conn sqlite.Conn) error {
+					for range 1000 {
+						if err := conn.Insert(ctx, nil, row{"name"}); err != nil {
+							return err
+						}
+					}
+					return nil
+				}))
+			}
+		})
+	}
 }

@@ -12,6 +12,8 @@ SQLite support for Go, of the same shape as [go-pg](https://github.com/mutablelo
 
 Documentation: <https://pkg.go.dev/github.com/mutablelogic/go-sqlite>
 
+For a working example, see [filesearch](filesearch): a command-line tool which indexes and searches files, with transactions, saved queries and full-text search.
+
 ## Motivation
 
 The package reduces the boilerplate of reading and writing Go types to SQLite. Its operations align with API calls: _POST_, _PUT_, _GET_, _DELETE_ and _PATCH_.

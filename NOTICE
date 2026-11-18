@@ -1,0 +1,68 @@
+go-sqlite
+Copyright (c) 2017-2026 The go-sqlite authors
+
+This product includes software developed at <https://github.com/mutablelogic/go-sqlite>
+
+--------------------------------------------------------------------------------
+
+This software includes SQLite (<https://sqlite.org/>), including its fts5,
+rtree and vec1 extensions, which is in the public domain:
+  <https://sqlite.org/copyright.html>
+
+--------------------------------------------------------------------------------
+
+This software includes ncruces/go-sqlite3
+(<https://github.com/ncruces/go-sqlite3>), which is licensed under the MIT
+License:
+
+  Copyright (c) 2023 Nuno Cruces
+
+--------------------------------------------------------------------------------
+
+This software includes ncruces/go-sqlite3-wasm
+(<https://github.com/ncruces/go-sqlite3-wasm>), SQLite and supporting
+libraries, translated to Go. The original authors of what's translated retain
+copyright, and its original licenses remain in effect. Everything else is
+licensed under the MIT No Attribution License (MIT-0):
+
+  Copyright (c) 2026 Nuno Cruces
+
+--------------------------------------------------------------------------------
+
+This software includes ncruces/julianday
+(<https://github.com/ncruces/julianday>), which is licensed under the MIT
+License:
+
+  Copyright (c) 2022 Nuno Cruces
+
+--------------------------------------------------------------------------------
+
+This software includes OpenTelemetry for Go
+(<https://github.com/open-telemetry/opentelemetry-go>), which is licensed
+under the Apache License 2.0:
+
+  Copyright The OpenTelemetry Authors
+
+--------------------------------------------------------------------------------
+
+This software includes go-server (<https://github.com/mutablelogic/go-server>),
+which is licensed under the Apache License 2.0.
+
+--------------------------------------------------------------------------------
+
+This software includes xxhash (<https://github.com/cespare/xxhash>), which is
+licensed under the MIT License:
+
+  Copyright (c) 2016 Caleb Spare
+
+--------------------------------------------------------------------------------
+
+This software includes golang.org/x/sys (<https://pkg.go.dev/golang.org/x/sys>),
+which is licensed under the BSD 3-Clause License:
+
+  Copyright 2009 The Go Authors.
+
+--------------------------------------------------------------------------------
+
+The full text of each license is in the source of each library, of the version
+which go.mod requires.

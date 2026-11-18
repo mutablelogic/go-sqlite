@@ -2,14 +2,19 @@ package filesearch_test
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
+	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"testing"
 
 	// Packages
+	metadata "github.com/mutablelogic/go-metadata"
 	types "github.com/mutablelogic/go-server/pkg/types"
 	schema "github.com/mutablelogic/go-sqlite/filesearch/schema"
 	test "github.com/mutablelogic/go-sqlite/filesearch/test"
@@ -107,5 +112,31 @@ func Test_ReadFileUnreadable(t *testing.T) {
 	assert.Equal(t, []string{"a.txt"}, objects(t, manager, volume.ID))
 	if assert.Len(t, errs, 1) {
 		assert.ErrorIs(t, errs[0], os.ErrPermission)
+	}
+}
+
+func Test_ReadFileErrors(t *testing.T) {
+	ctx := t.Context()
+	manager := test.New(t)
+	root := t.TempDir()
+
+	// A handler, of a type of file, which has content, as Markdown, and fails
+	// to read it, which is its error, of its metadata, and it's indexed
+	require.NoError(t, metadata.AddTextExtensionType(".fstest", "text/x-filesearch-test"))
+	metadata.AddHandler(regexp.MustCompile(`^text/x-filesearch-test$`), "filesearch-test", func(ctx context.Context, r io.Reader, opts *metadata.Opts) ([]metadata.Metadata, error) {
+		if opts.HasNamespace(metadata.MarkdownNamespace) {
+			return nil, errors.New("its markdown failed")
+		}
+		return metadata.HintMetadata(metadata.HintMarkdown), nil
+	}, metadata.MetadataNamespace, metadata.MarkdownNamespace)
+	write(t, root, map[string]string{"broken.fstest": "content"})
+	volume, err := manager.IndexVolume(ctx, schema.IndexVolumeRequest{Path: root}, func(p schema.Progress, err error) {
+		assert.NoError(t, err, "a handler's error isn't the run's")
+	})
+	require.NoError(t, err)
+	list, err := manager.ListObjects(ctx, schema.ObjectListRequest{Volumes: []int64{volume.ID}})
+	require.NoError(t, err)
+	if assert.Len(t, list.Body, 1) {
+		assert.Contains(t, list.Body[0].Meta["filesearch:error"], "its markdown failed")
 	}
 }

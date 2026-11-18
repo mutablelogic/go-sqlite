@@ -577,3 +577,28 @@ func Test_Implementation(t *testing.T) {
 ```
 
 It converts values with `values.Set` and `values.Scan`, by adapting where SQLite gives values, such as a row's columns, and takes them, such as a statement's arguments.
+
+## License & Distribution
+
+This software is licensed under the **Apache License 2.0**.
+
+> **go-sqlite**  
+> [https://github.com/mutablelogic/go-sqlite/](https://github.com/mutablelogic/go-sqlite/)  
+> Copyright (c) 2017-2026 The go-sqlite authors, All rights reserved.
+
+Under the Apache License 2.0, you are free to use, modify, and distribute this software for any purpose, including commercial applications. **Attribution requirement:** when redistributing this software or derivative works, in source or binary form, include the copyright notice above, and a copy of the [LICENSE](LICENSE) and [NOTICE](NOTICE) files. If you modify the code, you must state your changes. See the [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0) for complete terms.
+
+When distributing binaries which include this software, also comply with the licenses of the libraries which are compiled into them. Their copyright notices are in the [NOTICE](NOTICE) file.
+
+| Library | License |
+| --- | --- |
+| [SQLite](https://sqlite.org/copyright.html), including its fts5, rtree and vec1 extensions | Public domain |
+| [ncruces/go-sqlite3](https://github.com/ncruces/go-sqlite3) | MIT |
+| [ncruces/go-sqlite3-wasm](https://github.com/ncruces/go-sqlite3-wasm), SQLite translated to Go | MIT-0, with the original licenses of what's translated |
+| [ncruces/julianday](https://github.com/ncruces/julianday) | MIT |
+| [OpenTelemetry for Go](https://github.com/open-telemetry/opentelemetry-go) | Apache 2.0 |
+| [go-server](https://github.com/mutablelogic/go-server) | Apache 2.0 |
+| [xxhash](https://github.com/cespare/xxhash) | MIT |
+| [golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys) | BSD 3-clause |
+
+The [`test`](test) package, which is for tests, also uses [testify](https://github.com/stretchr/testify) (MIT), the OpenTelemetry SDK and [logr](https://github.com/go-logr/logr) (Apache 2.0), [google/uuid](https://github.com/google/uuid) (BSD 3-clause) and [yaml](https://github.com/yaml/go-yaml) (MIT and Apache 2.0).

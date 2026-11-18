@@ -215,8 +215,8 @@ func (m *Manager) walk(ctx context.Context, volume *schema.Volume, p *progress) 
 		}
 		rel := relPath(volume.Path, path)
 
-		// A file, or a folder, which can't be read, is an error, of its progress,
-		// unless it's the volume's
+		// A file, or a folder, which can't be read, is said, and isn't indexed,
+		// unless it's the volume's, which fails its run
 		if err != nil {
 			if path == volume.Path {
 				return err

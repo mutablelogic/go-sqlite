@@ -141,6 +141,8 @@ func Test_Objects(t *testing.T) {
 	var got schema.Object
 	require.NoError(t, db.Get(ctx, &got, schema.ObjectID(film.ID)))
 	assert.Equal(t, film, got)
+	require.NoError(t, db.Get(ctx, &got, schema.ObjectID(song.ID)))
+	assert.Empty(t, got.Meta, "not the metadata of the object read before it")
 	var artwork schema.Artwork
 	require.NoError(t, db.Get(ctx, &artwork, schema.ArtworkID(film.ID)))
 	assert.Equal(t, schema.Artwork{0xff, 0xd8}, artwork)
@@ -251,10 +253,16 @@ func Test_MarkAndSweep(t *testing.T) {
 	assert.ErrorIs(t, db.Update(ctx, &marked, schema.ObjectMark{Volume: other.ID, Path: "changed.txt", Size: 1, ModTime: modtime, Run: media.Run}, nil), sqlite.ErrNotFound, "of another volume")
 	require.NoError(t, db.Insert(ctx, &schema.Object{}, schema.ObjectMeta{Volume: media.ID, Path: "changed.txt", Size: 2, ModTime: modtime, Run: media.Run}))
 
-	// Once it's indexed, what it didn't see, of its volume, is swept, with its
-	// text, and not another volume's
-	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Finished: time.Now()}))
+	// While it's indexing, nothing is swept
 	var swept schema.ObjectList
+	assert.ErrorIs(t, db.Delete(ctx, &swept, schema.ObjectSweep{Volume: media.ID, Run: media.Run}), sqlite.ErrNotFound)
+
+	// Once it's indexed, what it didn't see, of its volume, is swept, with its
+	// text, and not another volume's, and not of a run which isn't its latest,
+	// or of another volume's run
+	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Finished: time.Now()}))
+	assert.ErrorIs(t, db.Delete(ctx, &swept, schema.ObjectSweep{Volume: media.ID, Run: media.Run + 1}), sqlite.ErrNotFound)
+	assert.ErrorIs(t, db.Delete(ctx, &swept, schema.ObjectSweep{Volume: other.ID, Run: media.Run}), sqlite.ErrNotFound)
 	require.NoError(t, db.Delete(ctx, &swept, schema.ObjectSweep{Volume: media.ID, Run: media.Run}))
 	assert.ElementsMatch(t, []string{"gone.txt", "sub/gone.txt"}, paths(swept))
 	var list schema.ObjectList

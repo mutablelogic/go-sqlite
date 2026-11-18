@@ -56,8 +56,12 @@ DELETE FROM object WHERE id = @id
 RETURNING id, volume, path, size, modtime, type, kind, title, meta, indexed, run;
 
 -- filesearch.object_sweep
--- The objects of a volume, which its run didn't see
-DELETE FROM object WHERE volume = @volume AND run < @run
+-- The objects of a volume, which its run didn't see, once its run indexed it,
+-- and only of its latest run, so a run which is indexing, or failed, or an
+-- older run, sweeps nothing
+DELETE FROM object
+WHERE volume = @volume AND run < @run
+AND EXISTS (SELECT 1 FROM volume WHERE id = @volume AND run = @run AND status = 'indexed')
 RETURNING id, volume, path, size, modtime, type, kind, title, meta, indexed, run;
 
 -- filesearch.object_list

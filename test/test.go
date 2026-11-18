@@ -675,6 +675,21 @@ func testBulk(t *testing.T, db sqlite.Conn) {
 	}))
 	assert.Equal(t, uint64(602), count(t, db))
 
+	// A reader which panics, within it, is recovered from, and its statement
+	// is reused, and outside it, the database is used again
+	panics := readerFunc(func(sqlite.Row) error { panic("scan") })
+	require.NoError(t, db.Bulk(ctx, func(conn sqlite.Conn) error {
+		for range 2 {
+			assert.Panics(t, func() { _ = conn.Get(ctx, panics, userSelector{ID: ids[0]}) })
+		}
+		var got user
+		require.NoError(t, conn.Get(ctx, &got, userSelector{ID: ids[0]}))
+		assert.Equal(t, "user0", got.Name)
+		return nil
+	}))
+	assert.Panics(t, func() { _ = db.Get(ctx, panics, userSelector{ID: ids[0]}) })
+	assert.Equal(t, uint64(602), count(t, db))
+
 	// A constraint error, of a reused statement, is returned, and it's
 	// reused again
 	email := "a@example.com"
@@ -913,3 +928,8 @@ type query struct {
 }
 
 func (q query) Select(*sqlite.Bind, sqlite.Op) (string, error) { return q.sql, nil }
+
+// readerFunc is a function which scans a row
+type readerFunc func(sqlite.Row) error
+
+func (fn readerFunc) Scan(row sqlite.Row) error { return fn(row) }

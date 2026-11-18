@@ -67,15 +67,7 @@ func executeRows(db *sqlite3.Conn, cache statements, query string, vars map[stri
 			}
 			query = tail
 		}
-		err := step(stmt, vars, args, reader, one, &scanned)
-		if cached {
-			// It's reset, so it doesn't read, or lock, until it's reused
-			_ = stmt.Reset()
-			err = errors.Join(err, stmt.ClearBindings())
-		} else {
-			_ = stmt.Close()
-		}
-		if err != nil {
+		if err := run(stmt, cached, vars, args, reader, one, &scanned); err != nil {
 			return err
 		}
 	}
@@ -83,6 +75,21 @@ func executeRows(db *sqlite3.Conn, cache statements, query string, vars map[stri
 		return sqlite.ErrNotFound
 	}
 	return nil
+}
+
+// run steps the statement, and then resets it, when it's cached, so it
+// doesn't read, or lock, until it's reused, or closes it, even when it
+// panics, such as when it's scanned
+func run(stmt *sqlite3.Stmt, cached bool, vars, args map[string]any, reader sqlite.Reader, one bool, scanned *bool) (err error) {
+	defer func() {
+		if cached {
+			_ = stmt.Reset()
+			err = errors.Join(err, stmt.ClearBindings())
+		} else {
+			_ = stmt.Close()
+		}
+	}()
+	return step(stmt, vars, args, reader, one, scanned)
 }
 
 // step binds the statement's arguments, and scans its rows into the reader

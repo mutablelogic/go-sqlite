@@ -6,7 +6,7 @@ require (
 	github.com/mutablelogic/go-client v1.4.13
 	github.com/mutablelogic/go-metadata v1.1.4
 	github.com/mutablelogic/go-server v1.8.18
-	github.com/mutablelogic/go-sqlite v1.1.0
+	github.com/mutablelogic/go-sqlite v1.1.3
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/sdk v1.47.0

@@ -107,6 +107,7 @@ func Test_Set(t *testing.T) {
 		{&str, values.Text, "a"},
 		{[]byte{1}, values.Blob, []byte{1}},
 		{when, values.Text, "2026-11-18T12:30:00.000000123Z"},
+		{time.Time{}, values.Null, nil},
 		{valuer{value: int64(3)}, values.Integer, int64(3)},
 		{sql.NullString{}, values.Null, nil},
 
@@ -183,6 +184,7 @@ func Test_Scan(t *testing.T) {
 		{blob([]byte{1}), &bs, []byte{1}},
 		{null(), &bs, []byte(nil)},
 		{text("2026-11-18 12:30:00"), &ts, time.Date(2026, 11, 18, 12, 30, 0, 0, time.UTC)},
+		{null(), &ts, time.Time{}},
 		{float(2.5), &a, 2.5},
 		{null(), &a, nil},
 		{text("x"), &ns, sql.NullString{String: "x", Valid: true}},
@@ -215,7 +217,6 @@ func Test_Scan(t *testing.T) {
 		{blob([]byte{1}), &f64},
 		{blob([]byte{1}), &b},
 		{null(), &s},
-		{null(), &ts},
 		{text("x"), &ts},
 		{blob([]byte{1}), &ts},
 		{integer(1), s},

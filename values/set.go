@@ -16,7 +16,8 @@ import (
 // Set sets a Go value where SQLite takes it, the first of these which it is:
 //   - nil, or a nil pointer, is NULL
 //   - a driver.Valuer is its value, such as a uuid.UUID's text
-//   - a time.Time is text, of RFC 3339, with nanoseconds
+//   - a time.Time is text, of RFC 3339, with nanoseconds, or NULL when it's
+//     zero
 //   - a time.Duration is an integer, of nanoseconds
 //   - a []byte is a blob
 //   - an encoding.TextMarshaler is its text, such as a netip.Addr's, or the
@@ -49,6 +50,9 @@ func Set(s Setter, value any) error {
 		}
 		return Set(s, value)
 	case time.Time:
+		if v.IsZero() {
+			return s.SetNull()
+		}
 		return s.SetText(v.Format(time.RFC3339Nano))
 	case time.Duration:
 		return s.SetInt64(int64(v))

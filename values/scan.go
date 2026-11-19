@@ -28,7 +28,8 @@ var (
 //   - a sql.Scanner, such as a uuid.UUID, scans Any of the value
 //   - an any is Any of the value
 //   - a pointer is nil when it's NULL, or else points to the value
-//   - NULL is nil, for a slice or a map, and otherwise an error
+//   - NULL is nil, for a slice or a map, the zero time, for a time.Time,
+//     and otherwise an error
 //   - a time.Time, as Time reads it, or a time.Duration, as Duration does
 //   - an array of bytes of a blob's length, such as the standard library's
 //     uuid.UUID, of the blob, unless it's an encoding.BinaryUnmarshaler
@@ -82,7 +83,7 @@ func set(v Value, dest reflect.Value) error {
 		dest.Set(ptr)
 		return nil
 	case typ == Null:
-		if dest.Kind() == reflect.Slice || dest.Kind() == reflect.Map {
+		if dest.Kind() == reflect.Slice || dest.Kind() == reflect.Map || dest.Type() == timeType {
 			dest.SetZero()
 			return nil
 		}

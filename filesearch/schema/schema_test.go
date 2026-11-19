@@ -289,7 +289,7 @@ func Test_Objects(t *testing.T) {
 	for _, path := range []string{"", ".", "/media/a", "../a", "a/../../b"} {
 		assert.ErrorIs(t, db.Insert(ctx, &got, schema.ObjectMeta{Volume: media.ID, Path: path}), sqlite.ErrBadParameter, path)
 	}
-	assert.ErrorIs(t, db.Insert(ctx, &got, schema.ObjectMeta{Volume: 999, Path: "a"}), sqlite.ErrForeignKeyViolation)
+	assert.ErrorIs(t, db.Insert(ctx, &got, schema.ObjectMeta{Volume: 999, Path: "a", ModTime: modtime}), sqlite.ErrForeignKeyViolation)
 	assert.ErrorIs(t, db.Insert(ctx, &got, schema.ObjectMeta{Volume: media.ID, Path: "a", Size: -1}), sqlite.ErrBadParameter)
 }
 
@@ -399,7 +399,7 @@ func Test_MigrateVersion1(t *testing.T) {
 	assert.Equal(t, uint64(1), volumes.Count)
 	assert.Empty(t, volumes.Body[0].Reader, "which is added, as NULL")
 	var object schema.Object
-	require.NoError(t, conn.Insert(ctx, &object, schema.ObjectMeta{Volume: 1, Path: "Spain/a.txt", Size: 1, Run: 1}))
+	require.NoError(t, conn.Insert(ctx, &object, schema.ObjectMeta{Volume: 1, Path: "Spain/a.txt", Size: 1, ModTime: time.Now(), Run: 1}))
 	require.NoError(t, conn.List(ctx, &list, &schema.ObjectListRequest{Cutoff: types.Ptr(0.0), Query: types.Ptr("spain")}))
 	assert.Equal(t, uint64(1), list.Count)
 }

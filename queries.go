@@ -23,26 +23,29 @@ type Queries struct {
 // GLOBALS
 
 var (
-	// A key is identifiers separated by dots, where an identifier is letters,
-	// digits and underscores, which doesn't start with a digit, so a comment
-	// which ends in a word and a period, such as "-- form.", isn't a key
-	reQuerySeparator = regexp.MustCompile(`^--\s*([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*$`)
+	// A key is two or more identifiers separated by dots, where an
+	// identifier is letters, digits and underscores, which doesn't start
+	// with a digit, so a comment of one word, such as "-- change", or which
+	// ends in a word and a period, such as "-- form.", isn't a key
+	reQuerySeparator = regexp.MustCompile(`^--\s*([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+)\s*$`)
 )
 
 ////////////////////////////////////////////////////////////////////////////////
 // LIFECYCLE
 
 // NewQueries parses SQL statements from a reader and returns a Queries collection.
-// SQL statements must be separated by comment lines with a key: -- <identifier>
-// or -- <identifier>.<identifier>, with any number of dots, where an identifier
-// consists of letters, digits and underscores, and doesn't start with a digit.
+// SQL statements must be separated by comment lines with a key:
+// -- <identifier>.<identifier>, with one or more dots, where an identifier
+// consists of letters, digits and underscores, and doesn't start with a digit,
+// so a comment line of one word, such as "-- change", isn't a key.
 // A key is only a key outside of a string, a quoted identifier, or a block
 // comment, so a line of a string which looks like one, such as "-- note",
 // is part of its string. Other comment lines, such as those which describe a
 // statement, or one which ends a sentence with a period, such as "-- form.",
 // and comments at the end of a line, are removed from the statement, except
 // within strings, quoted identifiers and block comments.
-// Returns an error if duplicate keys are found or if reading fails.
+// Returns an error if duplicate keys are found, a key has no statement, or
+// reading fails.
 //
 // Example input format:
 //
@@ -60,13 +63,20 @@ func NewQueries(r io.Reader) (*Queries, error) {
 		queries: make(map[string]string),
 	}
 
-	// save keeps the statement of the key, without any ; at its end
-	save := func() {
-		if key != "" {
-			self.queries[key] = strings.TrimSuffix(strings.TrimSpace(sql.String()), ";")
-			self.keys = append(self.keys, key)
+	// save keeps the statement of the key, without any ; at its end, which
+	// can't be empty
+	save := func() error {
+		defer func() { sql = lexer{} }()
+		if key == "" {
+			return nil
 		}
-		sql = lexer{}
+		statement := strings.TrimSuffix(strings.TrimSpace(sql.String()), ";")
+		if strings.TrimSpace(statement) == "" {
+			return ErrBadParameter.Withf("SQL statement key %q has no statement", key)
+		}
+		self.queries[key] = statement
+		self.keys = append(self.keys, key)
+		return nil
 	}
 
 	for scanner.Scan() {
@@ -75,7 +85,9 @@ func NewQueries(r io.Reader) (*Queries, error) {
 		// A line which is a key, outside of a string, a quoted identifier or
 		// a block comment, starts a statement
 		if matches := reQuerySeparator.FindStringSubmatch(line); matches != nil && !sql.open() {
-			save()
+			if err := save(); err != nil {
+				return nil, err
+			}
 
 			// Get new key, which can't be a duplicate
 			key = matches[1]
@@ -95,7 +107,9 @@ func NewQueries(r io.Reader) (*Queries, error) {
 	}
 
 	// Save the last statement, and return success
-	save()
+	if err := save(); err != nil {
+		return nil, err
+	}
 	return self, nil
 }
 

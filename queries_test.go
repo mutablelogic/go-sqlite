@@ -12,7 +12,6 @@ import (
 func Test_reQuerySeparator(t *testing.T) {
 	for line, key := range map[string]string{
 		// Keys
-		"-- select":                 "select",
 		"-- user.select":            "user.select",
 		"-- feed.table.url":         "feed.table.url",
 		"-- pgqueue.ticker_next":    "pgqueue.ticker_next",
@@ -20,7 +19,9 @@ func Test_reQuerySeparator(t *testing.T) {
 		"--heartbeat.list_for_user": "heartbeat.list_for_user",
 		"--   spaced.key   ":        "spaced.key",
 
-		// Not keys
+		// Not keys, such as a comment of one word
+		"-- select":               "",
+		"-- change":               "",
 		"-- form.":                "",
 		"-- creates.":             "",
 		"-- user.":                "",
@@ -59,11 +60,25 @@ WHERE id = @id; -- by their identifier
 	assert.Equal(t, "SELECT * FROM users\nWHERE id = @id", queries.Query("user.select"))
 
 	// A line which looks like a key, in a string, or a block comment, isn't
-	queries, err = NewQueries(strings.NewReader("-- sample\nSELECT 'first\n-- embedded\nlast';\n-- other\nSELECT /*\n-- inside\n*/ 2;\n"))
+	queries, err = NewQueries(strings.NewReader("-- query.sample\nSELECT 'first\n-- embedded.key\nlast';\n-- query.other\nSELECT /*\n-- inside.key\n*/ 2;\n"))
 	require.NoError(t, err)
-	assert.Equal(t, []string{"sample", "other"}, queries.Keys())
-	assert.Equal(t, "SELECT 'first\n-- embedded\nlast'", queries.Query("sample"))
-	assert.Equal(t, "SELECT /*\n-- inside\n*/ 2", queries.Query("other"))
+	assert.Equal(t, []string{"query.sample", "query.other"}, queries.Keys())
+	assert.Equal(t, "SELECT 'first\n-- embedded.key\nlast'", queries.Query("query.sample"))
+	assert.Equal(t, "SELECT /*\n-- inside.key\n*/ 2", queries.Query("query.other"))
+
+	// A comment line of one word isn't a key, so it's removed from the
+	// statement, which isn't empty
+	queries, err = NewQueries(strings.NewReader("-- volume.put\n-- which are modified when they\n-- change\nINSERT INTO volume VALUES (1);\n"))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"volume.put"}, queries.Keys())
+	assert.Equal(t, "INSERT INTO volume VALUES (1)", queries.Query("volume.put"))
+
+	// A key without a statement, such as before another key, or at the end,
+	// is an error
+	_, err = NewQueries(strings.NewReader("-- user.select\n-- a comment\n-- user.insert\nINSERT INTO users VALUES (1);\n"))
+	assert.ErrorIs(t, err, ErrBadParameter)
+	_, err = NewQueries(strings.NewReader("-- user.select\nSELECT 1;\n-- user.insert\n;\n"))
+	assert.ErrorIs(t, err, ErrBadParameter)
 
 	// Keys can't be duplicated
 	_, err = NewQueries(strings.NewReader("-- user.select\nSELECT 1;\n-- user.select\nSELECT 2;\n"))

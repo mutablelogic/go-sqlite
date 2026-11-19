@@ -401,7 +401,8 @@ SELECT id, name FROM ${"table"} WHERE id = @id;
 INSERT INTO ${"table"} (name) VALUES (@name) RETURNING id, name;
 ```
 
-* **Keys** are names, separated by dots, such as `mytable.get`, on a line of their own, after `--`.
+* **Keys** are two or more names, separated by dots, such as `mytable.get`, on a line of their own, after `--`. A comment line of one word, such as `-- change`, isn't a key.
+* **Each key has a statement.** A key without one is an error.
 * **Comments** are removed: lines which are only a comment, such as a description, and comments at the end of lines. `--` within strings, quoted identifiers and block comments is kept.
 * **The `;`** which ends each statement is removed, so it can be within another, such as `List`'s count.
 * **Keys are unique** in a file. A duplicate is an error.

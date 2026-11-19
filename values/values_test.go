@@ -165,6 +165,7 @@ func Test_Scan(t *testing.T) {
 		a   any
 		ns  sql.NullString
 		ps  *string
+		pt  *time.Time
 	)
 	for _, test := range []struct {
 		value values.Value
@@ -190,6 +191,7 @@ func Test_Scan(t *testing.T) {
 		{text("x"), &ns, sql.NullString{String: "x", Valid: true}},
 		{null(), &ns, sql.NullString{}},
 		{null(), &ps, (*string)(nil)},
+		{null(), &pt, (*time.Time)(nil)},
 	} {
 		require.NoError(t, values.Scan(test.value, test.dest), "%#v into %T", test.value, test.dest)
 		got := fmt.Sprintf("%#v", deref(test.dest))
@@ -292,6 +294,8 @@ func deref(dest any) any {
 	case *sql.NullString:
 		return *d
 	case **string:
+		return *d
+	case **time.Time:
 		return *d
 	}
 	return strconv.Quote(fmt.Sprint(dest))

@@ -293,6 +293,23 @@ func Test_Objects(t *testing.T) {
 	assert.ErrorIs(t, db.Insert(ctx, &got, schema.ObjectMeta{Volume: media.ID, Path: "a", Size: -1}), sqlite.ErrBadParameter)
 }
 
+func Test_ZeroModTime(t *testing.T) {
+	ctx := t.Context()
+	db := open(t)
+
+	// An object without a modification time, such as of an fs.FS which
+	// hasn't them, is stored, and marked by the next run, as it was, so it
+	// isn't swept
+	media := volume(t, db, "/media")
+	require.NoError(t, db.Insert(ctx, &schema.Object{}, schema.ObjectMeta{Volume: media.ID, Path: "zero.txt", Size: 1, Title: "zero", Run: media.Run}))
+	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeFinish{Run: media.Run, Finished: time.Now()}))
+	require.NoError(t, db.Update(ctx, &media, schema.VolumeID(media.ID), schema.VolumeStart{Started: time.Now()}))
+	var marked schema.Object
+	require.NoError(t, db.Update(ctx, &marked, schema.ObjectMark{Volume: media.ID, Path: "zero.txt", Size: 1, Run: media.Run}, nil))
+	assert.Equal(t, media.Run, marked.Run)
+	assert.True(t, marked.ModTime.IsZero())
+}
+
 func Test_MarkAndSweep(t *testing.T) {
 	ctx := t.Context()
 	db := open(t)

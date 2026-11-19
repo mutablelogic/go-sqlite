@@ -401,7 +401,8 @@ SELECT id, name FROM ${"table"} WHERE id = @id;
 INSERT INTO ${"table"} (name) VALUES (@name) RETURNING id, name;
 ```
 
-* **Keys** are names, separated by dots, such as `mytable.get`, on a line of their own, after `--`.
+* **Keys** are two or more names, separated by dots, such as `mytable.get`, on a line of their own, after `--`. A comment line of one word, such as `-- change`, isn't a key.
+* **Each key has a statement.** A key without one is an error.
 * **Comments** are removed: lines which are only a comment, such as a description, and comments at the end of lines. `--` within strings, quoted identifiers and block comments is kept.
 * **The `;`** which ends each statement is removed, so it can be within another, such as `List`'s count.
 * **Keys are unique** in a file. A duplicate is an error.
@@ -483,7 +484,7 @@ The [`values`](values) package converts Go values to SQLite's, and back:
 | integers, and floats | `INTEGER` and `REAL` |
 | `string` | `TEXT` |
 | `[]byte`, and arrays of bytes | `BLOB` |
-| `time.Time` | `TEXT`, of RFC 3339 |
+| `time.Time` | `TEXT`, of RFC 3339, or `NULL` when it's zero |
 | `time.Duration` | `INTEGER`, of nanoseconds |
 | `driver.Valuer` | its value |
 | `encoding.TextMarshaler`, such as `uuid.UUID` and `netip.Addr` | `TEXT` |
@@ -491,8 +492,8 @@ The [`values`](values) package converts Go values to SQLite's, and back:
 | `json.Marshaler`, slices, maps and structs | `TEXT`, of JSON |
 
 * **Named types**, such as `type Status string`, are of their kind, and pointers are of their values.
-* **Scanning** reverses it, into those types, and `sql.Scanner` and `any`. A value which doesn't fit, `NULL` into a value which isn't a pointer, slice or map, and text which isn't a number or time, are errors.
-* **Times** are read as SQLite's date and time functions read them: RFC 3339 or `YYYY-MM-DD HH:MM:SS` text, Unix seconds, or Julian days.
+* **Scanning** reverses it, into those types, and `sql.Scanner` and `any`. A value which doesn't fit, `NULL` into a value which isn't a pointer, slice, map or time, and text which isn't a number or time, are errors.
+* **Times** are read as SQLite's date and time functions read them: RFC 3339 or `YYYY-MM-DD HH:MM:SS` text, Unix seconds, or Julian days. A zero time is `NULL`, and `NULL` is a zero time, so a nullable column round-trips a `time.Time` without a pointer.
 * **JSON** is text, so SQLite's json functions read it, such as `json_each`.
 
 ## Extensions

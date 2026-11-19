@@ -2,6 +2,7 @@ package ncruces_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	// Packages
@@ -68,4 +69,23 @@ func Benchmark_Insert(b *testing.B) {
 			}
 		})
 	}
+}
+
+func Test_PoolConnWith(t *testing.T) {
+	ctx := t.Context()
+	db, err := ncruces.Open(ctx, sqlite.Memory)
+	require.NoError(t, err)
+
+	// The pool's connection, with parameters, or queries, is a pool's
+	// connection, which has them, and which pings, and closes, the pool
+	queries, err := sqlite.NewQueries(strings.NewReader("-- value.answer\nSELECT @answer;\n"))
+	require.NoError(t, err)
+	pool, ok := db.With("answer", int64(42)).WithQueries(queries).(sqlite.PoolConn)
+	require.True(t, ok, "a pool's connection, with parameters and queries, is a sqlite.PoolConn")
+	v := &value{query: queries.Query("value.answer")}
+	require.NoError(t, pool.Get(ctx, v, v))
+	assert.Equal(t, int64(42), v.value)
+	assert.NoError(t, pool.Ping(ctx))
+	require.NoError(t, pool.Close())
+	assert.ErrorIs(t, db.Ping(ctx), sqlite.ErrNotAvailable, "closing it closes the pool")
 }

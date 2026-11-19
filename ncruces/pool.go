@@ -107,6 +107,18 @@ func Open(ctx context.Context, path string, opts ...sqlite.Opt) (_ sqlite.PoolCo
 ////////////////////////////////////////////////////////////////////////////////
 // PUBLIC METHODS
 
+// With returns the pool's connection with bound parameters, which is a
+// sqlite.PoolConn, so it can be pinged and closed, as the pool is
+func (p *poolconn) With(params ...any) sqlite.Conn {
+	return &poolconn{conn: *p.conn.With(params...).(*conn)}
+}
+
+// WithQueries returns the pool's connection with bound queries, which is a
+// sqlite.PoolConn, so it can be pinged and closed, as the pool is
+func (p *poolconn) WithQueries(queries ...*sqlite.Queries) sqlite.Conn {
+	return &poolconn{conn: *p.conn.WithQueries(queries...).(*conn)}
+}
+
 // Ping the writer, and a reader
 func (p *poolconn) Ping(ctx context.Context) error {
 	if err := p.do(ctx, true, ping); err != nil {

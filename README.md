@@ -425,6 +425,8 @@ if err := conn.Exec(ctx, queries.Query("mytable.create")); err != nil {
 }
 ```
 
+The pool's `With` and `WithQueries` return a `sqlite.PoolConn`, so a type which keeps only the connection with its queries can still ping and close the pool: `db.WithQueries(queries).(sqlite.PoolConn)`.
+
 A `Selector` or `Writer` returns a query by its key, with `bind.Query`, which also names its span, when it's [traced](#tracing):
 
 ```go

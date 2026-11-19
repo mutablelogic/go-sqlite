@@ -151,7 +151,7 @@ func (o ObjectMeta) Insert(bind *sqlite.Bind) (string, error) {
 	bind.Set("volume", o.Volume)
 	bind.Set("path", path)
 	bind.Set("size", o.Size)
-	bind.Set("modtime", o.ModTime.UTC())
+	bind.Set("modtime", modtime(o.ModTime))
 	bind.Set("type", nullString(o.Type))
 	bind.Set("kind", nullString(o.Kind))
 	bind.Set("title", nullString(o.Title))
@@ -235,7 +235,7 @@ func (m ObjectMark) Select(bind *sqlite.Bind, op sqlite.Op) (string, error) {
 	bind.Set("volume", m.Volume)
 	bind.Set("path", path)
 	bind.Set("size", m.Size)
-	bind.Set("modtime", m.ModTime.UTC())
+	bind.Set("modtime", modtime(m.ModTime))
 	bind.Set("run", m.Run)
 	return bind.Query("filesearch.object_mark"), nil
 }
@@ -462,4 +462,11 @@ func value(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+// modtime returns the text of when an object was modified, which isn't
+// NULL when it's zero, such as of an fs.FS which hasn't modification times,
+// so it's stored, and an object is marked as it was, of it
+func modtime(t time.Time) string {
+	return t.UTC().Format(time.RFC3339Nano)
 }

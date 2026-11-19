@@ -108,6 +108,8 @@ func Test_Set(t *testing.T) {
 		{[]byte{1}, values.Blob, []byte{1}},
 		{when, values.Text, "2026-11-18T12:30:00.000000123Z"},
 		{time.Time{}, values.Null, nil},
+		{&when, values.Text, "2026-11-18T12:30:00.000000123Z"},
+		{&time.Time{}, values.Null, nil},
 		{valuer{value: int64(3)}, values.Integer, int64(3)},
 		{sql.NullString{}, values.Null, nil},
 

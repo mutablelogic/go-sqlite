@@ -49,6 +49,9 @@ func Set(s Setter, value any) error {
 			return fmt.Errorf("%T: a value which is a driver.Valuer", v)
 		}
 		return Set(s, value)
+	case *time.Time:
+		// Not its text, as a text marshaler, so a zero time is NULL
+		return Set(s, *v)
 	case time.Time:
 		if v.IsZero() {
 			return s.SetNull()

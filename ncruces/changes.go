@@ -26,6 +26,7 @@ type changes struct {
 	sync.Mutex
 	publisher sqlite.Publisher
 	tables    map[string]bool // The tables which are published, or all of them
+	schema    string          // The schema of the main database's changes, or main
 
 	pending    []written       // Written, in the transaction
 	committing []written       // Committed, unless the commit is rolled back
@@ -49,7 +50,7 @@ func newChanges(o *sqlite.Options) *changes {
 	if o.Broadcaster == nil {
 		return nil
 	}
-	c := &changes{publisher: o.Broadcaster}
+	c := &changes{publisher: o.Broadcaster, schema: o.Schema}
 	if len(o.Tables) > 0 {
 		c.tables = make(map[string]bool, len(o.Tables))
 		for _, table := range o.Tables {
@@ -280,7 +281,7 @@ func isPublished(db *sqlite3.Conn, name, table string) bool {
 
 // promote moves the rows which are committing to those which are committed
 func (c *changes) promote() {
-	for _, change := range collapse(c.committing) {
+	for _, change := range collapse(c.committing, c.schema) {
 		c.committed = append(c.committed, change)
 	}
 	c.committing = nil
@@ -328,8 +329,15 @@ func merge(rows []written) []written {
 
 // collapse returns the changes of the rows, or, of a table of more than
 // MaxChanges rows, one change of the table, without a row, whose action is
-// theirs, when they're all the same, or else update
-func collapse(rows []written) []schema.Change {
+// theirs, when they're all the same, or else update. The changes of the
+// main database are of the schema, when it's set.
+func collapse(rows []written, mainSchema string) []schema.Change {
+	schemaOf := func(db string) string {
+		if db == "main" && mainSchema != "" {
+			return mainSchema
+		}
+		return db
+	}
 	type key struct{ db, table string }
 	counts := make(map[key]int)
 	actions := make(map[key]schema.ChangeAction)
@@ -347,10 +355,10 @@ func collapse(rows []written) []schema.Change {
 	for _, r := range rows {
 		k := key{r.db, r.table}
 		if counts[k] <= sqlite.MaxChanges {
-			result = append(result, schema.Change{Action: r.action, Schema: r.db, Table: r.table, Row: strconv.FormatInt(r.rowid, 10)})
+			result = append(result, schema.Change{Action: r.action, Schema: schemaOf(r.db), Table: r.table, Row: strconv.FormatInt(r.rowid, 10)})
 		} else if !tables[k] {
 			tables[k] = true
-			result = append(result, schema.Change{Action: actions[k], Schema: r.db, Table: r.table})
+			result = append(result, schema.Change{Action: actions[k], Schema: schemaOf(r.db), Table: r.table})
 		}
 	}
 	return result

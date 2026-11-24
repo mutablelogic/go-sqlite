@@ -269,3 +269,39 @@ func Test_ChangesWithoutRowid(t *testing.T) {
 	require.NoError(t, db.Exec(ctx, "INSERT INTO w (k) VALUES ('one'), ('two'); INSERT INTO a (id, name) VALUES (1, 'one')"))
 	assert.Equal(t, []string{"create main.a 1"}, p.take())
 }
+
+func Test_ChangesSchema(t *testing.T) {
+	ctx := t.Context()
+	p := &publisher{}
+	db, err := ncruces.Open(ctx, filepath.Join(t.TempDir(), "changes.db"), sqlite.WithBroadcaster(p), sqlite.WithSchemaName("webhook"))
+	require.NoError(t, err)
+	defer db.Close()
+	require.NoError(t, db.Exec(ctx, "CREATE TABLE a (id INTEGER PRIMARY KEY, name TEXT UNIQUE)"))
+
+	// The main database's changes are of the schema
+	require.NoError(t, db.Exec(ctx, "INSERT INTO a (id, name) VALUES (1, 'one')"))
+	assert.Equal(t, []string{"create webhook.a 1"}, p.take())
+	require.NoError(t, db.Exec(ctx, "DELETE FROM a WHERE id = 1"))
+	assert.Equal(t, []string{"delete webhook.a 1"}, p.take())
+
+	// Of a statement which fails, in a transaction, whose rows are checked,
+	// in the main database, as they're of its name
+	require.NoError(t, db.Tx(ctx, func(conn sqlite.Conn) error {
+		require.NoError(t, conn.Exec(ctx, "INSERT INTO a (id, name) VALUES (2, 'two')"))
+		assert.Error(t, conn.Exec(ctx, "INSERT INTO a (id, name) VALUES (3, 'three'), (4, 'two')"))
+		return nil
+	}))
+	assert.Equal(t, []string{"create webhook.a 2"}, p.take())
+
+	// And of a table, of more than MaxChanges rows
+	require.NoError(t, db.Exec(ctx, fmt.Sprintf(`
+		WITH RECURSIVE n(i) AS (SELECT 10 UNION ALL SELECT i + 1 FROM n WHERE i < %d)
+		INSERT INTO a (id, name) SELECT i, 'n' || i FROM n`, 10+sqlite.MaxChanges)))
+	assert.Equal(t, []string{"create webhook.a"}, p.take())
+
+	// Which is an identifier
+	_, err = ncruces.Open(ctx, sqlite.Memory, sqlite.WithSchemaName("not a schema"))
+	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
+	_, err = ncruces.Open(ctx, sqlite.Memory, sqlite.WithSchemaName(""))
+	assert.ErrorIs(t, err, sqlite.ErrBadParameter)
+}

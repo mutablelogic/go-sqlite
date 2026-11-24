@@ -249,6 +249,11 @@ func (c *changes) flush(db *sqlite3.Conn) {
 			kinds[key] = published
 		}
 		if published {
+			// The main database's changes are of the schema's name, when
+			// it's set, once its tables are checked, by their database
+			if change.Schema == "main" && c.schema != "" {
+				change.Schema = c.schema
+			}
 			c.publisher.Publish(change)
 		}
 	}
@@ -281,7 +286,7 @@ func isPublished(db *sqlite3.Conn, name, table string) bool {
 
 // promote moves the rows which are committing to those which are committed
 func (c *changes) promote() {
-	for _, change := range collapse(c.committing, c.schema) {
+	for _, change := range collapse(c.committing) {
 		c.committed = append(c.committed, change)
 	}
 	c.committing = nil
@@ -329,15 +334,8 @@ func merge(rows []written) []written {
 
 // collapse returns the changes of the rows, or, of a table of more than
 // MaxChanges rows, one change of the table, without a row, whose action is
-// theirs, when they're all the same, or else update. The changes of the
-// main database are of the schema, when it's set.
-func collapse(rows []written, mainSchema string) []schema.Change {
-	schemaOf := func(db string) string {
-		if db == "main" && mainSchema != "" {
-			return mainSchema
-		}
-		return db
-	}
+// theirs, when they're all the same, or else update
+func collapse(rows []written) []schema.Change {
 	type key struct{ db, table string }
 	counts := make(map[key]int)
 	actions := make(map[key]schema.ChangeAction)
@@ -355,10 +353,10 @@ func collapse(rows []written, mainSchema string) []schema.Change {
 	for _, r := range rows {
 		k := key{r.db, r.table}
 		if counts[k] <= sqlite.MaxChanges {
-			result = append(result, schema.Change{Action: r.action, Schema: schemaOf(r.db), Table: r.table, Row: strconv.FormatInt(r.rowid, 10)})
+			result = append(result, schema.Change{Action: r.action, Schema: r.db, Table: r.table, Row: strconv.FormatInt(r.rowid, 10)})
 		} else if !tables[k] {
 			tables[k] = true
-			result = append(result, schema.Change{Action: actions[k], Schema: schemaOf(r.db), Table: r.table})
+			result = append(result, schema.Change{Action: actions[k], Schema: r.db, Table: r.table})
 		}
 	}
 	return result

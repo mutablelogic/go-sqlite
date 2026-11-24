@@ -654,7 +654,8 @@ db, err := ncruces.Open(ctx, path,
 )
 ```
 
-* **A change** is its action (`create`, `update` or `delete`), its database (`main`), its table, and its rowid as `Row`.
+* **A change** is its action (`create`, `update` or `delete`), its database (`main`) as `Schema`, its table, and its rowid as `Row`.
+* **Schema name:** `sqlite.WithSchemaName("webhook")` publishes the main database's changes as `webhook`, not `main`. Then two databases with tables of the same names can share one broadcaster.
 * **Tables:** the tables named, or all of them. The shadow tables of virtual tables, such as fts5's, are left out.
 * **Committed:** changes are published after the transaction commits, so a watcher reads what changed. Rolled-back transactions and savepoints publish nothing.
 * **Once per row:** a row written several times in a transaction is one change. Created then deleted is none.

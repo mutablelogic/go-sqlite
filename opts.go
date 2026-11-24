@@ -35,6 +35,10 @@ type Options struct {
 	// once they're committed, and the tables which are, or all of them
 	Broadcaster Publisher
 	Tables      []string
+
+	// The schema of the changes of the main database, which are published,
+	// rather than main
+	Schema string
 }
 
 // Publisher is what changes are published to, such as go-server's
@@ -213,6 +217,21 @@ func WithBind(k string, v any) Opt {
 
 ////////////////////////////////////////////////////////////////////////////////
 // PRIVATE METHODS
+
+// WithSchemaName sets the schema of the changes of the main database,
+// which are published to the broadcaster, with WithBroadcaster, rather than
+// main, such as webhook, so the changes of databases whose tables have the
+// same names, which are published to one broadcaster, are told apart. The
+// changes of attached databases are of their names.
+func WithSchemaName(name string) Opt {
+	return func(o *Options) error {
+		if !isIdentifier(name) {
+			return ErrBadParameter.Withf("schema name: %q", name)
+		}
+		o.Schema = name
+		return nil
+	}
+}
 
 // isIdentifier returns true when the name is letters, digits and
 // underscores, which doesn't start with a digit

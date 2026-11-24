@@ -26,6 +26,7 @@ type changes struct {
 	sync.Mutex
 	publisher sqlite.Publisher
 	tables    map[string]bool // The tables which are published, or all of them
+	schema    string          // The schema of the main database's changes, or main
 
 	pending    []written       // Written, in the transaction
 	committing []written       // Committed, unless the commit is rolled back
@@ -49,7 +50,7 @@ func newChanges(o *sqlite.Options) *changes {
 	if o.Broadcaster == nil {
 		return nil
 	}
-	c := &changes{publisher: o.Broadcaster}
+	c := &changes{publisher: o.Broadcaster, schema: o.Schema}
 	if len(o.Tables) > 0 {
 		c.tables = make(map[string]bool, len(o.Tables))
 		for _, table := range o.Tables {
@@ -248,6 +249,11 @@ func (c *changes) flush(db *sqlite3.Conn) {
 			kinds[key] = published
 		}
 		if published {
+			// The main database's changes are of the schema's name, when
+			// it's set, once its tables are checked, by their database
+			if change.Schema == "main" && c.schema != "" {
+				change.Schema = c.schema
+			}
 			c.publisher.Publish(change)
 		}
 	}

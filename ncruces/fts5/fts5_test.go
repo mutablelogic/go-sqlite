@@ -42,7 +42,7 @@ func Test_FTS5(t *testing.T) {
 type publisher struct{ tables []string }
 
 func (p *publisher) Publish(change schema.Change) int {
-	p.tables = append(p.tables, change.Table)
+	p.tables = append(p.tables, change.Schema+"."+change.Table)
 	return 0
 }
 
@@ -58,7 +58,22 @@ func Test_FTS5Changes(t *testing.T) {
 	require.NoError(t, db.Exec(ctx, `CREATE TABLE doc (id INTEGER PRIMARY KEY, body TEXT); CREATE VIRTUAL TABLE doc_text USING fts5(body)`))
 	p.tables = nil
 	require.NoError(t, db.Exec(ctx, `INSERT INTO doc (id, body) VALUES (1, 'rain'); INSERT INTO doc_text (rowid, body) VALUES (1, 'rain')`))
-	assert.Equal(t, []string{"doc"}, p.tables)
+	assert.Equal(t, []string{"main.doc"}, p.tables)
+}
+
+func Test_FTS5ChangesSchemaName(t *testing.T) {
+	ctx := t.Context()
+
+	// With a schema name, the shadow tables' changes still aren't published,
+	// as they're found by their database, and the table's are of the name
+	p := &publisher{}
+	db, err := ncruces.Open(ctx, t.TempDir()+"/test.db", sqlite.WithBroadcaster(p), sqlite.WithSchemaName("search"))
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, db.Close()) })
+	require.NoError(t, db.Exec(ctx, `CREATE TABLE doc (id INTEGER PRIMARY KEY, body TEXT); CREATE VIRTUAL TABLE doc_text USING fts5(body)`))
+	p.tables = nil
+	require.NoError(t, db.Exec(ctx, `INSERT INTO doc (id, body) VALUES (1, 'rain'); INSERT INTO doc_text (rowid, body) VALUES (1, 'rain')`))
+	assert.Equal(t, []string{"search.doc"}, p.tables)
 }
 
 func Test_FTS5ChangesRecreated(t *testing.T) {
@@ -75,5 +90,5 @@ func Test_FTS5ChangesRecreated(t *testing.T) {
 	require.NoError(t, db.Exec(ctx, `DROP TABLE doc_text; CREATE TABLE doc_text_data (id INTEGER PRIMARY KEY)`))
 	p.tables = nil
 	require.NoError(t, db.Exec(ctx, `INSERT INTO doc_text_data (id) VALUES (1)`))
-	assert.Equal(t, []string{"doc_text_data"}, p.tables)
+	assert.Equal(t, []string{"main.doc_text_data"}, p.tables)
 }
